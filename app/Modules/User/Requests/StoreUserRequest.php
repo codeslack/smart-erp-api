@@ -4,7 +4,7 @@ namespace App\Modules\User\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class LoginRequest extends FormRequest
+class StoreUserRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -15,19 +15,19 @@ class LoginRequest extends FormRequest
     {
         return [
 
-            'tenant' => [
+            'name' => [
                 'required',
-                'string',
+                'string'
             ],
 
             'email' => [
                 'required',
-                'email',
+                'email'
             ],
 
             'password' => [
                 'required',
-                'string',
+                'min:8'
             ],
         ];
     }

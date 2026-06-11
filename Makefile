@@ -37,6 +37,9 @@ dev: ## Start the local development server
 fresh-db: ## Wipe database and re-run all migrations/seeds
 	$(ARTISAN) migrate:fresh --seed
 
+db-up: ## run migrations
+	$(ARTISAN) migrate	
+
 routes: ## List all registered routes
 	$(ARTISAN) route:list
 
@@ -48,6 +51,9 @@ routes-grep: ## Search for a specific route (usage: make routes-grep find=user)
 
 tinker: ## Enter the interactive shell
 	$(ARTISAN) tinker
+
+table: ## Create a new migration file (usage: make table name=users)
+	$(ARTISAN) make:migration create_$(name)_table --create=$(name)
 
 lint: ## Run Laravel Pint to fix code style
 	./vendor/bin/pint
