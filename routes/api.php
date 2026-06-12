@@ -33,3 +33,18 @@ Route::middleware('tenant')
             'slug' => tenant()->slug,
         ];
     });
+
+Route::get('/rbac-test', function () {
+
+    return [
+        'tenant' => tenant()?->id,
+        'team_id' => app(
+            \Spatie\Permission\PermissionRegistrar::class
+        )->getPermissionsTeamId(),
+    ];
+
+})->middleware([
+    'auth:sanctum',
+    'tenant',
+    'permission.tenant',
+]);    

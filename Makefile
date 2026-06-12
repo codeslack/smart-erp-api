@@ -34,11 +34,17 @@ clear: ## Clear all application caches
 dev: ## Start the local development server
 	$(ARTISAN) serve
 
-fresh-db: ## Wipe database and re-run all migrations/seeds
+db-fresh: ## Wipe database and re-run all migrations/seeds
 	$(ARTISAN) migrate:fresh --seed
 
 db-up: ## run migrations
-	$(ARTISAN) migrate	
+	$(ARTISAN) migrate
+
+db-down: ## run migrations rollback
+	$(ARTISAN) migrate:rollback --step=1
+
+db-status: ## Show the status of database migrations
+	$(ARTISAN) migrate:status
 
 routes: ## List all registered routes
 	$(ARTISAN) route:list
