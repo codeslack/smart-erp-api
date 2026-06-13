@@ -25,3 +25,37 @@
 
 Phase 6: Inventory Engine
 Step 5: User Module
+
+
+
+Tenant
+Auth
+User
+RBAC
+
+Category
+Brand
+Unit
+Warehouse
+Product
+
+Supplier
+Customer
+
+Purchase
+Purchase Return
+
+Sales
+Sales Return
+
+Stock
+
+Accounting
+
+Reports
+
+Dashboard
+
+Activity Log
+
+Settings

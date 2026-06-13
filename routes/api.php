@@ -10,6 +10,10 @@ require_once base_path(
     'app/Modules/User/Routes/api.php'
 );
 
+// require_once base_path(
+//     'app/Modules/Rbac/Routes/api.php'
+// );
+
 Route::middleware('tenant')
     ->get('/customer-test', function () {
 
@@ -47,4 +51,19 @@ Route::get('/rbac-test', function () {
     'auth:sanctum',
     'tenant',
     'permission.tenant',
-]);    
+]);   
+
+Route::get('/rbac-debug', function () {
+
+    return response()->json([
+        'tenant' => tenant()?->id,
+        'team_id' => app(
+            \Spatie\Permission\PermissionRegistrar::class
+        )->getPermissionsTeamId(),
+        'user' => auth()->id(),
+    ]);
+})->middleware([
+    'auth:sanctum',
+    'tenant',
+    'permission.tenant',
+]);
