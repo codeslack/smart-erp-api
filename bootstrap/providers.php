@@ -7,4 +7,5 @@ return [
 
     App\Modules\Rbac\Providers\RbacServiceProvider::class,
     App\Modules\Unit\Providers\UnitServiceProvider::class,
+    App\Modules\Category\Providers\CategoryServiceProvider::class,
 ];
