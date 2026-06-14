@@ -2,6 +2,7 @@
 
 namespace App\Modules\Product\Requests;
 
+use Illuminate\Validation\Rule;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateProductRequest extends FormRequest
@@ -23,10 +24,10 @@ class UpdateProductRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
 
             'sku' => [
-                'required', 
-                'string', 
-                'max:100',
-                'unique:products,sku,' . $this->route('product')->id
+                'required',
+                'string',
+                Rule::unique('products', 'sku')
+                    ->ignore($this->product),
             ],
 
             'barcode' => ['nullable', 'string', 'max:100'],

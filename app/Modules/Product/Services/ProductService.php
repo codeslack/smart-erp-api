@@ -12,7 +12,7 @@ class ProductService
 
     public function getAll()
     {
-        return $this->repository->paginate();
+        return $this->repository->paginate(20);
     }
 
     public function find(int $id)

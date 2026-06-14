@@ -11,4 +11,5 @@ return [
     App\Modules\Brand\Providers\BrandServiceProvider::class,
     App\Modules\Warehouse\Providers\WarehouseServiceProvider::class,
     App\Modules\Product\Providers\ProductServiceProvider::class,
+    App\Modules\Inventory\Providers\InventoryServiceProvider::class,
 ];
