@@ -16,12 +16,38 @@ return new class extends Migration
             $table->id();
 
             $table->foreignId('tenant_id')
-                ->constrained()
+                ->constrained('tenants')
                 ->cascadeOnDelete();
 
             $table->string('name');
 
+            $table->string('code')
+                ->nullable();
+
+            $table->string('contact_person')
+                ->nullable();
+
+            $table->string('phone')
+                ->nullable();
+
+            $table->string('email')
+                ->nullable();
+
+            $table->text('address')
+                ->nullable();
+
+            $table->string('tax_number')
+                ->nullable();
+
+            $table->boolean('is_active')
+                ->default(true);
+
             $table->timestamps();
+
+            $table->index([
+                'tenant_id',
+                'name'
+            ]);
         });
     }
 

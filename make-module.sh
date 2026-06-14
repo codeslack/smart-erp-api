@@ -17,6 +17,10 @@ if [ -d "$MODULE_DIR" ]; then
     exit 1
 fi
 
+echo "🏗️  Scaffolding Module: $MODULE_NAME"
+echo "📂 Path: $MODULE_DIR"
+echo "🐍 Alias: ${MODULE_NAME}s"
+
 echo "Creating module at $MODULE_DIR..."
 
 # Create directory structure
@@ -33,9 +37,9 @@ cat <<EOT > "$MODULE_DIR/Models/$MODULE_NAME.php"
 
 namespace App\Modules\\$MODULE_NAME\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Core\Tenant\Models\TenantModel;
 
-class $MODULE_NAME extends Model
+class $MODULE_NAME extends TenantModel
 {
     protected \$fillable = [];
 }
@@ -48,7 +52,6 @@ cat <<EOT > "$MODULE_DIR/Controllers/${MODULE_NAME}Controller.php"
 namespace App\Modules\\$MODULE_NAME\Controllers;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Modules\\$MODULE_NAME\Requests\Store${MODULE_NAME}Request;
 use App\Modules\\$MODULE_NAME\Requests\Update${MODULE_NAME}Request;
 use App\Modules\\$MODULE_NAME\Resources\\${MODULE_NAME}Resource;
@@ -155,7 +158,13 @@ cat <<EOT > "$MODULE_DIR/Routes/api.php"
 use Illuminate\Support\Facades\Route;
 use App\Modules\\$MODULE_NAME\Controllers\\${MODULE_NAME}Controller;
 
-Route::apiResource('${1,,}', ${MODULE_NAME}Controller::class);
+Route::middleware([
+    'auth:sanctum',
+    'tenant',
+])->apiResource(
+    '${1,,}',
+    ${MODULE_NAME}Controller::class
+);
 EOT
 
 # 7. Create Service Provider
@@ -164,6 +173,7 @@ cat <<EOT > "$MODULE_DIR/Providers/${MODULE_NAME}ServiceProvider.php"
 
 namespace App\Modules\\$MODULE_NAME\Providers;
 
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
 class ${MODULE_NAME}ServiceProvider extends ServiceProvider
@@ -175,9 +185,13 @@ class ${MODULE_NAME}ServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        \$this->loadRoutesFrom(__DIR__ . '/../Routes/api.php');
+        Route::middleware('api')
+            ->prefix('api')
+            ->group(
+                __DIR__ . '/../Routes/api.php'
+            );
     }
 }
 EOT
 
-echo "Module '$MODULE_NAME' generated successfully inside app/Modules/!"
+echo "✅ Module '$MODULE_NAME' generated successfully inside app/Modules/!"
