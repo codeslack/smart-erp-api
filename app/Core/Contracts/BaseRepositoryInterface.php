@@ -6,6 +6,8 @@ interface BaseRepositoryInterface
 {
     public function all();
 
+    public function query();
+
     public function paginate(int $perPage = 15);
 
     public function find(int|string $id);

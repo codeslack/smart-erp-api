@@ -16,7 +16,14 @@ abstract class BaseRepository implements BaseRepositoryInterface
 
     public function all()
     {
-        return $this->model->all();
+        return $this->model
+            ->latest()
+            ->get();
+    }
+
+    public function query()
+    {
+        return $this->model->query();
     }
 
     public function paginate(int $perPage = 15)
