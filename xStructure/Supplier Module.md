@@ -1,52 +1,56 @@
 # Supplier Module
 1. bash make-module.sh Supplier
-2. make table name=product_stocks
+2. make table name=suppliers
 3. code App\Modules\Supplier\Repositories\SupplierRepository.php
 4. code App\Modules\Supplier\Repositories\Contracts\SupplierRepositoryInterface.php
 5. code App\Modules\Supplier\Services\SupplierService.php
-6. code App\Modules\Supplier\Services\SupplierService.php
+6. make db-up
+7. git commit -m "✅ Supplier Module Complete (Version 1)"
 
 Supplier
 ├── Model
 ├── Migration
+├── RepositoryInterface
 ├── Repository
 ├── Service
 ├── Controller
 ├── Resource
-├── Requests
-└── Routes
+├── StoreRequest
+├── UpdateRequest
+├── Routes
+└── Provider
 
 # Phase 1: Supplier Module Structure
 
 ```bash
-Modules
-└── Supplier
-    ├── Controllers
-    │   └── SupplierController.php
-    │
-    ├── Models
-    │   ├── ProductStock.php
-    │   └── StockLedger.php
-    │
-    ├── Repositories
-    │   ├── Contracts
-    │   │   └── SupplierRepositoryInterface.php
-    │   └── SupplierRepository.php
-    │
-    ├── Services
-    │   └── SupplierService.php
-    │
-    ├── Requests
-    │   └── OpeningStockRequest.php
-    │
-    ├── Resources
-    │   └── StockLedgerResource.php
-    │
-    ├── Routes
-    │   └── api.php
-    │
-    └── Providers
-        └── SupplierServiceProvider.php
+Module Structure
+Supplier
+├── Controllers
+│   └── SupplierController.php
+│
+├── Models
+│   └── Supplier.php
+│
+├── Repositories
+│   ├── Contracts
+│   │   └── SupplierRepositoryInterface.php
+│   └── SupplierRepository.php
+│
+├── Services
+│   └── SupplierService.php
+│
+├── Requests
+│   ├── StoreSupplierRequest.php
+│   └── UpdateSupplierRequest.php
+│
+├── Resources
+│   └── SupplierResource.php
+│
+├── Routes
+│   └── api.php
+│
+└── Providers
+    └── SupplierServiceProvider.php
 ```
 
 # Step 1: Create Migrations
