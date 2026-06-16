@@ -1,5 +1,7 @@
 <?php
 
+use App\Modules\Inventory\Enums\StockTransactionType;
+use App\Modules\Inventory\Services\InventoryService;
 use Illuminate\Support\Facades\Route;
 
 require base_path(
@@ -46,12 +48,11 @@ Route::get('/rbac-test', function () {
             \Spatie\Permission\PermissionRegistrar::class
         )->getPermissionsTeamId(),
     ];
-
 })->middleware([
     'auth:sanctum',
     'tenant',
     'permission.tenant',
-]);   
+]);
 
 Route::get('/rbac-debug', function () {
 
@@ -67,3 +68,27 @@ Route::get('/rbac-debug', function () {
     'tenant',
     'permission.tenant',
 ]);
+
+
+Route::middleware([
+    'auth:sanctum',
+    'tenant',
+])->group(function () {
+    Route::post(
+        'inventory/test-stock-out',
+        function (
+            InventoryService $inventory
+        ) {
+
+            return $inventory->stockOut(
+                productId: 1,
+                warehouseId: 1,
+                quantity: 5,
+
+                transactionType: StockTransactionType::SALE,
+
+                remarks: 'Testing Stock Out'
+            );
+        }
+    );
+});

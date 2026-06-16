@@ -97,4 +97,70 @@ class InventoryRepository implements InventoryRepositoryInterface
             return $stock->fresh();
         });
     }
+
+    public function stockOut(
+        int $productId,
+        int $warehouseId,
+        float $quantity,
+        string $transactionType,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+        ?string $remarks = null
+    ) {
+
+        $stock = ProductStock::query()
+            ->where('product_id', $productId)
+            ->where('warehouse_id', $warehouseId)
+            ->first();
+
+        if (! $stock) {
+
+            abort(
+                422,
+                'Stock not found.'
+            );
+        }
+
+        if ($stock->quantity < $quantity) {
+
+            abort(
+                422,
+                sprintf(
+                    'Insufficient stock. Available: %s',
+                    $stock->quantity
+                )
+            );
+        }
+
+        $stock->decrement(
+            'quantity',
+            $quantity
+        );
+
+        $stock->refresh();
+
+        StockLedger::create([
+            'tenant_id' => tenant()->id,
+
+            'product_id' => $productId,
+
+            'warehouse_id' => $warehouseId,
+
+            'transaction_type' => $transactionType,
+
+            'reference_type' => $referenceType,
+
+            'reference_id' => $referenceId,
+
+            'qty_in' => 0,
+
+            'qty_out' => $quantity,
+
+            'balance_after' => $stock->quantity,
+
+            'remarks' => $remarks,
+        ]);
+
+        return $stock;
+    }
 }

@@ -48,4 +48,24 @@ class InventoryService
             remarks: $remarks,
         );
     }
+
+    public function stockOut(
+        int $productId,
+        int $warehouseId,
+        float $quantity,
+        string $transactionType,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+        ?string $remarks = null
+    ) {
+        return $this->repository->stockOut(
+            productId: $productId,
+            warehouseId: $warehouseId,
+            quantity: $quantity,
+            transactionType: $transactionType,
+            referenceType: $referenceType,
+            referenceId: $referenceId,
+            remarks: $remarks,
+        );
+    }
 }

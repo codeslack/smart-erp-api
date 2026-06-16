@@ -21,4 +21,14 @@ interface InventoryRepositoryInterface
         ?int $referenceId = null,
         ?string $remarks = null
     );
+
+    public function stockOut(
+        int $productId,
+        int $warehouseId,
+        float $quantity,
+        string $transactionType,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+        ?string $remarks = null
+    );
 }

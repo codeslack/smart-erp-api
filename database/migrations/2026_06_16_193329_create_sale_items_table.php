@@ -1,0 +1,55 @@
+<?php
+
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\Migrations\Migration;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('sale_items', function (
+            Blueprint $table
+        ) {
+            $table->id();
+
+            $table->foreignId('sale_id');
+
+            $table->foreignId('product_id');
+
+            $table->foreignId('warehouse_id');
+
+            $table->decimal(
+                'quantity',
+                18,
+                4
+            );
+
+            $table->decimal(
+                'unit_price',
+                18,
+                4
+            );
+
+            $table->decimal(
+                'line_total',
+                18,
+                4
+            );
+
+            $table->timestamps();
+
+            $table->index([
+                'sale_id',
+                'product_id',
+            ]);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists(
+            'sale_items'
+        );
+    }
+};

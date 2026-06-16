@@ -14,5 +14,6 @@ return [
     App\Modules\Inventory\Providers\InventoryServiceProvider::class,
     App\Modules\Supplier\Providers\SupplierServiceProvider::class,
     App\Modules\Customer\Providers\CustomerServiceProvider::class,
-    App\Modules\Purchase\Providers\PurchaseServiceProvider::class
+    App\Modules\Purchase\Providers\PurchaseServiceProvider::class,
+    App\Modules\Sales\Providers\SaleServiceProvider::class,
 ];
