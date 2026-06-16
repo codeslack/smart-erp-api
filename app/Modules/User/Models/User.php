@@ -7,9 +7,11 @@ use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Notifications\Notifiable;
 use App\Core\Tenant\TenantAuthenticatable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class User extends TenantAuthenticatable
 {
+    use HasFactory;
     use HasApiTokens;
     use HasRoles;
     use Notifiable;
@@ -48,5 +50,13 @@ class User extends TenantAuthenticatable
         return $this->belongsTo(
             \App\Modules\Tenant\Models\Tenant::class
         );
+    }
+
+    /**
+     * Create a new factory instance for the model.
+     */
+    protected static function newFactory()
+    {
+        return \Database\Factories\UserFactory::new();
     }
 }

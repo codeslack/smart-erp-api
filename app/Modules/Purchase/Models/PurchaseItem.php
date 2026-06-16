@@ -1,31 +1,38 @@
 <?php
 
-namespace App\Modules\Inventory\Models;
+namespace App\Modules\Purchase\Models;
 
-use App\Core\Tenant\Models\TenantModel;
+use Illuminate\Database\Eloquent\Model;
 use App\Modules\Product\Models\Product;
 use App\Modules\Warehouse\Models\Warehouse;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class StockLedger extends TenantModel
+class PurchaseItem extends Model
 {
     protected $fillable = [
-        'tenant_id',
+        'purchase_id',
+
         'product_id',
         'warehouse_id',
 
-        'transaction_type',
+        'quantity',
+        'unit_cost',
 
-        'reference_type',
-        'reference_id',
-
-        'qty_in',
-        'qty_out',
-
-        'balance_after',
-
-        'remarks',
+        'line_total',
     ];
+
+    protected $casts = [
+        'quantity' => 'decimal:4',
+        'unit_cost' => 'decimal:4',
+        'line_total' => 'decimal:4',
+    ];
+
+    public function purchase(): BelongsTo
+    {
+        return $this->belongsTo(
+            Purchase::class
+        );
+    }
 
     public function product(): BelongsTo
     {

@@ -2,9 +2,9 @@
 
 namespace App\Modules\Product\Models;
 
-use App\Core\Tenant\TenantModel;
 use App\Modules\Unit\Models\Unit;
 use App\Modules\Brand\Models\Brand;
+use App\Core\Tenant\Models\TenantModel;
 use App\Modules\Category\Models\Category;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 

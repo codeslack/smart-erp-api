@@ -28,4 +28,24 @@ class InventoryService
         return $this->repository
             ->ledger($product);
     }
+
+    public function stockIn(
+        int $productId,
+        int $warehouseId,
+        float $quantity,
+        string $transactionType,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+        ?string $remarks = null
+    ) {
+        return $this->repository->stockIn(
+            productId: $productId,
+            warehouseId: $warehouseId,
+            quantity: $quantity,
+            transactionType: $transactionType,
+            referenceType: $referenceType,
+            referenceId: $referenceId,
+            remarks: $remarks,
+        );
+    }
 }

@@ -13,13 +13,53 @@ class InventoryRepository implements InventoryRepositoryInterface
 {
     public function openingStock(array $data)
     {
-        return DB::transaction(function () use ($data) {
+        return $this->stockIn(
+            productId: $data['product_id'],
+            warehouseId: $data['warehouse_id'],
+            quantity: $data['quantity'],
+            transactionType: StockTransactionType::OPENING_STOCK,
+            remarks: $data['remarks'] ?? null,
+        );
+    }
+
+    public function stock(Product $product)
+    {
+        return ProductStock::query()
+            ->where('product_id', $product->id)
+            ->get();
+    }
+
+    public function ledger(Product $product)
+    {
+        return StockLedger::query()
+            ->where('product_id', $product->id)
+            ->latest('id')
+            ->get();
+    }
+
+    public function stockIn(
+        int $productId,
+        int $warehouseId,
+        float $quantity,
+        string $transactionType,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+        ?string $remarks = null
+    ) {
+        return DB::transaction(function () use (
+            $productId,
+            $warehouseId,
+            $quantity,
+            $transactionType,
+            $referenceType,
+            $referenceId,
+            $remarks
+        ) {
 
             $stock = ProductStock::firstOrCreate(
                 [
-                    'tenant_id' => tenant()->id,
-                    'product_id' => $data['product_id'],
-                    'warehouse_id' => $data['warehouse_id'],
+                    'product_id' => $productId,
+                    'warehouse_id' => $warehouseId,
                 ],
                 [
                     'quantity' => 0,
@@ -28,46 +68,33 @@ class InventoryRepository implements InventoryRepositoryInterface
 
             $newBalance =
                 $stock->quantity +
-                $data['quantity'];
-
-            StockLedger::create([
-                'tenant_id' => tenant()->id,
-
-                'product_id' => $data['product_id'],
-                'warehouse_id' => $data['warehouse_id'],
-
-                'transaction_type' => StockTransactionType::OPENING_STOCK,
-
-                'qty_in' => $data['quantity'],
-                'qty_out' => 0,
-
-                'balance_after' => $newBalance,
-
-                'remarks' => $data['remarks'] ?? null,
-            ]);
+                $quantity;
 
             $stock->update([
                 'quantity' => $newBalance,
             ]);
 
+            StockLedger::create([
+                'product_id' => $productId,
+
+                'warehouse_id' => $warehouseId,
+
+                'transaction_type' => $transactionType,
+
+                'reference_type' => $referenceType,
+
+                'reference_id' => $referenceId,
+
+                'qty_in' => $quantity,
+
+                'qty_out' => 0,
+
+                'balance_after' => $newBalance,
+
+                'remarks' => $remarks,
+            ]);
+
             return $stock->fresh();
         });
-    }
-
-    public function stock(Product $product)
-    {
-        return ProductStock::query()
-            ->where('tenant_id', tenant()->id)
-            ->where('product_id', $product->id)
-            ->get();
-    }
-
-    public function ledger(Product $product)
-    {
-        return StockLedger::query()
-            ->where('tenant_id', tenant()->id)
-            ->where('product_id', $product->id)
-            ->latest('id')
-            ->get();
     }
 }

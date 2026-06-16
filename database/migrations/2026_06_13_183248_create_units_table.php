@@ -28,6 +28,11 @@ return new class extends Migration
                 'tenant_id',
                 'name'
             ]);
+
+            $table->unique([
+                'tenant_id',
+                'short_name'
+            ]);
         });
     }
 

@@ -11,4 +11,14 @@ interface InventoryRepositoryInterface
     public function stock(Product $product);
 
     public function ledger(Product $product);
+
+    public function stockIn(
+        int $productId,
+        int $warehouseId,
+        float $quantity,
+        string $transactionType,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+        ?string $remarks = null
+    );
 }

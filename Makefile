@@ -55,6 +55,9 @@ routes-api: ## List only API routes
 routes-grep: ## Search for a specific route (usage: make routes-grep find=user)
 	$(ARTISAN) route:list | grep $(find)
 
+routes-vv: ## Expanded Middleware View route (usage: make routes-grep find=user)
+	$(ARTISAN) route:list -v --path=$(find)
+
 tinker: ## Enter the interactive shell
 	$(ARTISAN) tinker
 
