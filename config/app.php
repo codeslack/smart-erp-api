@@ -13,7 +13,7 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Laravel'),
+    'name' => env('APP_NAME', 'Smart-ERP'),
 
     /*
     |--------------------------------------------------------------------------
@@ -53,6 +53,26 @@ return [
     */
 
     'url' => env('APP_URL', 'http://localhost'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application version
+    |--------------------------------------------------------------------------
+    | This value determines the "Application" currently version or not. 
+    | Set this in your ".env" file.
+   */
+
+   'version' => env('APP_VERSION', '0.0.1'),
+
+   /*
+    |--------------------------------------------------------------------------
+    | Application installed
+    |--------------------------------------------------------------------------
+    | This value determines the "Application" currently installed or not. 
+    | Set this in your ".env" file.
+   */
+
+   'installed' => (bool) env('APP_INSTALLED', false),
 
     /*
     |--------------------------------------------------------------------------

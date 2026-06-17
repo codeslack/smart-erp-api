@@ -1,265 +1,102 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Laravel 13 Modular API Framework
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A high-performance, **Headless API-Only Backend** architecture designed for scalability, transaction safety, and auditability.
 
-## About Laravel
+## 🚀 Key Features
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+*   **Modular Monolith**: Organized by functional modules (Users, Products, Invoices).
+*   **Job-Centric Logic**: All business actions are encapsulated in Transactional Jobs.
+*   **API Versioning**: Native support for URL-based versioning (e.g., `/api/v1/`, `/api/v2/`).
+*   **Database Idempotency**: Built-in protection against duplicate requests using `Idempotency-Key` headers.
+*   **Automatic Audit Logging**: Tracks every field change and job execution status.
+*   **Response Macros**: Unified JSON response structure for success, errors, and validation.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## 📂 Project Structure
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
+```text
+app/
+├── Abstracts/             # Base Job, ModuleServiceProvider, and SearchJob
+├── Http/
+│   ├── Controllers/       # Base Controller with transformIndex
+│   └── Middleware/        # IdempotencyMiddleware
+├── Interfaces/            # Job Contexts (ShouldCreate, ShouldUpdate, ShouldDelete)
+├── Modules/               # Functional Modules
+│   └── [ModuleName]/
+│       ├── Http/          # Versioned Controllers (V1, V2)
+│       ├── Jobs/          # Business Logic
+│       ├── Routes/        # Versioned Routes (v1.php, v2.php)
+│       └── Providers/     # Module Service Provider
+└── Traits/                # Reusable logic (Relationships, Jobs, Audit)
+```
+## 🛠 Installation
+Clone the repository:
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+git clone <repository-url>
+cd <project-folder>
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+## 2. Implementing a Job
+Extend App\Abstracts\Job to ensure the logic is validated, authorized, and audited automatically.
+```php
+class CreateProduct extends Job implements ShouldCreate 
+{
+    public function rules(): array {
+        return ['name' => 'required', 'price' => 'required|numeric'];
+    }
 
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
-
+    protected function execute() {
+        return Product::create($this->request->all());
+    }
+}
 ```
-erp-api
-├─ .editorconfig
-├─ .npmrc
-├─ app
-│  ├─ Core
-│  │  ├─ Contracts
-│  │  │  └─ BaseRepositoryInterface.php
-│  │  ├─ Repositories
-│  │  │  └─ BaseRepository.php
-│  │  └─ Tenant
-│  │     ├─ helpers.php
-│  │     ├─ Middleware
-│  │     │  ├─ SetPermissionTenant.php
-│  │     │  └─ TenantMiddleware.php
-│  │     ├─ Models
-│  │     │  └─ TenantModel.php
-│  │     ├─ TenantAuthenticatable.php
-│  │     ├─ TenantManager.php
-│  │     ├─ TenantMiddleware.php
-│  │     ├─ TenantModel.php
-│  │     ├─ TenantResolver.php
-│  │     ├─ TenantScope.php
-│  │     └─ TenantTeamResolver.php
-│  ├─ Http
-│  │  └─ Controllers
-│  │     └─ Controller.php
-│  ├─ Models
-│  │  └─ User.php
-│  ├─ Modules
-│  │  ├─ Audit
-│  │  ├─ Brand
-│  │  ├─ Category
-│  │  ├─ Customer
-│  │  │  └─ Models
-│  │  │     └─ Customer.php
-│  │  ├─ Rbac
-│  │  │  ├─ Contracts
-│  │  │  │  └─ RoleRepositoryInterface.php
-│  │  │  ├─ Controllers
-│  │  │  │  ├─ PermissionController.php
-│  │  │  │  ├─ RoleController.php
-│  │  │  │  ├─ RolePermissionController.php
-│  │  │  │  └─ UserRoleController.php
-│  │  │  ├─ Models
-│  │  │  │  ├─ Permission.php
-│  │  │  │  └─ Role.php
-│  │  │  ├─ Providers
-│  │  │  │  └─ RbacServiceProvider.php
-│  │  │  ├─ Repositories
-│  │  │  │  └─ RoleRepository.php
-│  │  │  ├─ Requests
-│  │  │  │  ├─ AssignPermissionsRequest.php
-│  │  │  │  ├─ AssignRolesRequest.php
-│  │  │  │  ├─ StoreRoleRequest.php
-│  │  │  │  └─ UpdateRoleRequest.php
-│  │  │  ├─ Resources
-│  │  │  │  ├─ PermissionResource.php
-│  │  │  │  ├─ RoleResource.php
-│  │  │  │  └─ UserPermissionResource.php
-│  │  │  ├─ Routes
-│  │  │  │  └─ api.php
-│  │  │  ├─ Seeders
-│  │  │  │  ├─ PermissionSeeder.php
-│  │  │  │  └─ RoleSeeder.php
-│  │  │  └─ Services
-│  │  │     └─ RoleService.php
-│  │  ├─ Supplier
-│  │  ├─ Tenant
-│  │  │  ├─ Controllers
-│  │  │  │  └─ TenantController.php
-│  │  │  ├─ Models
-│  │  │  │  └─ Tenant.php
-│  │  │  ├─ Repositories
-│  │  │  │  ├─ Contracts
-│  │  │  │  │  └─ TenantRepositoryInterface.php
-│  │  │  │  └─ TenantRepository.php
-│  │  │  ├─ Requests
-│  │  │  │  └─ StoreTenantRequest.php
-│  │  │  ├─ Resources
-│  │  │  │  └─ TenantResource.php
-│  │  │  ├─ Routes
-│  │  │  │  └─ api.php
-│  │  │  └─ Services
-│  │  │     └─ TenantService.php
-│  │  ├─ Unit
-│  │  │  ├─ Controllers
-│  │  │  │  └─ UnitController.php
-│  │  │  ├─ Models
-│  │  │  │  └─ Unit.php
-│  │  │  ├─ Repositories
-│  │  │  ├─ Requests
-│  │  │  └─ Services
-│  │  ├─ User
-│  │  │  ├─ Controllers
-│  │  │  │  ├─ AuthController.php
-│  │  │  │  └─ UserController.php
-│  │  │  ├─ Models
-│  │  │  │  └─ User.php
-│  │  │  ├─ Repositories
-│  │  │  │  ├─ Contracts
-│  │  │  │  │  └─ UserRepositoryInterface.php
-│  │  │  │  └─ UserRepository.php
-│  │  │  ├─ Requests
-│  │  │  │  ├─ LoginRequest.php
-│  │  │  │  └─ StoreUserRequest.php
-│  │  │  ├─ Resources
-│  │  │  │  └─ UserResource.php
-│  │  │  ├─ Routes
-│  │  │  │  └─ api.php
-│  │  │  └─ Services
-│  │  │     ├─ AuthService.php
-│  │  │     └─ UserService.php
-│  │  └─ Warehouse
-│  ├─ Providers
-│  │  └─ AppServiceProvider.php
-│  └─ Shared
-├─ artisan
-├─ bootstrap
-│  ├─ app.php
-│  ├─ cache
-│  │  ├─ packages.php
-│  │  └─ services.php
-│  └─ providers.php
-├─ composer.json
-├─ composer.lock
-├─ config
-│  ├─ app.php
-│  ├─ auth.php
-│  ├─ cache.php
-│  ├─ database.php
-│  ├─ erp_permissions.php
-│  ├─ filesystems.php
-│  ├─ logging.php
-│  ├─ mail.php
-│  ├─ permission.php
-│  ├─ queue.php
-│  ├─ sanctum.php
-│  ├─ services.php
-│  └─ session.php
-├─ database
-│  ├─ database.sqlite
-│  ├─ factories
-│  │  └─ UserFactory.php
-│  ├─ migrations
-│  │  ├─ 0000_01_01_000000_create_tenants_table.php
-│  │  ├─ 0001_01_01_000000_create_users_table.php
-│  │  ├─ 0001_01_01_000001_create_cache_table.php
-│  │  ├─ 0001_01_01_000002_create_jobs_table.php
-│  │  ├─ 2026_06_11_184030_create_personal_access_tokens_table.php
-│  │  ├─ 2026_06_11_201424_create_customers_table.php
-│  │  ├─ 2026_06_12_072137_create_permission_tables.php
-│  │  └─ database
-│  │     └─ migrations
-│  └─ seeders
-│     ├─ AdminUserSeeder.php
-│     ├─ DatabaseSeeder.php
-│     └─ TenantSeeder.php
-├─ docs
-│  └─ .project_structure_ignore
-├─ IntelephenseHelper.php
-├─ Makefile
-├─ package.json
-├─ phpunit.xml
-├─ public
-│  ├─ .htaccess
-│  ├─ favicon.ico
-│  ├─ index.php
-│  └─ robots.txt
-├─ README.md
-├─ resources
-│  ├─ css
-│  │  └─ app.css
-│  ├─ js
-│  │  └─ app.js
-│  └─ views
-│     └─ welcome.blade.php
-├─ routes
-│  ├─ api.php
-│  ├─ console.php
-│  └─ web.php
-├─ storage
-│  ├─ app
-│  │  ├─ private
-│  │  └─ public
-│  ├─ framework
-│  │  ├─ cache
-│  │  │  └─ data
-│  │  ├─ sessions
-│  │  ├─ testing
-│  │  └─ views
-│  └─ logs
-├─ tests
-│  ├─ Feature
-│  │  └─ ExampleTest.php
-│  ├─ TestCase.php
-│  └─ Unit
-│     └─ ExampleTest.php
-├─ todo-list.md
-├─ TODO.md
-├─ touch
-├─ vite.config.js
-└─ xStructure
-   └─ RBAC Module Structure.md
 
-```
+*** Recommended ERP Modules ***
+# Masters
+    Customers
+    Suppliers
+    Products
+    Categories
+    Brands
+    Units
+    Warehouses
+
+# Purchase
+    Purchase Orders
+    Goods Receive Notes
+    Purchase Returns
+
+# Sales
+    Quotations
+    Sales Orders
+    Invoices
+    Sales Returns
+
+# Inventory
+    Stock Movement
+    Stock Transfer
+    Stock Adjustment
+
+# Accounting
+    Chart of Accounts
+    Journal
+    Ledger
+    Payments
+    Expenses
+    Bank Accounts
+
+# Reports
+    Trial Balance
+    Profit & Loss
+    Balance Sheet
+    Cash Flow
+    Stock Valuation
+    Purchase Report
+    Sales Report
+    Tax Report
+
+# Administration
+    Users
+    Roles
+    Permissions
+    Audit Logs
+    Tenant Settings
