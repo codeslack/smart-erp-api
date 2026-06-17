@@ -13,11 +13,16 @@ return new class extends Migration
         ) {
             $table->id();
 
-            $table->foreignId('tenant_id');
+            $table->foreignId('tenant_id')
+                ->constrained('tenants')
+                ->cascadeOnDelete();
 
-            $table->string('sale_no')->unique();
+            $table->string('sale_no')
+                ->unique();
 
-            $table->foreignId('customer_id');
+            $table->foreignId('customer_id')
+                ->constrained('customers')
+                ->cascadeOnDelete();
 
             $table->date('sale_date');
 
@@ -52,6 +57,11 @@ return new class extends Migration
                 ->nullable();
 
             $table->timestamps();
+
+            $table->index([
+                'tenant_id',
+                'sale_date'
+            ]);
 
             $table->index([
                 'tenant_id',

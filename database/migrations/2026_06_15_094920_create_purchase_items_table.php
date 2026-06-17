@@ -45,6 +45,11 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index([
+                'purchase_id',
+                'product_id'
+            ]);
+
+            $table->index([
                 'product_id',
                 'warehouse_id'
             ]);

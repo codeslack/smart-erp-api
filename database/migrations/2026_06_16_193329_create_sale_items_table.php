@@ -13,11 +13,17 @@ return new class extends Migration
         ) {
             $table->id();
 
-            $table->foreignId('sale_id');
+            $table->foreignId('sale_id')
+                ->constrained('purchases')
+                ->cascadeOnDelete();
 
-            $table->foreignId('product_id');
+            $table->foreignId('product_id')
+                ->constrained('products')
+                ->cascadeOnDelete();
 
-            $table->foreignId('warehouse_id');
+            $table->foreignId('warehouse_id')
+                ->constrained('warehouses')
+                ->cascadeOnDelete();
 
             $table->decimal(
                 'quantity',
@@ -41,7 +47,12 @@ return new class extends Migration
 
             $table->index([
                 'sale_id',
+                'product_id'
+            ]);
+
+            $table->index([
                 'product_id',
+                'warehouse_id'
             ]);
         });
     }
