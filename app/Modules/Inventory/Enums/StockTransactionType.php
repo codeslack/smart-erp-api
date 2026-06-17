@@ -8,6 +8,8 @@ class StockTransactionType
 
     public const PURCHASE = 'purchase';
 
+    public const PURCHASE_RETURN = 'purchase_return';
+
     public const SALE = 'sale';
 
     public const ADJUSTMENT = 'adjustment';

@@ -16,4 +16,5 @@ return [
     App\Modules\Customer\Providers\CustomerServiceProvider::class,
     App\Modules\Purchase\Providers\PurchaseServiceProvider::class,
     App\Modules\Sales\Providers\SaleServiceProvider::class,
+    App\Modules\PurchaseReturn\Providers\PurchaseReturnServiceProvider::class,
 ];
