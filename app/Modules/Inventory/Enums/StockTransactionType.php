@@ -12,6 +12,8 @@ class StockTransactionType
 
     public const SALE = 'sale';
 
+    public const SALES_RETURN = 'sales_return';
+
     public const ADJUSTMENT = 'adjustment';
 
     public const TRANSFER_IN = 'transfer_in';
