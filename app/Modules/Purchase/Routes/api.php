@@ -12,7 +12,7 @@ Route::middleware([
     Route::post(
         'purchases/{purchase}/approve',
         [PurchaseController::class, 'approve']
-    );
+    )->name('purchases.approve');
 
     Route::apiResource(
         'purchases',

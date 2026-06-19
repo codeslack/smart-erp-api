@@ -20,4 +20,5 @@ return [
     App\Modules\SalesReturn\Providers\SalesReturnServiceProvider::class,
     App\Modules\StockAdjustment\Providers\StockAdjustmentServiceProvider::class,
     App\Modules\StockTransfer\Providers\StockTransferServiceProvider::class,
+    App\Modules\PurchaseOrder\Providers\PurchaseOrderServiceProvider::class,
 ];
