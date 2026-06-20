@@ -41,7 +41,7 @@ db-up: ## run migrations
 	$(ARTISAN) migrate
 
 db-down: ## run migrations rollback
-	$(ARTISAN) migrate:rollback --step=1
+	$(ARTISAN) migrate:rollback $(if $(step),--step=$(step))
 
 db-status: ## Show the status of database migrations
 	$(ARTISAN) migrate:status

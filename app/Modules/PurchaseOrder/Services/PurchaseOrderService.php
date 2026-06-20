@@ -77,6 +77,8 @@ class PurchaseOrderService
                     'quantity'          => $item['quantity'],
                     'unit_cost'         => $item['unit_cost'],
                     'line_total'        => $lineTotal,
+                    'received_quantity' => 0,
+                    'pending_quantity'  => $item['quantity'],
                 ]);
 
                 $subtotal += $lineTotal;

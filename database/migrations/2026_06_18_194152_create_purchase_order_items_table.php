@@ -45,6 +45,18 @@ return new class extends Migration
                 4
             );
 
+            $table->decimal(
+                'received_quantity',
+                15,
+                4
+            )->default(0);
+
+            $table->decimal(
+                'pending_quantity',
+                15,
+                4
+            )->default(0);
+
             $table->timestamps();
 
             $table->index([
