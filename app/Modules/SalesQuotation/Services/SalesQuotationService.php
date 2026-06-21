@@ -3,10 +3,13 @@
 namespace App\Modules\SalesQuotation\Services;
 
 use Illuminate\Support\Facades\DB;
-use App\Modules\Product\Models\Product;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
+use App\Modules\Product\Models\Product;
 use App\Modules\Sales\Enums\SaleStatus;
+use App\Modules\SalesOrder\Models\SalesOrder;
+use App\Modules\SalesOrder\Models\SalesOrderItem;
+use App\Modules\SalesOrder\Enums\SalesOrderStatus;
 use App\Modules\SalesQuotation\Models\SalesQuotation;
 use App\Modules\SalesQuotation\Models\SalesQuotationItem;
 use App\Modules\SalesQuotation\Enums\SalesQuotationStatus;
@@ -129,6 +132,71 @@ class SalesQuotationService
         return $quotation->fresh();
     }
 
+    public function convertToSalesOrder(
+        SalesQuotation $quotation
+    ) {
+        return DB::transaction(function () use ($quotation) {
+
+            abort_if(
+                $quotation->status !== SalesQuotationStatus::APPROVED,
+                422,
+                'Quotation must be approved first.'
+            );
+
+            $quotation->loadMissing(
+                'items'
+            );
+
+            $nextId = (
+                SalesOrder::max('id') ?? 0
+            ) + 1;
+
+            $salesOrder = SalesOrder::create([
+                'tenant_id'   => tenant()->id,
+                'customer_id' => $quotation->customer_id,
+                'so_no'       => sprintf(
+                    'SO-%06d',
+                    $nextId
+                ),
+                'order_date'  => now(),
+                'subtotal'    => $quotation->subtotal,
+                'discount_amount' => 0,
+                'tax_amount'      => 0,
+                'grand_total' => $quotation->grand_total,
+                'status'      => SalesOrderStatus::DRAFT,
+                'notes'       => sprintf(
+                    'Generated from %s',
+                    $quotation->quotation_no
+                ),
+            ]);
+
+            foreach (
+                $quotation->items as $item
+            ) {
+
+                SalesOrderItem::create([
+                    'sales_order_id'    => $salesOrder->id,
+                    'product_id'        => $item->product_id,
+                    'warehouse_id'      => $item->warehouse_id,
+                    'quantity'          => $item->quantity,
+                    'delivered_quantity' => 0,
+                    'pending_quantity'  => $item->quantity,
+                    'unit_price'        => $item->unit_price,
+                    'line_total'        => $item->line_total,
+                ]);
+            }
+
+            $quotation->update([
+                'status' => SalesQuotationStatus::CONVERTED_TO_ORDER,
+            ]);
+
+            return $salesOrder->load(
+                'items'
+            );
+        });
+    }
+
+
     public function convertToSale(
         SalesQuotation $quotation
     ) {
@@ -180,7 +248,7 @@ class SalesQuotationService
             }
 
             $quotation->update([
-                'status' => SalesQuotationStatus::CONVERTED,
+                'status' => SalesQuotationStatus::CONVERTED_TO_SALE,
             ]);
 
             return $sale->load(

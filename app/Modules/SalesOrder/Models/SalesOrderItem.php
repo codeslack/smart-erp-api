@@ -12,6 +12,8 @@ class SalesOrderItem extends Model
         'product_id',
         'warehouse_id',
         'quantity',
+        'delivered_quantity',
+        'pending_quantity',
         'unit_price',
         'line_total',
     ];

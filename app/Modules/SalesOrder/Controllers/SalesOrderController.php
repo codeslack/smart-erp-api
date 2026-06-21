@@ -80,6 +80,18 @@ class SalesOrderController extends Controller
         ]);
     }
 
+    public function convertToDeliveryNote(
+        SalesOrder $salesOrder
+    ) {
+        return response()->json([
+            'success' => true,
+            'message' => 'Sales Order converted to Delivery Note successfully',
+            'data' => $this->service->convertToDeliveryNote(
+                $salesOrder
+            ),
+        ]);
+    }
+
     public function destroy(
         SalesOrder $salesOrder
     ) {

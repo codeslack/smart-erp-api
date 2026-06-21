@@ -80,6 +80,19 @@ class SalesQuotationController extends Controller
         ]);
     }
 
+    public function convertToSalesOrder(
+        SalesQuotation $salesQuotation
+    ) {
+        return response()->json([
+            'success' => true,
+            'message' => 'Sales Quotation converted to Sales Order successfully',
+            'data' => $this->service->convertToSalesOrder(
+                $salesQuotation
+            ),
+        ]);
+    }
+
+
     public function destroy(
         SalesQuotation $salesQuotation
     ) {

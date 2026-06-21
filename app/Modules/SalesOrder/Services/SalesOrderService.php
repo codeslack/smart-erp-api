@@ -3,14 +3,18 @@
 namespace App\Modules\SalesOrder\Services;
 
 use Illuminate\Support\Facades\DB;
-use App\Modules\Product\Models\Product;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\Sales\Enums\SaleStatus;
+use App\Modules\Product\Models\Product;
 use App\Modules\SalesOrder\Models\SalesOrder;
 use App\Modules\SalesOrder\Models\SalesOrderItem;
+use App\Modules\DeliveryNote\Models\DeliveryNote;
 use App\Modules\SalesOrder\Enums\SalesOrderStatus;
+use App\Modules\DeliveryNote\Models\DeliveryNoteItem;
+use App\Modules\DeliveryNote\Enums\DeliveryNoteStatus;
 use App\Modules\SalesOrder\Repositories\Contracts\SalesOrderRepositoryInterface;
+
 
 class SalesOrderService
 {
@@ -71,12 +75,14 @@ class SalesOrderService
                     $item['unit_price'];
 
                 SalesOrderItem::create([
-                    'sales_order_id' => $salesOrder->id,
-                    'product_id'     => $item['product_id'],
-                    'warehouse_id'   => $item['warehouse_id'],
-                    'quantity'       => $item['quantity'],
-                    'unit_price'     => $item['unit_price'],
-                    'line_total'     => $lineTotal,
+                    'sales_order_id'     => $salesOrder->id,
+                    'product_id'         => $item['product_id'],
+                    'warehouse_id'       => $item['warehouse_id'],
+                    'quantity'           => $item['quantity'],
+                    'delivered_quantity' => 0,
+                    'pending_quantity'   => $item['quantity'],
+                    'unit_price'         => $item['unit_price'],
+                    'line_total'         => $lineTotal,
                 ]);
 
                 $subtotal += $lineTotal;
@@ -127,6 +133,79 @@ class SalesOrderService
         ]);
 
         return $salesOrder->fresh();
+    }
+
+    public function convertToDeliveryNote(
+        SalesOrder $salesOrder
+    ) {
+        return DB::transaction(function () use ($salesOrder) {
+
+            abort_if(
+                $salesOrder->status !== SalesOrderStatus::APPROVED,
+                422,
+                'Sales Order must be approved first.'
+            );
+
+            $salesOrder->loadMissing('items');
+
+            $nextId = (
+                DeliveryNote::max('id') ?? 0
+            ) + 1;
+
+            $grandTotal = 0;
+
+            $deliveryNote = DeliveryNote::create([
+                'tenant_id'      => tenant()->id,
+                'sales_order_id' => $salesOrder->id,
+                'customer_id'    => $salesOrder->customer_id,
+                'dn_no'          => sprintf(
+                    'DN-%06d',
+                    $nextId
+                ),
+                'delivery_date'  => now(),
+                'grand_total'    => 0,
+                'status'         => DeliveryNoteStatus::DRAFT,
+                'notes'          => sprintf(
+                    'Generated from %s',
+                    $salesOrder->so_no
+                ),
+            ]);
+
+            foreach ($salesOrder->items as $item) {
+
+                if ($item->pending_quantity <= 0) {
+                    continue;
+                }
+
+                $lineTotal =
+                    $item->pending_quantity
+                    *
+                    $item->unit_price;
+
+                DeliveryNoteItem::create([
+                    'delivery_note_id'   => $deliveryNote->id,
+                    'product_id'         => $item->product_id,
+                    'warehouse_id'       => $item->warehouse_id,
+                    'ordered_quantity'   => $item->quantity,
+                    'delivered_quantity' => 0,
+                    'pending_quantity'   => $item->pending_quantity,
+                    'unit_price'         => $item->unit_price,
+                    'line_total'         => $lineTotal,
+                ]);
+
+                $grandTotal += $lineTotal;
+            }
+
+            $deliveryNote->update([
+                'grand_total' => $grandTotal,
+            ]);
+
+            $salesOrder->update([
+                'status' => SalesOrderStatus::CONVERTED_TO_DELIVERY,
+            ]);
+
+            return $deliveryNote->load('items');
+        });
     }
 
     public function convertToSale(
@@ -180,7 +259,7 @@ class SalesOrderService
             }
 
             $salesOrder->update([
-                'status' => SalesOrderStatus::CONVERTED,
+                'status' => SalesOrderStatus::CONVERTED_TO_SALE,
             ]);
 
             return $sale->load(

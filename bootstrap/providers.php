@@ -24,4 +24,5 @@ return [
     App\Modules\SalesQuotation\Providers\SalesQuotationServiceProvider::class,
     App\Modules\SalesOrder\Providers\SalesOrderServiceProvider::class,
     App\Modules\GoodsReceiptNote\Providers\GoodsReceiptNoteServiceProvider::class,
+    App\Modules\DeliveryNote\Providers\DeliveryNoteServiceProvider::class,
 ];

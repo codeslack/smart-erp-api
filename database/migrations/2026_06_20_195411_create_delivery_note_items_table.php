@@ -6,28 +6,30 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::create('sales_order_items', function (Blueprint $table) {
+        Schema::create('delivery_note_items', function (Blueprint $table) {
+
             $table->id();
 
-            $table->foreignId('sales_order_id')
-                ->constrained('sales_orders')
-                ->cascadeOnDelete();
+            $table->foreignId(
+                'tenant_id'
+            )->constrained()->cascadeOnDelete();
 
-            $table->foreignId('product_id')
-                ->constrained('products')
-                ->cascadeOnDelete();
+            $table->foreignId(
+                'delivery_note_id'
+            )->constrained()->cascadeOnDelete();
 
-            $table->foreignId('warehouse_id')
-                ->constrained('warehouses')
-                ->cascadeOnDelete();
+            $table->foreignId(
+                'product_id'
+            )->constrained()->cascadeOnDelete();
+
+            $table->foreignId(
+                'warehouse_id'
+            )->constrained()->cascadeOnDelete();
 
             $table->decimal(
-                'quantity',
+                'ordered_quantity',
                 18,
                 4
             );
@@ -36,13 +38,13 @@ return new class extends Migration
                 'delivered_quantity',
                 18,
                 4
-            )->default(0);
+            );
 
             $table->decimal(
                 'pending_quantity',
                 18,
                 4
-            )->default(0);
+            );
 
             $table->decimal(
                 'unit_price',
@@ -57,19 +59,13 @@ return new class extends Migration
             );
 
             $table->timestamps();
-
-            $table->index([
-                'product_id',
-                'warehouse_id',
-            ]);
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('sales_order_items');
+        Schema::dropIfExists(
+            'delivery_note_items'
+        );
     }
 };

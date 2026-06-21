@@ -14,13 +14,18 @@ Route::middleware([
     )->name('sales-quotations.approve');
 
     Route::post(
-        'sales-quotations/{salesQuotation}/convert',
+        'sales-quotations/{salesQuotation}/convert-to-sales-order',
+        [SalesQuotationController::class, 'convertToSalesOrder']
+    )->name('sales-quotations.convert-to-sales-order');
+
+    Route::post(
+        'sales-quotations/{salesQuotation}/convert-to-sale',
         [SalesQuotationController::class, 'convertToSale']
-    )->name('sales-quotations.convert');
-        
+    )->name('sales-quotations.convert-to-sale');
+
+
     Route::apiResource(
         'sales-quotations',
         SalesQuotationController::class
     );
-
 });

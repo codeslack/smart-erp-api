@@ -8,7 +8,9 @@ class SalesOrderStatus
 
     public const APPROVED = 'approved';
 
-    public const CONVERTED = 'converted';
+    public const CONVERTED_TO_DELIVERY = 'converted_to_delivery';
+
+    public const CONVERTED_TO_SALE = 'converted_to_sale';
 
     public const CANCELLED = 'cancelled';
 }

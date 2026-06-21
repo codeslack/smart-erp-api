@@ -14,13 +14,18 @@ Route::middleware([
     )->name('sales-orders.approve');
 
     Route::post(
-        'sales-orders/{salesOrder}/convert',
+        'sales-orders/{salesOrder}/convert-to-delivery-note',
+        [SalesOrderController::class, 'convertToDeliveryNote']
+    )->name('sales-orders.convert-to-delivery-note');
+
+    Route::post(
+        'sales-orders/{salesOrder}/convert-to-sale',
         [SalesOrderController::class, 'convertToSale']
-    )->name('sales-orders.convert');
+    )->name('sales-orders.convert-to-sale');
+
 
     Route::apiResource(
         'sales-orders',
         SalesOrderController::class
     );
-
 });
