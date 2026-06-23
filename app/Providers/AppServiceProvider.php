@@ -68,6 +68,8 @@ class AppServiceProvider extends ServiceProvider
 
                     // Add Bearer Auth Scheme
                     $openApi->components->securitySchemes['bearer'] = SecurityScheme::http('bearer');
+                    $openApi->components->securitySchemes['x_tenant_key'] = SecurityScheme::apiKey('header', 'X-Tenant')
+                        ->setDescription('Enter the target database or system tenant identifier.');
 
                     // Read Package Version
                     $version = config('app.version') ?? '1.0.0';
@@ -81,14 +83,19 @@ class AppServiceProvider extends ServiceProvider
                 },
             ])
             ->withOperationTransformers(function (Operation $operation, $routeInfo) use ($context) {
-                // 1. Automatic Authentication Lock Icons
                 $middleware = $routeInfo->route->gatherMiddleware();
-                if (collect($middleware)->contains(fn($m) => Str::startsWith($m, 'auth:sanctum') || Str::startsWith($m, 'erp-api'))) {
-                    $operation->security[] = new SecurityRequirement(['bearer' => []]);
+                $middlewareCollection = collect($middleware);
+
+                // 1. Automatic Authentication Lock Icons
+                if (
+                    $middlewareCollection->contains(fn($m) => Str::startsWith($m, 'auth:sanctum') ||
+                        Str::startsWith($m, 'erp-api'))
+                ) {
+                    $operation->security[] = new SecurityRequirement([
+                        'bearer' => [],
+                        'x_tenant_key' => [],
+                    ]);
                 }
-
-                // 2. Uniform Structure Response Wrapping
-
             });
     }
 }

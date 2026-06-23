@@ -25,4 +25,5 @@ return [
     App\Modules\SalesOrder\Providers\SalesOrderServiceProvider::class,
     App\Modules\GoodsReceiptNote\Providers\GoodsReceiptNoteServiceProvider::class,
     App\Modules\DeliveryNote\Providers\DeliveryNoteServiceProvider::class,
+    App\Modules\CustomerReceipt\Providers\CustomerReceiptServiceProvider::class,
 ];

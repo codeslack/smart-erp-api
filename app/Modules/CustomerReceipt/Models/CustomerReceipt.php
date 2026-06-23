@@ -1,39 +1,38 @@
 <?php
 
-namespace App\Modules\Sales\Models;
+namespace App\Modules\CustomerReceipt\Models;
 
 use App\Core\Tenant\Models\TenantModel;
 use App\Modules\Customer\Models\Customer;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use App\Modules\CustomerReceipt\Models\CustomerReceiptAllocation;
 
-class Sale extends TenantModel
+class CustomerReceipt extends TenantModel
 {
     protected $fillable = [
+
         'tenant_id',
 
-        'sale_no',
+        'receipt_no',
 
         'customer_id',
 
-        'sale_date',
+        'receipt_date',
 
-        'subtotal',
-        'discount',
-        'tax',
-        'grand_total',
+        'payment_method',
 
-        'paid_amount',
-        'due_amount',
+        'reference_no',
 
-        'status',
+        'amount',
 
         'notes',
+
+        'status',
     ];
 
     protected $casts = [
-        'sale_date' => 'date',
+
+        'receipt_date' => 'date',
     ];
 
     public function customer(): BelongsTo
@@ -43,14 +42,7 @@ class Sale extends TenantModel
         );
     }
 
-    public function items(): HasMany
-    {
-        return $this->hasMany(
-            SaleItem::class
-        );
-    }
-
-    public function receiptAllocations(): HasMany
+    public function allocations(): HasMany
     {
         return $this->hasMany(
             CustomerReceiptAllocation::class
