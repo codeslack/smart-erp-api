@@ -79,6 +79,8 @@ class PurchaseService
             $purchase->update([
                 'subtotal' => $subtotal,
                 'grand_total' => $subtotal,
+                'paid_amount' => 0,
+                'due_amount'  => $subtotal,
             ]);
 
             return $purchase

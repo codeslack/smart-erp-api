@@ -28,6 +28,10 @@ class SaleResource extends JsonResource
 
             'grand_total' => $this->grand_total,
 
+            'paid_amount' => $this->paid_amount,
+
+            'due_amount' => $this->due_amount,
+
             'status' => $this->status,
 
             'notes' => $this->notes,

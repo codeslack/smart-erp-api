@@ -416,12 +416,12 @@ LOW
 Customer Receipts
 
 Status:
-PENDING
+COMPLETED
 
 Supplier Payments
 
 Status:
-PENDING
+COMPLETED
 
 ---
 

@@ -7,6 +7,7 @@ use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Purchase\Models\PurchaseItem;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Modules\SupplierPayment\Models\SupplierPaymentAllocation;
 
 class Purchase extends TenantModel
 {
@@ -21,6 +22,9 @@ class Purchase extends TenantModel
         'discount_amount',
         'tax_amount',
         'grand_total',
+
+        'paid_amount',
+        'due_amount',
 
         'notes',
         'status',
@@ -46,6 +50,13 @@ class Purchase extends TenantModel
     {
         return $this->hasMany(
             PurchaseItem::class
+        );
+    }
+
+    public function paymentAllocations(): HasMany
+    {
+        return $this->hasMany(
+            SupplierPaymentAllocation::class
         );
     }
 }

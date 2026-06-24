@@ -88,5 +88,8 @@ logs-single: ## Open the standard single log file in VS Code
 git-sync: ## git-sync msg="some commit"
 	git add . && git commit -m "$(msg)" && git push origin main
 
-git-sync-mod: ## make git-sync mod=GoodsReceiptNote
+git-sync-modx: ## make git-sync mod=GoodsReceiptNote
 	git add . && git commit -m "✅ $(mod) Module Complete (Version 1)" && git push origin main
+
+git-sync-mod: ## make git-sync mod=GoodsReceiptNote
+	git add . && git commit -m "✅ $(mod) Module Complete (Version 1)"
