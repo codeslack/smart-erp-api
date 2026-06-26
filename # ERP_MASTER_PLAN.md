@@ -430,12 +430,12 @@ COMPLETED
 Chart Of Accounts
 
 Status:
-PENDING
+COMPLETED
 
 Journal Entries
 
 Status:
-PENDING
+COMPLETED
 
 ---
 
@@ -444,12 +444,12 @@ PENDING
 General Ledger
 
 Status:
-PENDING
+COMPLETED
 
 Trial Balance
 
 Status:
-PENDING
+COMPLETED
 
 ---
 
@@ -458,19 +458,30 @@ PENDING
 Profit & Loss
 
 Status:
-PENDING
+COMPLETED
 
 Balance Sheet
 
 Status:
-PENDING
+COMPLETED
 
 Cash Flow
 
 Status:
-PENDING
+COMPLETED
 
 ---
+
+The next reports typically are:
+
+Tax Report (GST/VAT)
+Day Book
+Journal Report
+Receivable Summary
+Payable Summary
+Financial Dashboard KPI
+Fiscal Year Closing
+Recurring Journal Entries
 
 # Future Roadmap
 
@@ -531,3 +542,38 @@ Accounting:
 
 Overall Project Progress:
 ~70%
+
+# Next Accounting Reports I would build
+1. Account Ledger Report (single account drill-down)
+    - Cash Ledger
+    - A/R Ledger
+    - A/P Ledger
+    - Sales Ledger
+    - Inventory Ledger
+
+2. #### Journal Register
+    - List all journal vouchers
+    - Filter by date
+    - Filter by status
+
+3. #### Customer Ledger
+    - Customer-wise running balance
+
+4. #### Supplier Ledger
+    - Supplier-wise running balance
+
+5. #### Account Balance Summary
+    - Quick dashboard report
+
+6. #### Balance Sheet (improved version)
+    - Assets
+    - Liabilities
+    - Equity
+
+7. #### Profit & Loss (improved version)
+    - Revenue
+    - Cost of Goods Sold
+    - Gross Profit
+    - Net Profit
+
+At this stage of your ERP, I would build Account Ledger Report next because almost every accountant uses it daily and all other reports depend on it.

@@ -6,6 +6,8 @@ use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Notifications\Notifiable;
 use App\Core\Tenant\TenantAuthenticatable;
+use App\Modules\Accounting\Models\JournalEntry;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
@@ -49,6 +51,14 @@ class User extends TenantAuthenticatable
     {
         return $this->belongsTo(
             \App\Modules\Tenant\Models\Tenant::class
+        );
+    }
+
+    public function journalEntries(): HasMany
+    {
+        return $this->hasMany(
+            JournalEntry::class,
+            'created_by'
         );
     }
 

@@ -9,12 +9,14 @@ use App\Modules\Purchase\Enums\PurchaseStatus;
 use App\Modules\Inventory\Services\InventoryService;
 use App\Modules\Inventory\Enums\StockTransactionType;
 use App\Modules\Purchase\Repositories\Contracts\PurchaseRepositoryInterface;
+use App\Modules\Accounting\Services\Contracts\AccountingPostingServiceInterface;
 
 class PurchaseService
 {
     public function __construct(
         protected PurchaseRepositoryInterface $repository,
         protected InventoryService $inventoryService,
+        protected AccountingPostingServiceInterface $postingService
     ) {}
 
     public function getAll()
@@ -139,9 +141,15 @@ class PurchaseService
                 'status' => PurchaseStatus::CONFIRMED,
             ]);
 
-            return $purchase
-                ->fresh()
+            $purchase = $purchase->fresh()
                 ->load('items');
+
+            $this->postingService
+                ->postPurchase(
+                    $purchase
+                );
+
+            return $purchase;
         });
     }
 

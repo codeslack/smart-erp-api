@@ -7,12 +7,14 @@ use App\Modules\Purchase\Models\Purchase;
 use App\Modules\SupplierPayment\Models\SupplierPayment;
 use App\Modules\SupplierPayment\Enums\SupplierPaymentStatus;
 use App\Modules\SupplierPayment\Models\SupplierPaymentAllocation;
+use App\Modules\Accounting\Services\Contracts\AccountingPostingServiceInterface;
 use App\Modules\SupplierPayment\Repositories\Contracts\SupplierPaymentRepositoryInterface;
 
 class SupplierPaymentService
 {
     public function __construct(
-        protected SupplierPaymentRepositoryInterface $repository
+        protected SupplierPaymentRepositoryInterface $repository,
+        protected AccountingPostingServiceInterface $postingService
     ) {}
 
     public function getAll()
@@ -139,9 +141,16 @@ class SupplierPaymentService
                 'status' => SupplierPaymentStatus::CONFIRMED,
             ]);
 
-            return $payment->fresh(
+            $payment = $payment->fresh(
                 'allocations.purchase'
             );
+
+            $this->postingService
+                ->postSupplierPayment(
+                    $payment
+                );
+
+            return $payment;
         });
     }
 

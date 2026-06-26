@@ -8,11 +8,13 @@ use App\Modules\CustomerReceipt\Models\CustomerReceipt;
 use App\Modules\CustomerReceipt\Enums\CustomerReceiptStatus;
 use App\Modules\CustomerReceipt\Models\CustomerReceiptAllocation;
 use App\Modules\CustomerReceipt\Repositories\Contracts\CustomerReceiptRepositoryInterface;
+use App\Modules\Accounting\Services\Contracts\AccountingPostingServiceInterface;
 
 class CustomerReceiptService
 {
     public function __construct(
-        protected CustomerReceiptRepositoryInterface $repository
+        protected CustomerReceiptRepositoryInterface $repository,
+        protected AccountingPostingServiceInterface $postingService
     ) {}
 
     public function getAll()
@@ -119,9 +121,16 @@ class CustomerReceiptService
                 'status' => CustomerReceiptStatus::CONFIRMED,
             ]);
 
-            return $receipt->fresh(
+            $receipt = $receipt->fresh(
                 'allocations.sale'
             );
+
+            $this->postingService
+                ->postCustomerReceipt(
+                    $receipt
+                );
+
+            return $receipt;
         });
     }
 

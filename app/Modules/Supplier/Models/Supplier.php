@@ -3,6 +3,7 @@
 namespace App\Modules\Supplier\Models;
 
 use App\Core\Tenant\Models\TenantModel;
+use App\Modules\Purchase\Models\Purchase;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Modules\SupplierPayment\Models\SupplierPayment;
 
@@ -29,6 +30,13 @@ class Supplier extends TenantModel
     protected $casts = [
         'is_active' => 'boolean',
     ];
+
+    public function purchases(): HasMany
+    {
+        return $this->hasMany(
+            Purchase::class
+        );
+    }    
 
     public function payments(): HasMany
     {

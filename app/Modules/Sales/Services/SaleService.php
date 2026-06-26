@@ -9,12 +9,14 @@ use App\Modules\Sales\Enums\SaleStatus;
 use App\Modules\Inventory\Services\InventoryService;
 use App\Modules\Inventory\Enums\StockTransactionType;
 use App\Modules\Sales\Repositories\Contracts\SaleRepositoryInterface;
+use App\Modules\Accounting\Services\Contracts\AccountingPostingServiceInterface;
 
 class SaleService
 {
     public function __construct(
         protected SaleRepositoryInterface $repository,
         protected InventoryService $inventoryService,
+        protected AccountingPostingServiceInterface $postingService
     ) {}
 
     public function getAll()
@@ -139,12 +141,19 @@ class SaleService
                 'status' => SaleStatus::CONFIRMED,
             ]);
 
-            return $sale
+            $sale = $sale
                 ->fresh()
                 ->load([
                     'customer',
                     'items',
                 ]);
+
+            $this->postingService
+                ->postSale(
+                    $sale
+                );
+
+            return $sale;
         });
     }
 

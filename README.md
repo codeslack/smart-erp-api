@@ -100,3 +100,32 @@ class CreateProduct extends Job implements ShouldCreate
     Permissions
     Audit Logs
     Tenant Settings
+
+# Accounting Reports Status
+
+## Core Accounting
+
+    ✅ Chart of Accounts
+    ✅ Account Groups
+    ✅ Journal Entries
+    ✅ Account Ledger
+    ✅ General Ledger
+    ✅ Trial Balance
+
+## Financial Statements
+
+    ✅ Profit & Loss
+    ✅ Balance Sheet
+    ✅ Cash Flow
+
+## Customer Reports
+
+    ✅ Customer Statement
+    ✅ Customer Aging
+    ✅ Receivable Summary
+
+## Supplier Reports
+
+    ✅ Supplier Statement
+    ✅ Supplier Aging
+    ✅ Payable Summary    
