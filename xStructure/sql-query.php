@@ -2,6 +2,9 @@
 
 use Illuminate\Support\Facades\DB;
 
+// For MySQL / MariaDB List of tables
+DB::select('SHOW TABLES');
+
 # Product Stocks
 DB::select("SELECT * FROM product_stocks ORDER BY warehouse_id");
 

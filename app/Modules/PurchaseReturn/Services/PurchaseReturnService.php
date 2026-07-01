@@ -3,13 +3,14 @@
 namespace App\Modules\PurchaseReturn\Services;
 
 use Illuminate\Support\Facades\DB;
-use App\Modules\Purchase\Models\Purchase;
 use App\Modules\Product\Models\Product;
-use App\Modules\PurchaseReturn\Models\PurchaseReturn;
+use App\Modules\Purchase\Models\Purchase;
 use App\Modules\Inventory\Services\InventoryService;
-use App\Modules\PurchaseReturn\Models\PurchaseReturnItem;
 use App\Modules\Inventory\Enums\StockTransactionType;
+use App\Modules\PurchaseReturn\Models\PurchaseReturn;
+use App\Modules\PurchaseReturn\Models\PurchaseReturnItem;
 use App\Modules\PurchaseReturn\Enums\PurchaseReturnStatus;
+use App\Modules\Accounting\Services\Contracts\AccountingPostingServiceInterface;
 use App\Modules\PurchaseReturn\Repositories\Contracts\PurchaseReturnRepositoryInterface;
 
 class PurchaseReturnService
@@ -17,6 +18,7 @@ class PurchaseReturnService
     public function __construct(
         protected PurchaseReturnRepositoryInterface $repository,
         protected InventoryService $inventoryService,
+        protected AccountingPostingServiceInterface $accountingPostingService,
     ) {}
 
     public function getAll()
@@ -159,6 +161,20 @@ class PurchaseReturnService
                 'status' =>
                     PurchaseReturnStatus::CONFIRMED,
             ]);
+
+            $purchaseReturn = $purchaseReturn
+                ->fresh()
+                ->load([
+                    'supplier',
+                    'purchase',
+                    'items',
+                ]);
+
+            $this->accountingPostingService
+                ->postPurchaseReturn(
+                    $purchaseReturn
+                );
+
         });
 
         return $purchaseReturn->fresh(

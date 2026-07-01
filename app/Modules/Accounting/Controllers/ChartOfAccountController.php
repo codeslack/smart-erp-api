@@ -5,6 +5,7 @@ namespace App\Modules\Accounting\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Accounting\Services\ChartOfAccountService;
+use App\Modules\Accounting\Resources\ChartOfAccountResource;
 use App\Modules\Accounting\Requests\StoreChartOfAccountRequest;
 use App\Modules\Accounting\Requests\UpdateChartOfAccountRequest;
 
@@ -16,7 +17,7 @@ class ChartOfAccountController extends Controller
 
     public function index()
     {
-        return response()->json(
+        return ChartOfAccountResource::collection(
             $this->service->getAll()
         );
     }

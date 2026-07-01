@@ -295,6 +295,42 @@ JSON
 }
 ```
 
+#### Create Purchase Return
+```bash
+14-Jun-2026
+
+Purchase Return
+50,000
+```
+```bash
+POST /api/purchase-returns
+
+JSON
+{
+    "purchase_id": 2,
+    "supplier_id": 1,
+    "return_date": "2026-06-15",
+    "notes": "Damaged items returned",
+    "items": [
+        {
+            "product_id": 1,
+            "warehouse_id": 1,
+            "quantity": 2,
+            "unit_cost": 6250
+        }
+    ]
+}
+```
+#### Purchase Return Entry (Approved)
+```BASH
+POST /api/purchase-returns/{purchaseReturn}/approve
+
+JSON
+{
+  "success": true,
+  "message": "Purchase Return approved successfully"
+}
+```
 
 # General Ledger Service
 Example:

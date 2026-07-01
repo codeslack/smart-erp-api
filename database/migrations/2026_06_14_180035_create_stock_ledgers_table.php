@@ -41,6 +41,12 @@ return new class extends Migration
             $table->decimal('qty_out', 18, 4)
                 ->default(0);
 
+            $table->decimal('unit_cost', 18, 4)
+                ->default(0);
+
+            $table->decimal('line_cost', 18, 4)
+                ->default(0);
+
             $table->decimal('balance_after', 18, 4)
                 ->default(0);
 

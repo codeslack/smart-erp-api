@@ -3,13 +3,14 @@
 namespace App\Modules\SalesReturn\Services;
 
 use Illuminate\Support\Facades\DB;
-use App\Modules\Sales\Models\Sale;
 use App\Modules\Product\Models\Product;
+use App\Modules\Inventory\Models\ProductStock;
 use App\Modules\SalesReturn\Models\SalesReturn;
 use App\Modules\SalesReturn\Models\SalesReturnItem;
 use App\Modules\SalesReturn\Enums\SalesReturnStatus;
 use App\Modules\Inventory\Services\InventoryService;
 use App\Modules\Inventory\Enums\StockTransactionType;
+use App\Modules\Accounting\Services\Contracts\AccountingPostingServiceInterface;
 use App\Modules\SalesReturn\Repositories\Contracts\SalesReturnRepositoryInterface;
 
 class SalesReturnService
@@ -17,6 +18,7 @@ class SalesReturnService
     public function __construct(
         protected SalesReturnRepositoryInterface $repository,
         protected InventoryService $inventoryService,
+        protected AccountingPostingServiceInterface $accountingPostingService
     ) {}
 
     public function getAll()
@@ -46,11 +48,13 @@ class SalesReturnService
                 $nextId
             );
 
-            $data['status'] = SalesReturnStatus::DRAFT;
+            $data['status'] =
+                SalesReturnStatus::DRAFT;
 
-            $salesReturn = $this->repository->create(
-                $data
-            );
+            $salesReturn =
+                $this->repository->create(
+                    $data
+                );
 
             $grandTotal = 0;
 
@@ -72,29 +76,38 @@ class SalesReturnService
                 );
 
                 SalesReturnItem::create([
-                    'sales_return_id' => $salesReturn->id,
 
-                    'product_id' => $item['product_id'],
+                    'sales_return_id'
+                        => $salesReturn->id,
 
-                    'warehouse_id' => $item['warehouse_id'],
+                    'product_id'
+                        => $item['product_id'],
 
-                    'quantity' => $item['quantity'],
+                    'warehouse_id'
+                        => $item['warehouse_id'],
 
-                    'unit_price' => $item['unit_price'],
+                    'quantity'
+                        => $item['quantity'],
 
-                    'line_total' => $lineTotal,
+                    'unit_price'
+                        => $item['unit_price'],
+
+                    'line_total'
+                        => $lineTotal,
                 ]);
 
                 $grandTotal += $lineTotal;
             }
 
             $salesReturn->update([
-                'grand_total' => $grandTotal,
+
+                'grand_total'
+                    => $grandTotal,
             ]);
 
-            return $salesReturn->load(
-                'items'
-            );
+            return $salesReturn
+                ->fresh()
+                ->load('items');
         });
     }
 
@@ -111,31 +124,64 @@ class SalesReturnService
     public function approve(
         SalesReturn $salesReturn
     ) {
+
         abort_if(
-            $salesReturn->status !== SalesReturnStatus::DRAFT,
+            $salesReturn->status !==
+            SalesReturnStatus::DRAFT,
             422,
             'Sales Return already approved.'
         );
 
-        DB::transaction(function () use ($salesReturn) {
+        return DB::transaction(function () use (
+            $salesReturn
+        ) {
 
             foreach (
                 $salesReturn->items
                 as $item
             ) {
 
+                $productStock =
+                    ProductStock::query()
+
+                    ->where(
+                        'product_id',
+                        $item->product_id
+                    )
+
+                    ->where(
+                        'warehouse_id',
+                        $item->warehouse_id
+                    )
+
+                    ->first();
+
+                $unitCost =
+                    $productStock?->average_cost
+                    ?? 0;
+
                 $this->inventoryService->stockIn(
-                    productId: $item->product_id,
 
-                    warehouseId: $item->warehouse_id,
+                    productId:
+                        $item->product_id,
 
-                    quantity: $item->quantity,
+                    warehouseId:
+                        $item->warehouse_id,
 
-                    transactionType: StockTransactionType::SALES_RETURN,
+                    quantity:
+                        $item->quantity,
 
-                    referenceType: SalesReturn::class,
+                    unitCost:
+                        $unitCost,
 
-                    referenceId: $salesReturn->id,
+                    transactionType:
+                        StockTransactionType::SALES_RETURN,
+
+                    referenceType:
+                        SalesReturn::class,
+
+                    referenceId:
+                        $salesReturn->id,
 
                     remarks: sprintf(
                         'Sales Return %s',
@@ -145,17 +191,31 @@ class SalesReturnService
             }
 
             $salesReturn->update([
-                'status' => SalesReturnStatus::CONFIRMED,
-            ]);
-        });
 
-        return $salesReturn
-            ->fresh()
-            ->load('items');
+                'status'
+                    => SalesReturnStatus::CONFIRMED,
+            ]);
+
+            $salesReturn = $salesReturn
+                ->fresh()
+                ->load([
+                    'customer',
+                    'items',
+                ]);
+
+            $this->accountingPostingService
+                ->postSalesReturn(
+                    $salesReturn
+                );
+
+            return $salesReturn;
+
+        });
     }
 
-    public function delete(int $id)
-    {
+    public function delete(
+        int $id
+    ) {
         return $this->repository->delete(
             $id
         );

@@ -28,7 +28,7 @@ Route::prefix('auth')
             });
     });
 
-Route::middleware('tenant')
+Route::middleware('auth:sanctum')
     ->group(function () {
 
         Route::apiResource(

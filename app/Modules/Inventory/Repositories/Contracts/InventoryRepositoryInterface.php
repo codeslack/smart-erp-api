@@ -16,6 +16,7 @@ interface InventoryRepositoryInterface
         int $productId,
         int $warehouseId,
         float $quantity,
+        float $unitCost,
         string $transactionType,
         ?string $referenceType = null,
         ?int $referenceId = null,

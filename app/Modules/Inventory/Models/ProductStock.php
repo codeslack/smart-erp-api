@@ -14,6 +14,16 @@ class ProductStock extends TenantModel
         'product_id',
         'warehouse_id',
         'quantity',
+        'average_cost',
+    ];
+
+    protected $casts = [
+
+        'quantity'
+            => 'decimal:4',
+
+        'average_cost'
+            => 'decimal:4',
     ];
 
     public function product(): BelongsTo

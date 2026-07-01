@@ -17,6 +17,7 @@ class InventoryRepository implements InventoryRepositoryInterface
             productId: $data['product_id'],
             warehouseId: $data['warehouse_id'],
             quantity: $data['quantity'],
+            unitCost: $data['unit_cost'],
             transactionType: StockTransactionType::OPENING_STOCK,
             remarks: $data['remarks'] ?? null,
         );
@@ -41,6 +42,7 @@ class InventoryRepository implements InventoryRepositoryInterface
         int $productId,
         int $warehouseId,
         float $quantity,
+        float $unitCost,
         string $transactionType,
         ?string $referenceType = null,
         ?int $referenceId = null,
@@ -50,6 +52,7 @@ class InventoryRepository implements InventoryRepositoryInterface
             $productId,
             $warehouseId,
             $quantity,
+            $unitCost,
             $transactionType,
             $referenceType,
             $referenceId,
@@ -63,15 +66,28 @@ class InventoryRepository implements InventoryRepositoryInterface
                 ],
                 [
                     'quantity' => 0,
+                    'average_cost' => 0,
                 ]
             );
 
-            $newBalance =
-                $stock->quantity +
-                $quantity;
+            $oldQty = $stock->quantity;
+
+            $oldCost = $stock->average_cost;
+
+            $newQty = $oldQty + $quantity;
+
+            $newAverageCost = $newQty > 0
+                ? (
+                    (($oldQty * $oldCost)
+                    +
+                    ($quantity * $unitCost))
+                    / $newQty
+                )
+                : 0;
 
             $stock->update([
-                'quantity' => $newBalance,
+                'quantity' => $newQty,
+                'average_cost' => $newAverageCost,
             ]);
 
             StockLedger::create([
@@ -89,7 +105,10 @@ class InventoryRepository implements InventoryRepositoryInterface
 
                 'qty_out' => 0,
 
-                'balance_after' => $newBalance,
+                'unit_cost' => $unitCost,
+                'line_cost' => $quantity * $unitCost,
+
+                'balance_after' => $newQty,
 
                 'remarks' => $remarks,
             ]);
@@ -132,12 +151,15 @@ class InventoryRepository implements InventoryRepositoryInterface
             );
         }
 
-        $stock->decrement(
-            'quantity',
-            $quantity
-        );
+        $averageCost = $stock->average_cost;
 
-        $stock->refresh();
+        $lineCost = $quantity * $averageCost;
+
+        $newBalance = $stock->quantity - $quantity;
+
+        $stock->update([
+            'quantity' => $newBalance,
+        ]);
 
         StockLedger::create([
             'tenant_id' => tenant()->id,
@@ -156,11 +178,14 @@ class InventoryRepository implements InventoryRepositoryInterface
 
             'qty_out' => $quantity,
 
-            'balance_after' => $stock->quantity,
+            'unit_cost' => $averageCost,
+            'line_cost' => $lineCost,
+
+            'balance_after' => $newBalance,
 
             'remarks' => $remarks,
         ]);
 
-        return $stock;
+        return $stock->fresh();
     }
 }

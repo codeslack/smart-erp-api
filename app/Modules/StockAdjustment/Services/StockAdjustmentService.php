@@ -145,6 +145,8 @@ class StockAdjustmentService
 
                         quantity: $item->adjustment_quantity,
 
+                        unitCost: $item->unit_cost,
+
                         transactionType: StockTransactionType::STOCK_ADJUSTMENT,
 
                         referenceType: StockAdjustment::class,

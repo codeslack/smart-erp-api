@@ -19,4 +19,12 @@ interface AccountingPostingServiceInterface
     public function postSupplierPayment(
         mixed $payment
     );
+
+    public function postPurchaseReturn(
+        mixed $purchaseReturn
+    );
+
+    public function postSalesReturn(
+        mixed $salesReturn
+    );
 }

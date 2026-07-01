@@ -3,9 +3,11 @@
 namespace App\Modules\Accounting\Services;
 
 use App\Modules\Sales\Enums\SaleStatus;
+use App\Modules\Inventory\Models\StockLedger;
 use App\Modules\Purchase\Enums\PurchaseStatus;
 use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Models\ChartOfAccount;
+use App\Modules\SalesReturn\Enums\SalesReturnStatus;
 use App\Modules\CustomerReceipt\Enums\CustomerReceiptStatus;
 use App\Modules\SupplierPayment\Enums\SupplierPaymentStatus;
 use App\Modules\Accounting\Services\Contracts\AccountingPostingServiceInterface;
@@ -31,6 +33,13 @@ class AccountingPostingService
             $sale
         );
 
+        $cogsAmount = 0;
+
+        $cogsAmount = StockLedger::query()
+            ->where('reference_type', get_class($sale))
+            ->where('reference_id', $sale->id)
+            ->sum('line_cost');
+
         $journal = $this->journalEntryService
             ->create([
 
@@ -55,27 +64,26 @@ class AccountingPostingService
                 'lines' => [
 
                     [
-
-                        'chart_of_account_id'
-                            => $this->accountId(
-                                '1100'
-                            ),
-
-                        'debit'
-                            => $sale->grand_total,
+                        'chart_of_account_id' => $this->accountId('1100'),
+                        'debit' => $sale->grand_total,
                     ],
 
                     [
+                        'chart_of_account_id' => $this->accountId('4000'),
+                        'credit' => $sale->grand_total,
+                    ],
 
-                        'chart_of_account_id'
-                            => $this->accountId(
-                                '4000'
-                            ),
+                    [
+                        'chart_of_account_id' => $this->accountId('5000'),
+                        'debit' => $cogsAmount,
+                    ],
 
-                        'credit'
-                            => $sale->grand_total,
+                    [
+                        'chart_of_account_id' => $this->accountId('1200'),
+                        'credit' => $cogsAmount,
                     ],
                 ],
+
             ]);
 
         return $this->journalEntryService
@@ -283,6 +291,173 @@ class AccountingPostingService
             ->post(
                 $journal
             );
+    }
+
+    public function postPurchaseReturn(
+        mixed $purchaseReturn
+    )
+    {
+        $this->ensureJournalNotExists(
+            $purchaseReturn
+        );
+
+        $journal = $this->journalEntryService
+            ->create([
+
+                'voucher_type'
+                    => 'purchase_return',
+
+                'reference_type'
+                    => get_class(
+                        $purchaseReturn
+                    ),
+
+                'reference_id'
+                    => $purchaseReturn->id,
+
+                'entry_date'
+                    => $purchaseReturn->return_date,
+
+                'description'
+                    => 'Purchase Return '
+                    . $purchaseReturn->return_no,
+
+                'lines' => [
+
+                    [
+                        'chart_of_account_id'
+                            => $this->accountId('2000'),
+
+                        'debit'
+                            => $purchaseReturn->grand_total,
+                    ],
+
+                    [
+                        'chart_of_account_id'
+                            => $this->accountId('1200'),
+
+                        'credit'
+                            => $purchaseReturn->grand_total,
+                    ],
+                ],
+            ]);
+
+        return $this->journalEntryService
+            ->post($journal);
+    }
+
+    public function postSalesReturn(
+        mixed $salesReturn
+    ) {
+
+        abort_if(
+            $salesReturn->status !== SalesReturnStatus::CONFIRMED,
+            422,
+            'Only confirmed sales returns can be posted.'
+        );
+
+        $this->ensureJournalNotExists(
+            $salesReturn
+        );
+
+        $inventoryAmount = 0;
+
+        foreach (
+            $salesReturn->items as $item
+        ) {
+
+            $stockLedger = StockLedger::query()
+
+                ->where(
+                    'reference_type',
+                    get_class($salesReturn)
+                )
+
+                ->where(
+                    'reference_id',
+                    $salesReturn->id
+                )
+
+                ->where(
+                    'product_id',
+                    $item->product_id
+                )
+
+                ->latest('id')
+
+                ->first();
+
+            $inventoryAmount +=
+                $stockLedger?->line_cost ?? 0;
+        }
+
+        $journal = $this->journalEntryService
+            ->create([
+
+                'voucher_type'
+                    => 'sales_return',
+
+                'reference_type'
+                    => get_class(
+                        $salesReturn
+                    ),
+
+                'reference_id'
+                    => $salesReturn->id,
+
+                'entry_date'
+                    => $salesReturn->return_date,
+
+                'description'
+                    => 'Sales Return '
+                    . $salesReturn->return_no,
+
+                'lines' => [
+
+                    [
+                        'chart_of_account_id'
+                            => $this->accountId(
+                                '4100'
+                            ),
+
+                        'debit'
+                            => $salesReturn->grand_total,
+                    ],
+
+                    [
+                        'chart_of_account_id'
+                            => $this->accountId(
+                                '1100'
+                            ),
+
+                        'credit'
+                            => $salesReturn->grand_total,
+                    ],
+
+                    [
+                        'chart_of_account_id'
+                            => $this->accountId(
+                                '1200'
+                            ),
+
+                        'debit'
+                            => $inventoryAmount,
+                    ],
+
+                    [
+                        'chart_of_account_id'
+                            => $this->accountId(
+                                '5000'
+                            ),
+
+                        'credit'
+                            => $inventoryAmount,
+                    ],
+                ],
+            ]);
+
+        return $this->journalEntryService
+            ->post($journal);
     }
 
     protected function accountId(

@@ -29,17 +29,49 @@ class CashBookRepository
         |--------------------------------------------------------------------------
         */
 
-        $openingBalance = JournalEntryLine::query()
+        // $openingBalance = JournalEntryLine::query()
 
-            ->where(
-                'chart_of_account_id',
-                $cashAccount->id
-            )
+        //     ->where(
+        //         'chart_of_account_id',
+        //         $cashAccount->id
+        //     )
 
-            ->when(
-                $fromDate,
-                fn ($q) =>
-                $q->whereHas(
+        //     ->when(
+        //         $fromDate,
+        //         fn ($q) =>
+        //         $q->whereHas(
+        //             'journalEntry',
+        //             fn ($journal) =>
+        //             $journal->whereDate(
+        //                 'entry_date',
+        //                 '<',
+        //                 $fromDate
+        //             )
+        //         )
+        //     )
+
+        //     ->get()
+
+        //     ->sum(function ($line) {
+
+        //         return
+        //             (float) $line->debit
+        //             -
+        //             (float) $line->credit;
+        //     });
+
+        $openingBalance = 0;
+
+        if ($fromDate) {
+
+            $openingBalance = JournalEntryLine::query()
+
+                ->where(
+                    'chart_of_account_id',
+                    $cashAccount->id
+                )
+
+                ->whereHas(
                     'journalEntry',
                     fn ($journal) =>
                     $journal->whereDate(
@@ -48,17 +80,17 @@ class CashBookRepository
                         $fromDate
                     )
                 )
-            )
 
-            ->get()
+                ->get()
 
-            ->sum(function ($line) {
+                ->sum(function ($line) {
 
-                return
-                    (float) $line->debit
-                    -
-                    (float) $line->credit;
-            });
+                    return
+                        (float) $line->debit
+                        -
+                        (float) $line->credit;
+                });
+        }
 
         /*
         |--------------------------------------------------------------------------

@@ -30,6 +30,12 @@ return new class extends Migration
             $table->decimal('quantity', 18, 4)
                 ->default(0);
 
+            $table->decimal(
+                'average_cost',
+                18,
+                4
+            )->default(0);
+
             $table->timestamps();
 
             $table->unique([

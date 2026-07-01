@@ -124,6 +124,8 @@ class PurchaseService
 
                     quantity: $item->quantity,
 
+                    unitCost: $item->unit_cost,
+
                     transactionType: StockTransactionType::PURCHASE,
 
                     referenceType: Purchase::class,

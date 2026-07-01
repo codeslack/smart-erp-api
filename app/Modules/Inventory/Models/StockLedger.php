@@ -22,9 +22,30 @@ class StockLedger extends TenantModel
         'qty_in',
         'qty_out',
 
+        'unit_cost',
+        'line_cost',
+
         'balance_after',
 
         'remarks',
+    ];
+
+    protected $casts = [
+
+        'qty_in'
+            => 'decimal:4',
+
+        'qty_out'
+            => 'decimal:4',
+
+        'unit_cost'
+            => 'decimal:4',
+
+        'line_cost'
+            => 'decimal:4',
+
+        'balance_after'
+            => 'decimal:4',
     ];
 
     public function product(): BelongsTo

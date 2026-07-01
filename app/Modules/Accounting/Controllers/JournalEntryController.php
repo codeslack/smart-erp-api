@@ -13,7 +13,7 @@ use App\Modules\Accounting\Requests\UpdateJournalEntryRequest;
  * @tag Accounting.Journal Entries
  */
 class JournalEntryController
-    extends Controller
+extends Controller
 {
     public function __construct(
         protected JournalEntryService $service
@@ -21,15 +21,20 @@ class JournalEntryController
 
     public function index()
     {
-        return JournalEntryResource::collection(
-            $this->service->getAll()
-        );
+        // return JournalEntryResource::collection(
+        //     $this->service->getAll()
+        // );
+
+        $entries = $this->service->getAll();
+
+        $entries->getCollection()->load(['lines.account']);
+
+        return JournalEntryResource::collection($entries);
     }
 
     public function store(
         StoreJournalEntryRequest $request
-    )
-    {
+    ) {
         $journalEntry = $this->service->create(
             $request->validated()
         );
@@ -39,19 +44,18 @@ class JournalEntryController
             'success' => true,
 
             'message'
-                => 'Journal Entry created successfully',
+            => 'Journal Entry created successfully',
 
             'data'
-                => new JournalEntryResource(
-                    $journalEntry
-                ),
+            => new JournalEntryResource(
+                $journalEntry
+            ),
         ]);
     }
 
     public function show(
         JournalEntry $journalEntry
-    )
-    {
+    ) {
         return new JournalEntryResource(
             $journalEntry->load(
                 'lines.account'
@@ -62,22 +66,19 @@ class JournalEntryController
     public function update(
         UpdateJournalEntryRequest $request,
         JournalEntry $journalEntry
-    )
-    {
+    ) {
         //
     }
 
     public function destroy(
         JournalEntry $journalEntry
-    )
-    {
+    ) {
         //
     }
 
     public function post(
         JournalEntry $journalEntry
-    )
-    {
+    ) {
         $journalEntry = $this->service->post(
             $journalEntry
         );
@@ -87,19 +88,18 @@ class JournalEntryController
             'success' => true,
 
             'message'
-                => 'Journal Entry posted successfully',
+            => 'Journal Entry posted successfully',
 
             'data'
-                => new JournalEntryResource(
-                    $journalEntry
-                ),
+            => new JournalEntryResource(
+                $journalEntry
+            ),
         ]);
     }
 
     public function cancel(
         JournalEntry $journalEntry
-    )
-    {
+    ) {
         $journalEntry = $this->service->cancel(
             $journalEntry
         );
@@ -109,12 +109,12 @@ class JournalEntryController
             'success' => true,
 
             'message'
-                => 'Journal Entry cancelled successfully',
+            => 'Journal Entry cancelled successfully',
 
             'data'
-                => new JournalEntryResource(
-                    $journalEntry
-                ),
+            => new JournalEntryResource(
+                $journalEntry
+            ),
         ]);
     }
 }

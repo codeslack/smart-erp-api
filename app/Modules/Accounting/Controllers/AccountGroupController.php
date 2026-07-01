@@ -5,6 +5,7 @@ namespace App\Modules\Accounting\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Accounting\Models\AccountGroup;
 use App\Modules\Accounting\Services\AccountGroupService;
+use App\Modules\Accounting\Resources\AccountGroupResource;
 use App\Modules\Accounting\Requests\StoreAccountGroupRequest;
 use App\Modules\Accounting\Requests\UpdateAccountGroupRequest;
 
@@ -16,7 +17,7 @@ class AccountGroupController extends Controller
 
     public function index()
     {
-        return response()->json(
+        return AccountGroupResource::collection(
             $this->service->getAll()
         );
     }

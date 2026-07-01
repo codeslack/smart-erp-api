@@ -163,6 +163,8 @@ class StockTransferService
 
                     quantity: $item->quantity,
 
+                    unitCost: $item->unit_cost,
+
                     transactionType: StockTransactionType::TRANSFER_IN,
 
                     referenceType: StockTransfer::class,

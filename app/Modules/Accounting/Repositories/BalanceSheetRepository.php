@@ -103,45 +103,50 @@ implements BalanceSheetRepositoryInterface
         $totalLiabilities = $liabilities
             ->sum('balance');
 
-        $totalEquity = $equities
-            ->sum('balance');
+        // $totalEquity = $equities
+        //     ->sum('balance');
+
+        // $totalLiabilitiesAndEquity =
+        //     $totalLiabilities
+        //     +
+        //     $totalEquity
+        //     +
+        //     $netProfit;
+
+        $equities->push([
+            'account_code' => 'CURRENT_YEAR_PROFIT',
+            'account_name' => 'Current Year Profit',
+            'balance' => $netProfit,
+        ]);
+
+        $totalEquity = $equities->sum('balance');
 
         $totalLiabilitiesAndEquity =
-            $totalLiabilities
-            +
-            $totalEquity
-            +
-            $netProfit;
+            $totalLiabilities +
+            $totalEquity;
 
         return [
 
-            'assets'
-            => $assets,
+            'assets' => $assets,
 
-            'liabilities'
-            => $liabilities,
+            'liabilities' => $liabilities,
 
-            'equities'
-            => $equities,
+            'equities' => $equities,
 
-            'total_assets'
-            => $totalAssets,
+            'total_assets' => $totalAssets,
 
-            'total_liabilities'
-            => $totalLiabilities,
+            'total_liabilities' => $totalLiabilities,
 
-            'total_equity'
-            => $totalEquity,
+            'total_equity' => $totalEquity,
 
-            'total_liabilities_and_equity'
-            => $totalLiabilitiesAndEquity,
+            'total_liabilities_and_equity' => $totalLiabilitiesAndEquity,
 
             'is_balanced'
-            => bccomp(
-                (string) $totalAssets,
-                (string) $totalLiabilitiesAndEquity,
-                4
-            ) === 0,
+                => bccomp(
+                    (string) $totalAssets,
+                    (string) $totalLiabilitiesAndEquity,
+                    4
+                ) === 0,
         ];
     }
 }
