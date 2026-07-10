@@ -2,7 +2,7 @@
 
 namespace App\Modules\Accounting\Services;
 
-use App\Modules\Accounting\Models\ChartOfAccount;
+use App\Modules\Accounting\Enums\AccountType;
 use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Models\AccountLedger;
 use App\Modules\Accounting\Models\JournalEntryLine;
@@ -31,6 +31,8 @@ class AccountLedgerService
             );
 
             $this->repository->create([
+                'tenant_id'
+                    => $journalEntry->tenant_id,
 
                 'chart_of_account_id'
                     => $line->chart_of_account_id,
@@ -75,6 +77,11 @@ class AccountLedgerService
         $lastBalance = AccountLedger::query()
 
             ->where(
+                'tenant_id',
+                $line->tenant_id
+            )
+
+            ->where(
                 'chart_of_account_id',
                 $account->id
             )
@@ -91,27 +98,49 @@ class AccountLedgerService
             $account->account_type
         ) {
 
-            case 'asset':
+            case AccountType::ASSET:
 
-            case 'expense':
+            case AccountType::EXPENSE:
 
-                $balance += $line->debit;
-                $balance -= $line->credit;
+                // $balance += $line->debit;
+                $balance = bcadd(
+                    (string) $balance,
+                    (string) $line->debit,
+                    4
+                );
+                
+                // $balance -= $line->credit;
+                $balance = bcsub(
+                    (string) $balance,
+                    (string) $line->credit,
+                    4
+                );
 
                 break;
 
-            case 'liability':
+            case AccountType::LIABILITY:
 
-            case 'equity':
+            case AccountType::EQUITY:
 
-            case 'income':
+            case AccountType::INCOME:
 
-                $balance -= $line->debit;
-                $balance += $line->credit;
+                // $balance -= $line->debit;
+                $balance = bcsub(
+                    (string) $balance,
+                    (string) $line->debit,
+                    4
+                );
+
+                // $balance += $line->credit;
+                $balance = bcadd(
+                    (string) $balance,
+                    (string) $line->credit,
+                    4
+                );
 
                 break;
         }
 
-        return $balance;
+        return (string) $balance;
     }
 }

@@ -49,6 +49,18 @@ return new class extends Migration
                 4
             )->default(0);
 
+            $table->decimal(
+                'paid_amount',
+                18,
+                4
+            )->default(0);
+
+            $table->decimal(
+                'due_amount',
+                18,
+                4
+            )->default(0);
+
             $table->text('notes')
                 ->nullable();
 

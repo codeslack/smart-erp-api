@@ -29,6 +29,10 @@ class JournalEntry extends TenantModel
         'created_by',
     ];
 
+    protected $attributes = [
+        'status' => 'draft',
+    ];
+
     protected $casts = [
 
         'entry_date' => 'date',

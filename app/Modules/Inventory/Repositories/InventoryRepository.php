@@ -79,8 +79,8 @@ class InventoryRepository implements InventoryRepositoryInterface
             $newAverageCost = $newQty > 0
                 ? (
                     (($oldQty * $oldCost)
-                    +
-                    ($quantity * $unitCost))
+                        +
+                        ($quantity * $unitCost))
                     / $newQty
                 )
                 : 0;
@@ -126,66 +126,73 @@ class InventoryRepository implements InventoryRepositoryInterface
         ?int $referenceId = null,
         ?string $remarks = null
     ) {
+        return DB::transaction(function () use (
+            $productId,
+            $warehouseId,
+            $quantity,
+            $transactionType,
+            $referenceType,
+            $referenceId,
+            $remarks
+        ) {
 
-        $stock = ProductStock::query()
-            ->where('product_id', $productId)
-            ->where('warehouse_id', $warehouseId)
-            ->first();
+            $stock = ProductStock::query()
+                ->lockForUpdate()
+                ->where('product_id', $productId)
+                ->where('warehouse_id', $warehouseId)
+                ->first();
 
-        if (! $stock) {
+            if (! $stock) {
+                abort(422, 'Stock not found.');
+            }
 
-            abort(
-                422,
-                'Stock not found.'
-            );
-        }
+            if ($stock->quantity < $quantity) {
+                abort(
+                    422,
+                    sprintf(
+                        'Insufficient stock. Available: %s',
+                        $stock->quantity
+                    )
+                );
+            }
 
-        if ($stock->quantity < $quantity) {
+            $averageCost = $stock->average_cost;
 
-            abort(
-                422,
-                sprintf(
-                    'Insufficient stock. Available: %s',
-                    $stock->quantity
-                )
-            );
-        }
+            $lineCost = $quantity * $averageCost;
 
-        $averageCost = $stock->average_cost;
+            $newBalance = $stock->quantity - $quantity;
 
-        $lineCost = $quantity * $averageCost;
+            $stock->update([
+                'quantity' => $newBalance,
+            ]);
 
-        $newBalance = $stock->quantity - $quantity;
+            StockLedger::create([
+                'tenant_id' => tenant()->id,
 
-        $stock->update([
-            'quantity' => $newBalance,
-        ]);
+                'product_id' => $productId,
 
-        StockLedger::create([
-            'tenant_id' => tenant()->id,
+                'warehouse_id' => $warehouseId,
 
-            'product_id' => $productId,
+                'transaction_type' => $transactionType,
 
-            'warehouse_id' => $warehouseId,
+                'reference_type' => $referenceType,
 
-            'transaction_type' => $transactionType,
+                'reference_id' => $referenceId,
 
-            'reference_type' => $referenceType,
+                'qty_in' => 0,
 
-            'reference_id' => $referenceId,
+                'qty_out' => $quantity,
 
-            'qty_in' => 0,
+                'unit_cost' => $averageCost,
 
-            'qty_out' => $quantity,
+                'line_cost' => $lineCost,
 
-            'unit_cost' => $averageCost,
-            'line_cost' => $lineCost,
+                'balance_after' => $newBalance,
 
-            'balance_after' => $newBalance,
+                'remarks' => $remarks,
+            ]);
 
-            'remarks' => $remarks,
-        ]);
-
-        return $stock->fresh();
+            return $stock->fresh();
+        });
     }
 }

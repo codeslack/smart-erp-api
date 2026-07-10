@@ -4,9 +4,9 @@ namespace App\Modules\CustomerReceipt\Models;
 
 use App\Core\Tenant\Models\TenantModel;
 use App\Modules\Customer\Models\Customer;
+use App\Modules\Accounting\Models\ChartOfAccount;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-
 class CustomerReceipt extends TenantModel
 {
     protected $fillable = [
@@ -24,6 +24,8 @@ class CustomerReceipt extends TenantModel
         'reference_no',
 
         'amount',
+
+        'payment_account_id',
 
         'notes',
 
@@ -46,6 +48,14 @@ class CustomerReceipt extends TenantModel
     {
         return $this->hasMany(
             CustomerReceiptAllocation::class
+        );
+    }
+
+    public function paymentAccount(): BelongsTo
+    {
+        return $this->belongsTo(
+            ChartOfAccount::class,
+            'payment_account_id'
         );
     }
 }

@@ -40,6 +40,9 @@ return new class extends Migration
                 4
             );
 
+            $table->foreignId('payment_account_id')
+                ->constrained('chart_of_accounts');
+
             $table->text('notes')
                 ->nullable();
 

@@ -31,21 +31,25 @@ class SupplierPaymentService
     {
         return DB::transaction(function () use ($data) {
 
-            $allocations = $data['allocations'];
+            $allocations = $data['allocations'] ?? [];
 
             unset($data['allocations']);
 
-            $totalAllocated = collect(
-                $allocations
-            )->sum(
-                'allocated_amount'
-            );
+            if (!empty($allocations)) {
 
-            abort_if(
-                $totalAllocated != $data['amount'],
-                422,
-                'Payment amount must equal total allocated amount.'
-            );
+                $totalAllocated = collect($allocations)
+                    ->sum('allocated_amount');
+
+                abort_if(
+                    bccomp(
+                        (string) $totalAllocated,
+                        (string) $data['amount'],
+                        4
+                    ) !== 0,
+                    422,
+                    'Payment amount must equal total allocated amount.'
+                );
+            }
 
             $nextId = (
                 SupplierPayment::max('id') ?? 0
@@ -62,31 +66,33 @@ class SupplierPaymentService
                 $data
             );
 
-            foreach ($allocations as $allocation) {
+            if (!empty($allocations)) {
+                foreach ($allocations as $allocation) {
 
-                $purchase = Purchase::findOrFail(
-                    $allocation['purchase_id']
-                );
+                    $purchase = Purchase::findOrFail(
+                        $allocation['purchase_id']
+                    );
 
-                abort_if(
-                    $purchase->supplier_id != $payment->supplier_id,
-                    422,
-                    'Purchase does not belong to supplier.'
-                );
+                    abort_if(
+                        $purchase->supplier_id != $payment->supplier_id,
+                        422,
+                        'Purchase does not belong to supplier.'
+                    );
 
-                abort_if(
-                    $allocation['allocated_amount']
-                        >
-                        $purchase->due_amount,
-                    422,
-                    'Allocated amount exceeds invoice due amount.'
-                );
+                    abort_if(
+                        $allocation['allocated_amount']
+                            >
+                            $purchase->due_amount,
+                        422,
+                        'Allocated amount exceeds invoice due amount.'
+                    );
 
-                SupplierPaymentAllocation::create([
-                    'supplier_payment_id' => $payment->id,
-                    'purchase_id'         => $purchase->id,
-                    'allocated_amount'    => $allocation['allocated_amount'],
-                ]);
+                    SupplierPaymentAllocation::create([
+                        'supplier_payment_id' => $payment->id,
+                        'purchase_id'         => $purchase->id,
+                        'allocated_amount'    => $allocation['allocated_amount'],
+                    ]);
+                }
             }
 
             return $payment->load(

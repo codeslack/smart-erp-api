@@ -4,56 +4,122 @@ namespace App\Modules\Accounting\Services;
 
 use Illuminate\Support\Facades\DB;
 use App\Modules\Tenant\Models\Tenant;
+use App\Modules\Accounting\Enums\AccountType;
 use App\Modules\Accounting\Models\AccountGroup;
 use App\Modules\Accounting\Models\ChartOfAccount;
 
 class AccountingSetupService
 {
-    public function setup(Tenant $tenant): void
-    {
+    public function setup(
+        Tenant $tenant
+    ): void {
+
         if (
-            ChartOfAccount::where(
-                'tenant_id',
-                $tenant->id
-            )->exists()
+            ChartOfAccount::query()
+                ->where('tenant_id', $tenant->id)
+                ->exists()
         ) {
             return;
         }
 
-        DB::transaction(function () use ($tenant) {
+        DB::transaction(function () use (
+            $tenant
+        ) {
 
-            $groups = [];
+            $groups = $this->createGroups(
+                $tenant
+            );
 
-            foreach ($this->defaultGroups() as $group) {
-
-                $groups[$group['key']] =
-                    AccountGroup::create([
-                        'tenant_id' => $tenant->id,
-                        'name'      => $group['name'],
-                        'code'      => $group['code'],
-                    ]);
-            }
-
-            foreach ($this->defaultAccounts() as $account) {
-
-                ChartOfAccount::create([
-                    'tenant_id'        => $tenant->id,
-                    'account_group_id' => $groups[$account['group']]->id,
-
-                    'parent_id'        => null,
-
-                    'account_code'     => $account['code'],
-                    'account_name'     => $account['name'],
-                    'account_type'     => $account['type'],
-
-                    'opening_balance' => 0,
-                    'current_balance' => 0,
-
-                    'is_system' => true,
-                    'is_active' => true,
-                ]);
-            }
+            $this->createAccounts(
+                $tenant,
+                $groups
+            );
         });
+    }
+
+    protected function createGroups(
+        Tenant $tenant
+    ): array {
+
+        $groups = [];
+
+        foreach (
+            $this->defaultGroups()
+            as $group
+        ) {
+
+            $groups[$group['key']] =
+                AccountGroup::create([
+
+                    'tenant_id' =>
+                        $tenant->id,
+
+                    'name' =>
+                        $group['name'],
+
+                    'code' =>
+                        $group['code'],
+                ]);
+        }
+
+        return $groups;
+    }
+
+    protected function createAccounts(
+        Tenant $tenant,
+        array $groups
+    ): void {
+
+        $accounts = [];
+
+        foreach (
+            $this->defaultAccounts()
+            as $account
+        ) {
+
+            $accounts[] = [
+
+                'tenant_id' =>
+                    $tenant->id,
+
+                'account_group_id' =>
+                    $groups[$account['group']]->id,
+
+                'parent_id' =>
+                    null,
+
+                'account_code' =>
+                    $account['code'],
+
+                'account_name' =>
+                    $account['name'],
+
+                'account_type' =>
+                    $account['type'],
+
+                'opening_balance' =>
+                    0,
+
+                'current_balance' =>
+                    0,
+
+                'is_system' =>
+                    true,
+
+                'is_active' =>
+                    true,
+
+                'created_at' =>
+                    now(),
+
+                'updated_at' =>
+                    now(),
+            ];
+        }
+
+        ChartOfAccount::insert(
+            $accounts
+        );
     }
 
     protected function defaultGroups(): array
@@ -96,84 +162,97 @@ class AccountingSetupService
     {
         return [
 
-            // Assets
+            /*
+            |--------------------------------------------------------------------------
+            | Assets
+            |--------------------------------------------------------------------------
+            */
 
             [
                 'group' => 'asset',
                 'code'  => '1000',
                 'name'  => 'Cash',
-                'type'  => 'asset',
+                'type'  => AccountType::ASSET,
             ],
 
             [
                 'group' => 'asset',
                 'code'  => '1010',
-                'name'  => 'Bank',
-                'type'  => 'asset',
+                'name'  => 'Bank Accounts',
+                'type'  => AccountType::ASSET,
             ],
 
             [
                 'group' => 'asset',
                 'code'  => '1100',
                 'name'  => 'Accounts Receivable',
-                'type'  => 'asset',
+                'type'  => AccountType::ASSET,
             ],
 
             [
                 'group' => 'asset',
                 'code'  => '1200',
                 'name'  => 'Inventory',
-                'type'  => 'asset',
+                'type'  => AccountType::ASSET,
             ],
 
-            // Liabilities
+            /*
+            |--------------------------------------------------------------------------
+            | Liabilities
+            |--------------------------------------------------------------------------
+            */
 
             [
                 'group' => 'liability',
                 'code'  => '2000',
                 'name'  => 'Accounts Payable',
-                'type'  => 'liability',
+                'type'  => AccountType::LIABILITY,
             ],
 
-            // Equity
+            /*
+            |--------------------------------------------------------------------------
+            | Equity
+            |--------------------------------------------------------------------------
+            */
 
             [
                 'group' => 'equity',
                 'code'  => '3000',
                 'name'  => 'Owner Equity',
-                'type'  => 'equity',
+                'type'  => AccountType::EQUITY,
             ],
 
-            // Income
+            /*
+            |--------------------------------------------------------------------------
+            | Income
+            |--------------------------------------------------------------------------
+            */
 
             [
                 'group' => 'income',
                 'code'  => '4000',
                 'name'  => 'Sales Revenue',
-                'type'  => 'income',
+                'type'  => AccountType::INCOME,
             ],
 
             [
                 'group' => 'income',
                 'code'  => '4100',
                 'name'  => 'Sales Return',
-                'type'  => 'income',
+                'type'  => AccountType::INCOME,
             ],
 
-            // Expense
+            /*
+            |--------------------------------------------------------------------------
+            | Expenses
+            |--------------------------------------------------------------------------
+            */
 
             [
                 'group' => 'expense',
                 'code'  => '5000',
                 'name'  => 'Cost of Goods Sold',
-                'type'  => 'expense',
-            ],
-
-            [
-                'group' => 'expense',
-                'code'  => '5100',
-                'name'  => 'Purchase Return',
-                'type'  => 'expense',
+                'type'  => AccountType::EXPENSE,
             ],
         ];
     }

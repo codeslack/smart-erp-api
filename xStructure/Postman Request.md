@@ -10,6 +10,14 @@
 | Equity    | Decrease | Increase |
 | Income    | Decrease | Increase |
 
+| Code | Account Name  | Parent |
+| ---- | ------------- | ------ |
+| 1010 | Bank Accounts | NULL   |
+| 1011 | SBI Bank      | 1010   |
+| 1012 | HDFC Bank     | 1010   |
+| 1013 | ICICI Bank    | 1010   |
+| 1014 | Axis Bank     | 1010   |
+
 ```
 
 ### Manual Journal
@@ -98,6 +106,50 @@ JSON
         {
             "chart_of_account_id": 6,
             "credit": 100000
+        }
+    ]
+}
+```
+
+Step 2: Post Journal Entry (Approved)
+```bash
+POST /api/journal-entries/1/post
+
+JSON
+{
+    "success": true,
+    "message": "Journal Entry posted successfully"
+}
+```
+## Step 1-a: Create Draft Journal Entry
+#### Bank A/c
+```bash
+02-Jun-2026
+
+SBI Bank    Dr  50,000
+Cash        Cr  50,000
+```
+    Based on your seeded accounts:
+
+    1 = Cash
+    10 = SBI Bank
+
+```bash
+POST /api/journal-entries
+
+JSON
+{
+    "voucher_type": "journal",
+    "entry_date": "2026-06-02",
+    "description": "Transfer cash to SBI",
+    "lines": [
+        {
+            "chart_of_account_id": 10,
+            "debit": 50000
+        },
+        {
+            "chart_of_account_id": 1,
+            "credit": 50000
         }
     ]
 }
@@ -268,12 +320,14 @@ Receive
 POST /api/customer-receipts
 
 JSON
+
 {
     "customer_id": 1,
     "receipt_date": "2026-06-12",
     "payment_method": "cash",
     "reference_no": "CASH-001",
     "amount": 15000,
+    "payment_account_id": 1,
     "notes": "Partial payment",
     "allocations": [
         {
@@ -282,6 +336,14 @@ JSON
         }
     ]
 }
+
+Where: (payment_account_id)
+---------------
+1 = Cash
+2 = SBI Bank
+3 = HDFC Bank
+4 = ICICI Bank
+
 ```
 
 #### Then: Confirm
@@ -387,5 +449,30 @@ Expected structure:
     ],
     "closing_balance": 22000
   }
+}
+```
+
+# POST */api/suppliers*
+```json
+{
+    "name": "First Supplier",
+    "code": "SUPP-01",
+    "contact_person": "Mr Vipin Sharma",
+    "phone": "9158254125",
+    "email": "fs@me.com",
+    "address": "RN MUKHARJI ROAD, KOL-72",
+    "tax_number": "27AA11A1Z1"
+}
+```
+# POST */api/customers*
+```json
+{
+    "name": "First Customer",
+    "code": "CUST-01",
+    "contact_person": "Mr Arup Shaw",
+    "phone": "9988254125",
+    "email": "fc@me.com",
+    "address": "44-SHAW ROAD, MAIN POINT, DH-002",
+    "tax_number": "45AA00A1X1"
 }
 ```

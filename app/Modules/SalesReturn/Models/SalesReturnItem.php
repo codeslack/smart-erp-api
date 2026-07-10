@@ -3,6 +3,7 @@
 namespace App\Modules\SalesReturn\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SalesReturnItem extends Model
 {
@@ -15,21 +16,21 @@ class SalesReturnItem extends Model
         'line_total',
     ];
 
-    public function salesReturn()
+    public function salesReturn(): BelongsTo
     {
         return $this->belongsTo(
             SalesReturn::class
         );
     }
 
-    public function product()
+    public function product(): BelongsTo
     {
         return $this->belongsTo(
             \App\Modules\Product\Models\Product::class
         );
     }
 
-    public function warehouse()
+    public function warehouse(): BelongsTo
     {
         return $this->belongsTo(
             \App\Modules\Warehouse\Models\Warehouse::class

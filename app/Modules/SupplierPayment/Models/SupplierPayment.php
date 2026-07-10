@@ -4,6 +4,7 @@ namespace App\Modules\SupplierPayment\Models;
 
 use App\Core\Tenant\Models\TenantModel;
 use App\Modules\Supplier\Models\Supplier;
+use App\Modules\Accounting\Models\ChartOfAccount;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -24,6 +25,8 @@ class SupplierPayment extends TenantModel
         'reference_no',
 
         'amount',
+
+        'payment_account_id',
 
         'notes',
 
@@ -46,6 +49,14 @@ class SupplierPayment extends TenantModel
     {
         return $this->hasMany(
             SupplierPaymentAllocation::class
+        );
+    }
+
+    public function paymentAccount(): BelongsTo
+    {
+        return $this->belongsTo(
+            ChartOfAccount::class,
+            'payment_account_id'
         );
     }
 }

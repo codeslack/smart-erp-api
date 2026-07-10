@@ -23,6 +23,13 @@ class StoreSupplierPaymentRequest extends FormRequest
                 ),
             ],
 
+            'payment_account_id' => [
+                'required',
+                TenantRule::exists(
+                    'chart_of_accounts'
+                ),
+            ],
+
             'payment_date' => [
                 'required',
                 'date',
@@ -50,20 +57,19 @@ class StoreSupplierPaymentRequest extends FormRequest
             ],
 
             'allocations' => [
-                'required',
+                'nullable',
                 'array',
-                'min:1',
             ],
 
             'allocations.*.purchase_id' => [
-                'required',
+                'required_with:allocations',
                 TenantRule::exists(
                     'purchases'
                 ),
             ],
 
             'allocations.*.allocated_amount' => [
-                'required',
+                'required_with:allocations',
                 'numeric',
                 'min:0.01',
             ],
