@@ -3,7 +3,7 @@
 namespace App\Modules\SalesReturn\Services;
 
 use Illuminate\Support\Facades\DB;
-use App\Modules\Product\Models\Product;
+use App\Modules\Sales\Models\SaleItem;
 use App\Modules\Inventory\Models\ProductStock;
 use App\Modules\SalesReturn\Models\SalesReturn;
 use App\Modules\SalesReturn\Models\SalesReturnItem;
@@ -31,22 +31,15 @@ class SalesReturnService
         return $this->repository->find($id);
     }
 
-    public function create(array $data)
+    public function create(
+        array $data
+    )
     {
         return DB::transaction(function () use ($data) {
 
             $items = $data['items'];
 
             unset($data['items']);
-
-            $nextId = (
-                SalesReturn::max('id') ?? 0
-            ) + 1;
-
-            $data['return_no'] = sprintf(
-                'SRN-%06d',
-                $nextId
-            );
 
             $data['status'] =
                 SalesReturnStatus::DRAFT;
@@ -56,78 +49,108 @@ class SalesReturnService
                     $data
                 );
 
-            $grandTotal = 0;
-
-            foreach ($items as $item) {
-
-                $lineTotal =
-                    $item['quantity']
-                    *
-                    $item['unit_price'];
-
-                $product = Product::find(
-                    $item['product_id']
-                );
-
-                abort_if(
-                    !$product,
-                    422,
-                    'Invalid product.'
-                );
-
-                SalesReturnItem::create([
-
-                    'sales_return_id'
-                        => $salesReturn->id,
-
-                    'product_id'
-                        => $item['product_id'],
-
-                    'warehouse_id'
-                        => $item['warehouse_id'],
-
-                    'quantity'
-                        => $item['quantity'],
-
-                    'unit_price'
-                        => $item['unit_price'],
-
-                    'line_total'
-                        => $lineTotal,
-                ]);
-
-                $grandTotal += $lineTotal;
-            }
-
             $salesReturn->update([
-
-                'grand_total'
-                    => $grandTotal,
+                'return_no' => sprintf(
+                    'SRN-%06d',
+                    $salesReturn->id
+                ),
             ]);
+
+            $this->syncItems(
+                $salesReturn,
+                $items
+            );
+
+            $this->recalculateTotals(
+                $salesReturn
+            );
+
+            $this->calculateRefundAmounts(
+                $salesReturn
+            );
 
             return $salesReturn
                 ->fresh()
-                ->load('items');
+                ->load([
+                    'customer',
+                    'sale',
+                    'items.product',
+                    'items.warehouse',
+                    'items.saleItem',
+                ]);
         });
     }
 
     public function update(
         int $id,
         array $data
-    ) {
-        return $this->repository->update(
+    )
+    {
+        return DB::transaction(function () use (
             $id,
             $data
-        );
+        ) {
+
+            $salesReturn =
+                $this->repository->find(
+                    $id
+                );
+
+            abort_if(
+                $salesReturn->status !==
+                SalesReturnStatus::DRAFT,
+                422,
+                'Only draft returns can be updated.'
+            );
+
+            $items =
+                $data['items'] ?? [];
+
+            unset($data['items']);
+
+            $salesReturn->update(
+                $data
+            );
+
+            if (! empty($items)) {
+
+                $salesReturn
+                    ->items()
+                    ->delete();
+
+                $this->syncItems(
+                    $salesReturn,
+                    $items
+                );
+            }
+
+            $this->recalculateTotals(
+                $salesReturn
+            );
+
+            $this->calculateRefundAmounts(
+                $salesReturn
+            );
+
+            return $salesReturn
+                ->fresh()
+                ->load([
+                    'customer',
+                    'sale',
+                    'items.product',
+                    'items.warehouse',
+                    'items.saleItem',
+                ]);
+        });
     }
+
 
     public function approve(
         SalesReturn $salesReturn
     ) {
 
         abort_if(
-            $salesReturn->status !==
-            SalesReturnStatus::DRAFT,
+            $salesReturn->status !== SalesReturnStatus::DRAFT,
             422,
             'Sales Return already approved.'
         );
@@ -135,6 +158,8 @@ class SalesReturnService
         return DB::transaction(function () use (
             $salesReturn
         ) {
+
+            $salesReturn->loadMissing('items');
 
             foreach (
                 $salesReturn->items
@@ -156,32 +181,31 @@ class SalesReturnService
 
                     ->first();
 
+                abort_if(
+                    ! $productStock,
+                    422,
+                    "Stock record not found for product {$item->product_id}"
+                );
+
                 $unitCost =
                     $productStock?->average_cost
                     ?? 0;
 
                 $this->inventoryService->stockIn(
 
-                    productId:
-                        $item->product_id,
+                    productId: $item->product_id,
 
-                    warehouseId:
-                        $item->warehouse_id,
+                    warehouseId: $item->warehouse_id,
 
-                    quantity:
-                        $item->quantity,
+                    quantity: $item->quantity,
 
-                    unitCost:
-                        $unitCost,
+                    unitCost: $unitCost,
 
-                    transactionType:
-                        StockTransactionType::SALES_RETURN,
+                    transactionType: StockTransactionType::SALES_RETURN,
 
-                    referenceType:
-                        SalesReturn::class,
+                    referenceType: SalesReturn::class,
 
-                    referenceId:
-                        $salesReturn->id,
+                    referenceId: $salesReturn->id,
 
                     remarks: sprintf(
                         'Sales Return %s',
@@ -191,16 +215,19 @@ class SalesReturnService
             }
 
             $salesReturn->update([
-
-                'status'
-                    => SalesReturnStatus::CONFIRMED,
+                'status' => SalesReturnStatus::CONFIRMED,
+                'approved_by' => auth()->id(),
+                'approved_at' => now(),
             ]);
 
             $salesReturn = $salesReturn
                 ->fresh()
                 ->load([
                     'customer',
-                    'items',
+                    'sale',
+                    'items.product',
+                    'items.warehouse',
+                    'items.saleItem',
                 ]);
 
             $this->accountingPostingService
@@ -209,15 +236,292 @@ class SalesReturnService
                 );
 
             return $salesReturn;
-
         });
     }
 
     public function delete(
         int $id
     ) {
-        return $this->repository->delete(
+
+        return DB::transaction(function () use (
             $id
+        ) {
+
+            $salesReturn =
+                $this->repository->find(
+                    $id
+                );
+
+            abort_if(
+
+                $salesReturn->status !==
+                SalesReturnStatus::DRAFT,
+
+                422,
+
+                'Approved sales returns cannot be deleted.'
+            );
+
+            return $this->repository->delete(
+                $id
+            );
+        });
+    }
+
+    protected function validateReturnQuantity(
+        SalesReturn $salesReturn,
+        SaleItem $saleItem,
+        float $requestQty
+    ): void {
+
+        $alreadyReturned =
+            SalesReturnItem::query()
+
+                ->where(
+                    'sale_item_id',
+                    $saleItem->id
+                )
+
+                ->whereHas(
+                    'salesReturn',
+                    function ($query) use (
+                        $salesReturn
+                    ) {
+
+                        $query
+                            ->where(
+                                'status',
+                                SalesReturnStatus::CONFIRMED
+                            )
+                            ->where(
+                                'id',
+                                '!=',
+                                $salesReturn->id
+                            );
+                    }
+                )
+
+                ->sum(
+                    'quantity'
+                );
+
+        $availableToReturn =
+            $saleItem->quantity
+            -
+            $alreadyReturned;
+
+        abort_if(
+            $requestQty > $availableToReturn,
+            422,
+            sprintf(
+                'Only %s quantity available for return.',
+                $availableToReturn
+            )
         );
     }
+
+    protected function syncItems(
+        SalesReturn $salesReturn,
+        array $items
+    ): void {
+
+        foreach ($items as $item) {
+
+            $saleItem =
+                SaleItem::query()
+                    ->where(
+                        'id',
+                        $item['sale_item_id']
+                    )
+                    ->where(
+                        'sale_id',
+                        $salesReturn->sale_id
+                    )
+                    ->first();
+
+            abort_if(
+                ! $saleItem,
+                422,
+                'Invalid sale item.'
+            );
+
+            abort_if(
+                $saleItem->product_id
+                !=
+                $item['product_id'],
+                422,
+                'Product mismatch.'
+            );
+
+            abort_if(
+                $saleItem->warehouse_id
+                !=
+                $item['warehouse_id'],
+                422,
+                'Warehouse mismatch.'
+            );
+
+            $this->validateReturnQuantity(
+                salesReturn: $salesReturn,
+                saleItem: $saleItem,
+                requestQty: $item['quantity']
+            );
+
+            $lineTotal =
+                (
+                    $item['quantity']
+                    *
+                    $item['unit_price']
+                )
+                -
+                (
+                    $item['discount']
+                    ?? 0
+                )
+                +
+                (
+                    $item['tax']
+                    ?? 0
+                );
+
+            SalesReturnItem::create([
+
+                'sales_return_id'
+                    => $salesReturn->id,
+
+                'sale_item_id'
+                    => $saleItem->id,
+
+                'product_id'
+                    => $item['product_id'],
+
+                'warehouse_id'
+                    => $item['warehouse_id'],
+
+                'quantity'
+                    => $item['quantity'],
+
+                'unit_price'
+                    => $item['unit_price'],
+
+                'discount'
+                    => $item['discount']
+                    ?? 0,
+
+                'tax'
+                    => $item['tax']
+                    ?? 0,
+
+                'line_total'
+                    => $lineTotal,
+
+                'condition'
+                    => $item['condition']
+                    ?? null,
+
+                'reason'
+                    => $item['reason']
+                    ?? null,
+            ]);
+        }
+    }
+
+    protected function recalculateTotals(
+        SalesReturn $salesReturn
+    ): void {
+
+        $salesReturn->loadMissing(
+            'items'
+        );
+
+        $subtotal =
+            $salesReturn->items->sum(
+                function ($item) {
+
+                    return
+                        $item->quantity
+                        *
+                        $item->unit_price;
+                }
+            );
+
+        $discount =
+            $salesReturn->items->sum(
+                'discount'
+            );
+
+        $tax =
+            $salesReturn->items->sum(
+                'tax'
+            );
+
+        $grandTotal =
+            $subtotal
+            -
+            $discount
+            +
+            $tax;
+
+        $salesReturn->update([
+
+            'subtotal'
+                => $subtotal,
+
+            'discount'
+                => $discount,
+
+            'tax'
+                => $tax,
+
+            'grand_total'
+                => $grandTotal,
+        ]);
+    }
+
+    protected function calculateRefundAmounts(
+        SalesReturn $salesReturn
+    ): void {
+
+        $refundAmount = 0;
+
+        $creditedAmount = 0;
+
+        if (
+            $salesReturn->refund_type
+            ===
+            \App\Modules\SalesReturn\Enums\SalesReturnRefundType::CREDIT_NOTE
+        ) {
+
+            $creditedAmount =
+                $salesReturn->grand_total;
+        }
+
+        if (
+            $salesReturn->refund_type
+            ===
+            \App\Modules\SalesReturn\Enums\SalesReturnRefundType::CASH_REFUND
+        ) {
+
+            $refundAmount =
+                $salesReturn->grand_total;
+        }
+
+        if (
+            $salesReturn->refund_type
+            ===
+            \App\Modules\SalesReturn\Enums\SalesReturnRefundType::BANK_REFUND
+        ) {
+
+            $refundAmount =
+                $salesReturn->grand_total;
+        }
+
+        $salesReturn->update([
+
+            'refund_amount' => $refundAmount,
+
+            'credited_amount' => $creditedAmount,
+        ]);
+    }
+
 }

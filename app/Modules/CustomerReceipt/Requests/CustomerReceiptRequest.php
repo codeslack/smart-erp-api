@@ -23,6 +23,13 @@ class CustomerReceiptRequest extends FormRequest
                 ),
             ],
 
+            'payment_account_id' => [
+                'required',
+                TenantRule::exists(
+                    'chart_of_accounts'
+                ),
+            ],
+
             'receipt_date' => [
                 'required',
                 'date',
@@ -52,20 +59,19 @@ class CustomerReceiptRequest extends FormRequest
             ],
 
             'allocations' => [
-                'required',
+                'nullable',
                 'array',
-                'min:1',
             ],
 
             'allocations.*.sale_id' => [
-                'required',
+                'required_with:allocations',
                 TenantRule::exists(
                     'sales'
                 ),
             ],
 
             'allocations.*.allocated_amount' => [
-                'required',
+                'required_with:allocations',
                 'numeric',
                 'gt:0',
             ],

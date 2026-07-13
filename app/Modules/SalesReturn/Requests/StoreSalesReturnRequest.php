@@ -2,8 +2,10 @@
 
 namespace App\Modules\SalesReturn\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use App\Core\Validation\TenantRule;
+use Illuminate\Foundation\Http\FormRequest;
+use App\Modules\SalesReturn\Enums\SalesReturnRefundType;
 
 class StoreSalesReturnRequest extends FormRequest
 {
@@ -31,6 +33,19 @@ class StoreSalesReturnRequest extends FormRequest
                 'date',
             ],
 
+            'refund_type' => [
+                'nullable',
+                Rule::enum(
+                    SalesReturnRefundType::class
+                ),
+            ],
+
+            'return_reason' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+
             'notes' => [
                 'nullable',
                 'string',
@@ -40,6 +55,11 @@ class StoreSalesReturnRequest extends FormRequest
                 'required',
                 'array',
                 'min:1',
+            ],
+
+            'items.*.sale_item_id' => [
+                'required',
+                Rule::exists('sale_items', 'id'),
             ],
 
             'items.*.product_id' => [
@@ -62,6 +82,30 @@ class StoreSalesReturnRequest extends FormRequest
                 'required',
                 'numeric',
                 'gt:0',
+            ],
+
+            'items.*.discount' => [
+                'nullable',
+                'numeric',
+                'min:0',
+            ],
+
+            'items.*.tax' => [
+                'nullable',
+                'numeric',
+                'min:0',
+            ],
+
+            'items.*.condition' => [
+                'nullable',
+                'string',
+                'max:100',
+            ],
+
+            'items.*.reason' => [
+                'nullable',
+                'string',
+                'max:255',
             ],
         ];
     }

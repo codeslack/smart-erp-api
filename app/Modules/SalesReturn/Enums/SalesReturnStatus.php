@@ -2,11 +2,11 @@
 
 namespace App\Modules\SalesReturn\Enums;
 
-class SalesReturnStatus
+enum SalesReturnStatus: string
 {
-    public const DRAFT = 'draft';
+    case DRAFT = 'draft';
 
-    public const CONFIRMED = 'confirmed';
+    case CONFIRMED = 'confirmed';
 
-    public const CANCELLED = 'cancelled';
+    case CANCELLED = 'cancelled';
 }

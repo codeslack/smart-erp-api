@@ -2,43 +2,63 @@
 
 namespace App\Modules\Accounting\Services\Postings;
 
+use App\Modules\Inventory\Models\StockLedger;
 use App\Modules\SalesReturn\Models\SalesReturn;
 use App\Modules\Accounting\Enums\AccountingAccounts;
+use App\Modules\Inventory\Enums\StockTransactionType;
 
 class SalesReturnPostingService extends BasePostingService
 {
     public function post(
-        SalesReturn $return
+        SalesReturn $salesReturn
     ): void {
 
-        $return->loadMissing([
-            'items.product.stock',
-        ]);
+        /*
+        |--------------------------------------------------------------------------
+        | Inventory Cost
+        |--------------------------------------------------------------------------
+        |
+        | Inventory has already been restored during approval.
+        | Read the actual inventory value from Stock Ledger.
+        |
+        */
 
         $inventoryCost =
-            $return->items->sum(
-                function ($item) {
+            StockLedger::query()
 
-                    $averageCost =
-                        $item->product?->stock?->average_cost
-                        ?? 0;
+                ->where(
+                    'reference_type',
+                    SalesReturn::class
+                )
 
-                    return
-                        $item->quantity
-                        * $averageCost;
-                }
-            );
+                ->where(
+                    'reference_id',
+                    $salesReturn->id
+                )
+
+                ->where(
+                    'transaction_type',
+                    StockTransactionType::SALES_RETURN
+                )
+
+                ->sum(
+                    'line_cost'
+                );
 
         /*
         |--------------------------------------------------------------------------
         | Reverse Revenue
         |--------------------------------------------------------------------------
+        |
+        | Dr Sales Return
+        | Cr Accounts Receivable
+        |
         */
 
         $this->createJournalEntry(
 
             entryDate:
-                $return->return_date,
+                $salesReturn->return_date,
 
             voucherType:
                 'sales_return',
@@ -47,10 +67,10 @@ class SalesReturnPostingService extends BasePostingService
                 SalesReturn::class,
 
             referenceId:
-                $return->id,
+                $salesReturn->id,
 
             description:
-                "Sales Return {$return->return_no}",
+                "Sales Return {$salesReturn->return_no}",
 
             lines: [
 
@@ -59,7 +79,7 @@ class SalesReturnPostingService extends BasePostingService
                         AccountingAccounts::SALES_RETURN,
 
                     'debit' =>
-                        $return->grand_total,
+                        $salesReturn->grand_total,
 
                     'credit' => 0,
                 ],
@@ -71,7 +91,7 @@ class SalesReturnPostingService extends BasePostingService
                     'debit' => 0,
 
                     'credit' =>
-                        $return->grand_total,
+                        $salesReturn->grand_total,
                 ],
             ]
         );
@@ -80,14 +100,18 @@ class SalesReturnPostingService extends BasePostingService
         |--------------------------------------------------------------------------
         | Restore Inventory
         |--------------------------------------------------------------------------
+        |
+        | Dr Inventory
+        | Cr Cost Of Goods Sold
+        |
         */
-        if ($inventoryCost > 0)
-        {        
+
+        if ($inventoryCost > 0) {
 
             $this->createJournalEntry(
 
                 entryDate:
-                    $return->return_date,
+                    $salesReturn->return_date,
 
                 voucherType:
                     'sales_return',
@@ -96,10 +120,10 @@ class SalesReturnPostingService extends BasePostingService
                     SalesReturn::class,
 
                 referenceId:
-                    $return->id,
+                    $salesReturn->id,
 
                 description:
-                    "Inventory Restore {$return->return_no}",
+                    "Inventory Restore {$salesReturn->return_no}",
 
                 lines: [
 
@@ -124,7 +148,6 @@ class SalesReturnPostingService extends BasePostingService
                     ],
                 ]
             );
-
         }
     }
 }

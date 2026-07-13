@@ -250,6 +250,7 @@ JSON
     "supplier_id": 1,
     "payment_date": "2026-06-06",
     "payment_method": "cash",
+    "payment_account_id": 1,
     "reference_no": "PAY-001",
     "amount": 20000,
     "notes": "Partial supplier payment",
@@ -474,5 +475,33 @@ Expected structure:
     "email": "fc@me.com",
     "address": "44-SHAW ROAD, MAIN POINT, DH-002",
     "tax_number": "45AA00A1X1"
+}
+```
+# POST */api/sales-returns*
+```json
+{
+  "sale_id": 2,
+  "customer_id": 1,
+  "return_date": "2026-07-13",
+  "refund_type": "credit_note",
+  "return_reason": "Damaged Product",
+  "notes": "Customer returned damaged item",
+
+  "items": [
+    {
+      "sale_item_id": 2,
+      "product_id": 1,
+      "warehouse_id": 1,
+
+      "quantity": 1,
+      "unit_price": 6000,
+
+      "discount": 0,
+      "tax": 0,
+
+      "condition": "damaged",
+      "reason": "Broken during transport"
+    }
+  ]
 }
 ```

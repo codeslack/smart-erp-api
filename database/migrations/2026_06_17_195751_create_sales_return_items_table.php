@@ -19,6 +19,11 @@ return new class extends Migration
                 ->constrained('sales_returns')
                 ->cascadeOnDelete();
 
+            $table->foreignId('sale_item_id')
+                ->nullable()
+                ->constrained('sale_items')
+                ->nullOnDelete();
+
             $table->foreignId('product_id')
                 ->constrained('products')
                 ->cascadeOnDelete();
@@ -40,12 +45,38 @@ return new class extends Migration
             );
 
             $table->decimal(
+                'discount',
+                18,
+                4
+            )->default(0);
+
+            $table->decimal(
+                'tax',
+                18,
+                4
+            )->default(0);
+
+            $table->decimal(
                 'line_total',
                 18,
                 4
             );
 
+            $table->string('condition')
+                ->default('good');
+
+            $table->string('reason')
+                ->nullable();
+
             $table->timestamps();
+
+            $table->index('sales_return_id');
+
+            $table->index('sale_item_id');
+
+            $table->index('product_id');
+
+            $table->index('warehouse_id');
         });
     }
 
