@@ -2,6 +2,7 @@
 
 namespace App\Modules\Inventory\Repositories;
 
+use DomainException;
 use Illuminate\Support\Facades\DB;
 use App\Modules\Product\Models\Product;
 use App\Modules\Inventory\Models\StockLedger;
@@ -26,6 +27,7 @@ class InventoryRepository implements InventoryRepositoryInterface
     public function stock(Product $product)
     {
         return ProductStock::query()
+            ->where('tenant_id', tenant()->id)
             ->where('product_id', $product->id)
             ->get();
     }
@@ -33,9 +35,99 @@ class InventoryRepository implements InventoryRepositoryInterface
     public function ledger(Product $product)
     {
         return StockLedger::query()
+            ->where('tenant_id', tenant()->id)
             ->where('product_id', $product->id)
             ->latest('id')
             ->get();
+    }
+
+    public function stockReport(
+        array $filters = []
+    ) {
+
+        $query = ProductStock::query()
+            ->with([
+                'product',
+                'warehouse',
+            ]);
+
+        if (
+            ! empty($filters['product_id'])
+        ) {
+            $query->where(
+                'product_id',
+                $filters['product_id']
+            );
+        }
+
+        if (
+            ! empty($filters['warehouse_id'])
+        ) {
+            $query->where(
+                'warehouse_id',
+                $filters['warehouse_id']
+            );
+        }
+
+        return $query
+            ->get()
+            ->map(function ($stock) {
+
+                return [
+
+                    'product_id'
+                        => $stock->product_id,
+
+                    'product_name'
+                        => $stock->product->name,
+
+                    'sku'
+                        => $stock->product->sku,
+
+                    'warehouse_id'
+                        => $stock->warehouse_id,
+
+                    'warehouse_name'
+                        => $stock->warehouse->name,
+
+                    'quantity'
+                        => $stock->quantity,
+
+                    'average_cost'
+                        => $stock->average_cost,
+
+                    'stock_value'
+                        => bcmul(
+                            $stock->quantity,
+                            $stock->average_cost,
+                            4
+                        ),
+                ];
+            });
+    }    
+
+    public function availableStock(
+        int $productId,
+        int $warehouseId
+    ): float {
+
+        return (float) ProductStock::query()
+            ->where('tenant_id', tenant()->id)
+            ->where('product_id', $productId)
+            ->where('warehouse_id', $warehouseId)
+            ->value('quantity');
+    }
+
+    public function averageCost(
+        int $productId,
+        int $warehouseId
+    ): float {
+
+        return (float) ProductStock::query()
+            ->where('tenant_id', tenant()->id)
+            ->where('product_id', $productId)
+            ->where('warehouse_id', $warehouseId)
+            ->value('average_cost');
     }
 
     public function stockIn(
@@ -59,58 +151,52 @@ class InventoryRepository implements InventoryRepositoryInterface
             $remarks
         ) {
 
-            $stock = ProductStock::firstOrCreate(
-                [
-                    'product_id' => $productId,
-                    'warehouse_id' => $warehouseId,
-                ],
-                [
-                    'quantity' => 0,
-                    'average_cost' => 0,
-                ]
-            );
+            $stock = ProductStock::query()
+                ->lockForUpdate()
+                ->firstOrCreate(
+                    [
+                        'tenant_id'    => tenant()->id,
+                        'product_id'   => $productId,
+                        'warehouse_id' => $warehouseId,
+                    ],
+                    [
+                        'quantity'     => 0,
+                        'average_cost' => 0,
+                    ]
+                );
 
-            $oldQty = $stock->quantity;
+            $oldQuantity = (float) $stock->quantity;
+            $oldCost = (float) $stock->average_cost;
 
-            $oldCost = $stock->average_cost;
+            $newQuantity = $oldQuantity + $quantity;
 
-            $newQty = $oldQty + $quantity;
-
-            $newAverageCost = $newQty > 0
+            $newAverageCost = $newQuantity > 0
                 ? (
-                    (($oldQty * $oldCost)
+                    (($oldQuantity * $oldCost)
                         +
                         ($quantity * $unitCost))
-                    / $newQty
+                    / $newQuantity
                 )
                 : 0;
 
             $stock->update([
-                'quantity' => $newQty,
+                'quantity'     => $newQuantity,
                 'average_cost' => $newAverageCost,
             ]);
 
             StockLedger::create([
-                'product_id' => $productId,
-
-                'warehouse_id' => $warehouseId,
-
+                'tenant_id'        => tenant()->id,
+                'product_id'       => $productId,
+                'warehouse_id'     => $warehouseId,
                 'transaction_type' => $transactionType,
-
-                'reference_type' => $referenceType,
-
-                'reference_id' => $referenceId,
-
-                'qty_in' => $quantity,
-
-                'qty_out' => 0,
-
-                'unit_cost' => $unitCost,
-                'line_cost' => $quantity * $unitCost,
-
-                'balance_after' => $newQty,
-
-                'remarks' => $remarks,
+                'reference_type'   => $referenceType,
+                'reference_id'     => $referenceId,
+                'qty_in'           => $quantity,
+                'qty_out'          => 0,
+                'unit_cost'        => $unitCost,
+                'line_cost'        => $quantity * $unitCost,
+                'balance_after'    => $newQuantity,
+                'remarks'          => $remarks,
             ]);
 
             return $stock->fresh();
@@ -122,6 +208,7 @@ class InventoryRepository implements InventoryRepositoryInterface
         int $warehouseId,
         float $quantity,
         string $transactionType,
+        ?float $unitCost = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
         ?string $remarks = null
@@ -131,6 +218,7 @@ class InventoryRepository implements InventoryRepositoryInterface
             $warehouseId,
             $quantity,
             $transactionType,
+            $unitCost,
             $referenceType,
             $referenceId,
             $remarks
@@ -138,58 +226,55 @@ class InventoryRepository implements InventoryRepositoryInterface
 
             $stock = ProductStock::query()
                 ->lockForUpdate()
+                ->where('tenant_id', tenant()->id)
                 ->where('product_id', $productId)
                 ->where('warehouse_id', $warehouseId)
                 ->first();
 
             if (! $stock) {
-                abort(422, 'Stock not found.');
+                throw new DomainException(
+                    'Stock record not found.'
+                );
             }
 
-            if ($stock->quantity < $quantity) {
-                abort(
-                    422,
+            if (bccomp(
+                (string) $stock->quantity,
+                (string) $quantity,
+                4
+            ) < 0) {
+
+                throw new DomainException(
                     sprintf(
-                        'Insufficient stock. Available: %s',
-                        $stock->quantity
+                        'Insufficient stock. Available: %s, Requested: %s',
+                        $stock->quantity,
+                        $quantity
                     )
                 );
             }
 
-            $averageCost = $stock->average_cost;
+            $cost = $unitCost ?? (float) $stock->average_cost;
 
-            $lineCost = $quantity * $averageCost;
+            $lineCost = $quantity * $cost;
 
-            $newBalance = $stock->quantity - $quantity;
+            $newQuantity = (float) $stock->quantity - $quantity;
 
             $stock->update([
-                'quantity' => $newBalance,
+                'quantity' => $newQuantity,
             ]);
 
             StockLedger::create([
-                'tenant_id' => tenant()->id,
-
-                'product_id' => $productId,
-
-                'warehouse_id' => $warehouseId,
-
+                'tenant_id'        => tenant()->id,
+                'product_id'       => $productId,
+                'warehouse_id'     => $warehouseId,
                 'transaction_type' => $transactionType,
-
-                'reference_type' => $referenceType,
-
-                'reference_id' => $referenceId,
-
-                'qty_in' => 0,
-
-                'qty_out' => $quantity,
-
-                'unit_cost' => $averageCost,
-
-                'line_cost' => $lineCost,
-
-                'balance_after' => $newBalance,
-
-                'remarks' => $remarks,
+                'reference_type'   => $referenceType,
+                'reference_id'     => $referenceId,
+                'qty_in'           => 0,
+                'qty_out'          => $quantity,
+                'unit_cost'        => $cost,
+                'line_cost'        => $lineCost,
+                'balance_after'    => $newQuantity,
+                'remarks'          => $remarks,
             ]);
 
             return $stock->fresh();

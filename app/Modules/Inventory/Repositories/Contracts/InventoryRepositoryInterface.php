@@ -12,6 +12,20 @@ interface InventoryRepositoryInterface
 
     public function ledger(Product $product);
 
+    public function stockReport(
+        array $filters = []
+    );
+    
+    public function availableStock(
+        int $productId,
+        int $warehouseId
+    ): float;
+
+    public function averageCost(
+        int $productId,
+        int $warehouseId
+    ): float;
+
     public function stockIn(
         int $productId,
         int $warehouseId,
@@ -28,6 +42,7 @@ interface InventoryRepositoryInterface
         int $warehouseId,
         float $quantity,
         string $transactionType,
+        ?float $unitCost = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
         ?string $remarks = null

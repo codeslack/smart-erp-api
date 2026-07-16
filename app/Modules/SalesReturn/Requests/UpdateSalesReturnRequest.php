@@ -5,6 +5,7 @@ namespace App\Modules\SalesReturn\Requests;
 use Illuminate\Validation\Rule;
 use App\Core\Validation\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
+use App\Modules\SalesReturn\Enums\SalesReturnCondition;
 use App\Modules\SalesReturn\Enums\SalesReturnRefundType;
 
 class UpdateSalesReturnRequest extends FormRequest
@@ -43,7 +44,7 @@ class UpdateSalesReturnRequest extends FormRequest
             'return_reason' => [
                 'nullable',
                 'string',
-                'max:1000',
+                'max:255',
             ],
 
             'notes' => [
@@ -98,14 +99,15 @@ class UpdateSalesReturnRequest extends FormRequest
 
             'items.*.condition' => [
                 'nullable',
-                'string',
-                'max:100',
+                Rule::enum(
+                    SalesReturnCondition::class
+                ),
             ],
 
             'items.*.reason' => [
                 'nullable',
                 'string',
-                'max:1000',
+                'max:255',
             ],
         ];
     }

@@ -2,8 +2,11 @@
 
 namespace App\Modules\PurchaseReturn\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use App\Core\Validation\TenantRule;
+use Illuminate\Foundation\Http\FormRequest;
+use App\Modules\PurchaseReturn\Enums\PurchaseReturnCondition;
+use App\Modules\PurchaseReturn\Enums\PurchaseReturnRefundType;
 
 class StorePurchaseReturnRequest extends FormRequest
 {
@@ -35,6 +38,19 @@ class StorePurchaseReturnRequest extends FormRequest
                 'date',
             ],
 
+            'refund_type' => [
+                'nullable',
+                Rule::enum(
+                    PurchaseReturnRefundType::class
+                ),
+            ],
+
+            'return_reason' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+
             'notes' => [
                 'nullable',
                 'string',
@@ -44,6 +60,11 @@ class StorePurchaseReturnRequest extends FormRequest
                 'required',
                 'array',
                 'min:1',
+            ],
+
+            'items.*.purchase_item_id' => [
+                'required',
+                Rule::exists('purchase_items', 'id'),
             ],
 
             'items.*.product_id' => [
@@ -70,6 +91,31 @@ class StorePurchaseReturnRequest extends FormRequest
                 'required',
                 'numeric',
                 'gt:0',
+            ],
+
+            'items.*.discount' => [
+                'nullable',
+                'numeric',
+                'min:0',
+            ],
+
+            'items.*.tax' => [
+                'nullable',
+                'numeric',
+                'min:0',
+            ],
+
+            'items.*.condition' => [
+                'nullable',
+                Rule::enum(
+                    PurchaseReturnCondition::class
+                ),
+            ],
+
+            'items.*.reason' => [
+                'nullable',
+                'string',
+                'max:255',
             ],
         ];
     }

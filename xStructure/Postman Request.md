@@ -505,3 +505,57 @@ Expected structure:
   ]
 }
 ```
+
+## Purchase Return #1 POST */api/purchase-returns*
+```json
+{
+  "purchase_id": 1,
+  "supplier_id": 1,
+  "return_date": "2026-07-14",
+  "refund_type": "credit_note",
+  "return_reason": "Damaged Product",
+  "notes": "Supplier accepted damaged item return",
+
+  "items": [
+    {
+      "purchase_item_id": 1,
+      "product_id": 1,
+      "warehouse_id": 1,
+
+      "quantity": 1,
+      "unit_cost": 5000,
+
+      "discount": 0,
+      "tax": 0,
+
+      "condition": "damaged",
+      "reason": "Broken during transport"
+    }
+  ]
+}
+```
+
+## Purchase Return #2 POST */api/purchase-returns*
+```json
+{
+    "purchase_id": 1,
+    "supplier_id": 1,
+    "return_date": "2026-07-15",
+    "refund_type": "credit_note",
+    "return_reason": "Wrong Item",
+    "notes": "Returned wrong supplied item",
+    "items": [
+        {
+            "purchase_item_id": 1,
+            "product_id": 1,
+            "warehouse_id": 1,
+            "quantity": 2,
+            "unit_cost": 5000,
+            "discount": 0,
+            "tax": 0,
+            "condition": "unused",
+            "reason": "Wrong Item"
+        }
+    ]
+}
+```

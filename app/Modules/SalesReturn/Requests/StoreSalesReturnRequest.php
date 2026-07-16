@@ -5,6 +5,7 @@ namespace App\Modules\SalesReturn\Requests;
 use Illuminate\Validation\Rule;
 use App\Core\Validation\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
+use App\Modules\SalesReturn\Enums\SalesReturnCondition;
 use App\Modules\SalesReturn\Enums\SalesReturnRefundType;
 
 class StoreSalesReturnRequest extends FormRequest
@@ -98,8 +99,9 @@ class StoreSalesReturnRequest extends FormRequest
 
             'items.*.condition' => [
                 'nullable',
-                'string',
-                'max:100',
+                Rule::enum(
+                    SalesReturnCondition::class
+                ),
             ],
 
             'items.*.reason' => [

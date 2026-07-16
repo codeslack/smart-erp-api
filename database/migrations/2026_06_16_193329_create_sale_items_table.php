@@ -38,6 +38,12 @@ return new class extends Migration
             );
 
             $table->decimal(
+                'cost_price',
+                18,
+                4
+            )->default(0);
+
+            $table->decimal(
                 'line_total',
                 18,
                 4

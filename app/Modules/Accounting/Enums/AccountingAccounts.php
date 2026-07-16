@@ -9,6 +9,7 @@ class AccountingAccounts
 
     public const ACCOUNTS_RECEIVABLE = '1100';
     public const INVENTORY = '1200';
+    public const INPUT_TAX_RECEIVABLE = '1210';
 
     public const ACCOUNTS_PAYABLE = '2000';
 

@@ -27,10 +27,27 @@ return new class extends Migration
                 ->constrained('suppliers')
                 ->cascadeOnDelete();
 
-            $table->string('return_no')
-                ->unique();
+            $table->string('return_no');
 
             $table->date('return_date');
+
+            $table->decimal(
+                'subtotal',
+                18,
+                4
+            )->default(0);
+
+            $table->decimal(
+                'discount',
+                18,
+                4
+            )->default(0);
+
+            $table->decimal(
+                'tax',
+                18,
+                4
+            )->default(0);
 
             $table->decimal(
                 'grand_total',
@@ -38,17 +55,60 @@ return new class extends Migration
                 4
             )->default(0);
 
+            $table->decimal(
+                'refund_amount',
+                18,
+                4
+            )->default(0);
+
+            $table->decimal(
+                'credited_amount',
+                18,
+                4
+            )->default(0);
+
+            $table->string('refund_type')
+                ->default('credit_note');
+
+            $table->string('return_reason')
+                ->nullable();
+
             $table->string('status')
                 ->default('draft');
+
+            $table->foreignId('approved_by')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
+
+            $table->timestamp('approved_at')
+                ->nullable();
 
             $table->text('notes')
                 ->nullable();
 
             $table->timestamps();
 
+            $table->unique([
+                'tenant_id',
+                'return_no'
+            ]);
+
+            $table->index('tenant_id');
+
             $table->index([
                 'tenant_id',
                 'supplier_id',
+            ]);
+
+            $table->index([
+                'tenant_id',
+                'status'
+            ]);
+
+            $table->index([
+                'tenant_id',
+                'return_date'
             ]);
         });
     }

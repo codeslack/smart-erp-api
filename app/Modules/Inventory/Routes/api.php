@@ -22,4 +22,9 @@ Route::middleware([
         'products/{product}/ledger',
         [InventoryController::class, 'ledger']
     );
+
+    Route::get(
+        'stock-report',
+        [InventoryController::class, 'stockReport']
+    );
 });

@@ -72,6 +72,8 @@ class SaleService
 
                     'unit_price' => $item['unit_price'],
 
+                    'cost_price'   => 0,
+
                     'line_total' => $lineTotal,
                 ]);
 
@@ -117,7 +119,18 @@ class SaleService
 
             foreach ($sale->items as $item) {
 
+                $costPrice =
+                    $this->inventoryService->averageCost(
+                        $item->product_id,
+                        $item->warehouse_id
+                    );
+
+                $item->update([
+                    'cost_price' => $costPrice,
+                ]);
+
                 $this->inventoryService->stockOut(
+
                     productId: $item->product_id,
 
                     warehouseId: $item->warehouse_id,

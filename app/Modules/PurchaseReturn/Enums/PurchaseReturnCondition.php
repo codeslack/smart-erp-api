@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Modules\SalesReturn\Enums;
+namespace App\Modules\PurchaseReturn\Enums;
 
-enum SalesReturnCondition: string
+enum PurchaseReturnCondition: string
 {
     case GOOD = 'good';
 

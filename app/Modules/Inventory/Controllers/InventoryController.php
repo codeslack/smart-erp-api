@@ -2,10 +2,11 @@
 
 namespace App\Modules\Inventory\Controllers;
 
+use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
-use App\Modules\Inventory\Requests\OpeningStockRequest;
-use App\Modules\Inventory\Services\InventoryService;
 use App\Modules\Product\Models\Product;
+use App\Modules\Inventory\Services\InventoryService;
+use App\Modules\Inventory\Requests\OpeningStockRequest;
 
 class InventoryController extends Controller
 {
@@ -69,5 +70,21 @@ class InventoryController extends Controller
             'data' => $ledger,
         ]);
     }
+
+    /**
+     * GET /api/inventory/stock-report
+     * Stock report
+     */
+    public function stockReport(
+        Request $request
+    ) {
+        return response()->json([
+            'success' => true,
+            'message' => 'Current stock report retrieved successfully',
+            'data' => $this->service->stockReport(
+                $request->all()
+            ),
+        ]);
+    }    
 
 }

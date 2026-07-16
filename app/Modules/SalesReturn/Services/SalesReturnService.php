@@ -4,7 +4,6 @@ namespace App\Modules\SalesReturn\Services;
 
 use Illuminate\Support\Facades\DB;
 use App\Modules\Sales\Models\SaleItem;
-use App\Modules\Inventory\Models\ProductStock;
 use App\Modules\SalesReturn\Models\SalesReturn;
 use App\Modules\SalesReturn\Models\SalesReturnItem;
 use App\Modules\SalesReturn\Enums\SalesReturnStatus;
@@ -43,6 +42,9 @@ class SalesReturnService
 
             $data['status'] =
                 SalesReturnStatus::DRAFT;
+
+            $data['return_no'] =
+                'TEMP';
 
             $salesReturn =
                 $this->repository->create(
@@ -144,10 +146,9 @@ class SalesReturnService
         });
     }
 
-
     public function approve(
         SalesReturn $salesReturn
-    ) {
+    ): SalesReturn {
 
         abort_if(
             $salesReturn->status !== SalesReturnStatus::DRAFT,
@@ -159,37 +160,23 @@ class SalesReturnService
             $salesReturn
         ) {
 
-            $salesReturn->loadMissing('items');
+            $salesReturn->loadMissing([
+                'items',
+            ]);
 
             foreach (
-                $salesReturn->items
-                as $item
+                $salesReturn->items as $item
             ) {
 
-                $productStock =
-                    ProductStock::query()
-
-                    ->where(
-                        'product_id',
-                        $item->product_id
-                    )
-
-                    ->where(
-                        'warehouse_id',
-                        $item->warehouse_id
-                    )
-
-                    ->first();
-
-                abort_if(
-                    ! $productStock,
-                    422,
-                    "Stock record not found for product {$item->product_id}"
-                );
-
                 $unitCost =
-                    $productStock?->average_cost
-                    ?? 0;
+                    (float) $item->saleItem->cost_price;
+
+                if ($unitCost <= 0) {
+                    abort(
+                        422,
+                        "Unable to determine inventory cost for product {$item->product_id}"
+                    );
+                }
 
                 $this->inventoryService->stockIn(
 
@@ -197,7 +184,7 @@ class SalesReturnService
 
                     warehouseId: $item->warehouse_id,
 
-                    quantity: $item->quantity,
+                    quantity: (float) $item->quantity,
 
                     unitCost: $unitCost,
 
@@ -215,9 +202,15 @@ class SalesReturnService
             }
 
             $salesReturn->update([
-                'status' => SalesReturnStatus::CONFIRMED,
-                'approved_by' => auth()->id(),
-                'approved_at' => now(),
+
+                'status'
+                    => SalesReturnStatus::CONFIRMED,
+
+                'approved_by'
+                    => auth()->id(),
+
+                'approved_at'
+                    => now(),
             ]);
 
             $salesReturn = $salesReturn
@@ -225,6 +218,7 @@ class SalesReturnService
                 ->load([
                     'customer',
                     'sale',
+                    'approvedBy',
                     'items.product',
                     'items.warehouse',
                     'items.saleItem',
@@ -310,14 +304,21 @@ class SalesReturnService
             -
             $alreadyReturned;
 
-        abort_if(
-            $requestQty > $availableToReturn,
-            422,
-            sprintf(
-                'Only %s quantity available for return.',
-                $availableToReturn
-            )
-        );
+        if (
+            bccomp(
+                (string) $requestQty,
+                (string) $availableToReturn,
+                4
+            ) === 1
+        ) {
+            abort(
+                422,
+                sprintf(
+                    'Only %s quantity available for return.',
+                    $availableToReturn
+                )
+            );
+        }
     }
 
     protected function syncItems(
