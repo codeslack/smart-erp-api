@@ -10,13 +10,17 @@ use App\Modules\Inventory\Services\InventoryService;
 use App\Modules\Inventory\Enums\StockTransactionType;
 use App\Modules\Purchase\Repositories\Contracts\PurchaseRepositoryInterface;
 use App\Modules\Accounting\Services\Contracts\AccountingPostingServiceInterface;
+use App\Modules\AdvanceAllocation\Services\SupplierAdvanceAutoAdjustmentService;
+use App\Modules\Accounting\Services\Postings\SupplierAdvanceAdjustmentPostingService;
 
 class PurchaseService
 {
     public function __construct(
         protected PurchaseRepositoryInterface $repository,
         protected InventoryService $inventoryService,
-        protected AccountingPostingServiceInterface $postingService
+        protected AccountingPostingServiceInterface $postingService,
+        protected SupplierAdvanceAutoAdjustmentService $supplierAdvanceAutoAdjustmentService,
+        protected SupplierAdvanceAdjustmentPostingService $supplierAdvanceAdjustmentPostingService,
     ) {}
 
     public function getAll()
@@ -37,20 +41,17 @@ class PurchaseService
 
             unset($data['items']);
 
-            $nextId = (
-                Purchase::max('id') ?? 0
-            ) + 1;
-
-            $data['purchase_no'] = sprintf(
-                'PUR-%06d',
-                $nextId
+            $purchaseNo = nextDocumentNumber(
+                'purchase',
+                'PUR'
             );
 
-            $data['status'] = PurchaseStatus::DRAFT;
-
-            $purchase = $this->repository->create(
-                $data
-            );
+            $purchase = $this->repository->create([
+                ...$data,
+                'purchase_no' => $purchaseNo,
+                'status' =>
+                    PurchaseStatus::DRAFT,
+            ]);
 
             $subtotal = 0;
 
@@ -143,15 +144,63 @@ class PurchaseService
                 'status' => PurchaseStatus::CONFIRMED,
             ]);
 
-            $purchase = $purchase->fresh()
-                ->load('items');
+            $purchase = $purchase
+                ->fresh()
+                ->load(
+                    'supplier',
+                    'items',
+                );
 
+            /*
+            |--------------------------------------------------------------------------
+            | Post Purchase Entry
+            |--------------------------------------------------------------------------
+            |
+            | Dr Accounts Inventory
+            | Cr Accounts Payable
+            |
+            */
             $this->postingService
                 ->postPurchase(
                     $purchase
                 );
 
-            return $purchase;
+            /*
+            |--------------------------------------------------------------------------
+            | Auto Adjust Supplier Advance
+            |--------------------------------------------------------------------------
+            */
+
+            $adjustedAmount =
+                $this->supplierAdvanceAutoAdjustmentService
+                    ->adjust(
+                        $purchase
+                    );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Post Advance Adjustment
+            |--------------------------------------------------------------------------
+            |
+            | Dr Accounts Payable
+            | Cr Supplier Advances
+            |
+            */
+
+            if (
+                $adjustedAmount > 0
+            ) {
+
+                $this->supplierAdvanceAdjustmentPostingService
+                    ->post(
+
+                        $purchase->fresh(),
+
+                        $adjustedAmount
+                    );
+            }
+
+            return $purchase->fresh();
         });
     }
 

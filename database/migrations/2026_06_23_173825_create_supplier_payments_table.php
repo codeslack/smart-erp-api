@@ -28,6 +28,9 @@ return new class extends Migration
 
             $table->date('payment_date');
 
+            $table->string('payment_type', 20)
+                ->default('invoice');
+
             $table->string('payment_method')
                 ->nullable();
 

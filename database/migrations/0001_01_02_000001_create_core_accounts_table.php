@@ -107,15 +107,7 @@ return new class extends Migration
 
             $table->string('voucher_no');
 
-            $table->enum('voucher_type', [
-                'sale',
-                'purchase',
-                'customer_receipt',
-                'supplier_payment',
-                'sales_return',
-                'purchase_return',
-                'journal',
-            ]);
+            $table->string('voucher_type', 100);
 
             $table->nullableMorphs('reference');
 

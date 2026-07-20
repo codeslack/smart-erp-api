@@ -36,9 +36,12 @@ class SaleController extends Controller
         Sale $sale
     ) {
         return new SaleResource(
-            $this->service->find(
-                $sale->id
-            )
+            $sale->load([
+                'customer',
+                'items.product',
+                'items.warehouse',
+                'advanceAllocations.source'
+            ])
         );
     }
 

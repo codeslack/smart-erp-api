@@ -1,38 +1,21 @@
-<?php
+'advance_allocations' =>
+    $this->whenLoaded(
+        'advanceAllocations',
+        fn () =>
+            $this->advanceAllocations->map(
+                fn ($allocation) => [
 
-// DayBook
+                    'id' =>
+                        $allocation->id,
 
+                    'allocated_amount' =>
+                        (float) $allocation->allocated_amount,
 
-// namespace App\Modules\Accounting\Repositories\Contracts;
+                    'sale_id' =>
+                        $allocation->target_id,
 
-// interface PayableSummaryRepositoryInterface
-// {
-//     public function getReport(): array;
-// }
-
-/*
-
-<?php
-
-namespace App\Modules\Accounting\Repositories\Contracts;
-
-interface DayBookRepositoryInterface
-{
-    public function getDayBook(
-        ?string $fromDate = null,
-        ?string $toDate = null
-    ): array;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-*/
+                    'sale_no' =>
+                        $allocation->target?->sale_no,
+                ]
+            )
+    ),

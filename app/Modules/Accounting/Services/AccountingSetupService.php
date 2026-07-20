@@ -7,6 +7,7 @@ use App\Modules\Tenant\Models\Tenant;
 use App\Modules\Accounting\Enums\AccountType;
 use App\Modules\Accounting\Models\AccountGroup;
 use App\Modules\Accounting\Models\ChartOfAccount;
+use App\Modules\Accounting\Enums\AccountingAccounts;
 
 class AccountingSetupService
 {
@@ -170,29 +171,43 @@ class AccountingSetupService
 
             [
                 'group' => 'asset',
-                'code'  => '1000',
+                'code'  => AccountingAccounts::CASH,
                 'name'  => 'Cash',
                 'type'  => AccountType::ASSET,
             ],
 
             [
                 'group' => 'asset',
-                'code'  => '1010',
+                'code'  => AccountingAccounts::BANK,
                 'name'  => 'Bank Accounts',
                 'type'  => AccountType::ASSET,
             ],
 
             [
                 'group' => 'asset',
-                'code'  => '1100',
+                'code'  => AccountingAccounts::ACCOUNTS_RECEIVABLE,
                 'name'  => 'Accounts Receivable',
                 'type'  => AccountType::ASSET,
             ],
 
             [
                 'group' => 'asset',
-                'code'  => '1200',
+                'code'  => AccountingAccounts::SUPPLIER_ADVANCES,
+                'name'  => 'Supplier Advances',
+                'type'  => AccountType::ASSET,
+            ],
+
+            [
+                'group' => 'asset',
+                'code'  => AccountingAccounts::INVENTORY,
                 'name'  => 'Inventory',
+                'type'  => AccountType::ASSET,
+            ],
+
+            [
+                'group' => 'asset',
+                'code'  => AccountingAccounts::INPUT_TAX_RECEIVABLE,
+                'name'  => 'Input Tax Receivable',
                 'type'  => AccountType::ASSET,
             ],
 
@@ -204,8 +219,22 @@ class AccountingSetupService
 
             [
                 'group' => 'liability',
-                'code'  => '2000',
+                'code'  => AccountingAccounts::ACCOUNTS_PAYABLE,
                 'name'  => 'Accounts Payable',
+                'type'  => AccountType::LIABILITY,
+            ],
+
+            [
+                'group' => 'liability',
+                'code'  => AccountingAccounts::CUSTOMER_ADVANCES,
+                'name'  => 'Customer Advances',
+                'type'  => AccountType::LIABILITY,
+            ],
+
+            [
+                'group' => 'liability',
+                'code'  => AccountingAccounts::OUTPUT_TAX_PAYABLE,
+                'name'  => 'Output Tax Payable',
                 'type'  => AccountType::LIABILITY,
             ],
 
@@ -217,7 +246,7 @@ class AccountingSetupService
 
             [
                 'group' => 'equity',
-                'code'  => '3000',
+                'code'  => AccountingAccounts::OWNER_EQUITY,
                 'name'  => 'Owner Equity',
                 'type'  => AccountType::EQUITY,
             ],
@@ -230,14 +259,14 @@ class AccountingSetupService
 
             [
                 'group' => 'income',
-                'code'  => '4000',
+                'code'  => AccountingAccounts::SALES_REVENUE,
                 'name'  => 'Sales Revenue',
                 'type'  => AccountType::INCOME,
             ],
 
             [
                 'group' => 'income',
-                'code'  => '4100',
+                'code'  => AccountingAccounts::SALES_RETURN,
                 'name'  => 'Sales Return',
                 'type'  => AccountType::INCOME,
             ],
@@ -250,8 +279,22 @@ class AccountingSetupService
 
             [
                 'group' => 'expense',
-                'code'  => '5000',
-                'name'  => 'Cost of Goods Sold',
+                'code'  => AccountingAccounts::COST_OF_GOODS_SOLD,
+                'name'  => 'Cost Of Goods Sold',
+                'type'  => AccountType::EXPENSE,
+            ],
+
+            [
+                'group' => 'expense',
+                'code'  => AccountingAccounts::PURCHASE_FREIGHT,
+                'name'  => 'Purchase Freight',
+                'type'  => AccountType::EXPENSE,
+            ],
+
+            [
+                'group' => 'expense',
+                'code'  => AccountingAccounts::PURCHASE_HANDLING,
+                'name'  => 'Purchase Handling Charges',
                 'type'  => AccountType::EXPENSE,
             ],
         ];

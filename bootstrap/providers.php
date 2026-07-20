@@ -28,5 +28,6 @@ return [
     App\Modules\CustomerReceipt\Providers\CustomerReceiptServiceProvider::class,
     App\Modules\SupplierPayment\Providers\SupplierPaymentServiceProvider::class,
     App\Modules\Accounting\Providers\AccountingServiceProvider::class,
+    App\Modules\AdvanceAllocation\Providers\AdvanceAllocationServiceProvider::class,
 
 ];

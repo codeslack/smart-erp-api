@@ -36,6 +36,28 @@ class SaleResource extends JsonResource
 
             'notes' => $this->notes,
 
+            'advance_allocations' =>
+                $this->whenLoaded(
+                    'advanceAllocations',
+                    fn () =>
+                        $this->advanceAllocations->map(
+                            fn ($allocation) => [
+
+                                'id' =>
+                                    $allocation->id,
+
+                                'allocated_amount' =>
+                                    (float) $allocation->allocated_amount,
+
+                                'customer_receipt_id' =>
+                                    $allocation->source_id,
+
+                                'receipt_no' =>
+                                    $allocation->source?->receipt_no,
+                            ]
+                        )
+                ),
+
             'items' => SaleItemResource::collection(
                 $this->whenLoaded('items')
             ),

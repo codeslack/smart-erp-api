@@ -2,9 +2,11 @@
 
 namespace App\Modules\Accounting\Controllers;
 
+use Illuminate\Http\JsonResponse;
 use App\Http\Controllers\Controller;
 use App\Modules\Accounting\Requests\SupplierStatementRequest;
 use App\Modules\Accounting\Services\SupplierStatementService;
+use App\Modules\Accounting\Resources\SupplierStatementResource;
 use Dedoc\Scramble\Attributes\Group;
 
 #[Group('Accounting - Reports')]
@@ -21,10 +23,10 @@ class SupplierStatementController
     public function show(
         SupplierStatementRequest $request,
         int $supplierId
-    ) {
+    ): JsonResponse {
 
-        $statement = $this->service
-            ->getStatement(
+        $statement  = 
+            $this->service->statement(
                 supplierId: $supplierId,
                 fromDate: $request->validated('from_date'),
                 toDate: $request->validated('to_date')
@@ -33,7 +35,23 @@ class SupplierStatementController
         return response()->json([
             'success' => true,
             'message' => 'Supplier Statement fetched successfully',
-            'data' => $statement,
+            'data' => [
+                'supplier' =>
+                    $statement['supplier'],
+
+                'opening_balance' =>
+                    $statement['opening_balance'],
+
+                'outstanding_balance' =>
+                    $statement['outstanding_balance'],
+
+                'transactions' =>
+                    SupplierStatementResource::collection(
+                        collect(
+                            $statement['transactions']
+                        )
+                    ),
+            ],
         ]);
     }
 }

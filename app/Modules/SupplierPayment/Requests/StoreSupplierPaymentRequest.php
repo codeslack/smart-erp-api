@@ -2,8 +2,10 @@
 
 namespace App\Modules\SupplierPayment\Requests;
 
+use Illuminate\Validation\Rule;
 use App\Core\Validation\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
+use App\Modules\SupplierPayment\Enums\SupplierPaymentType;
 
 class StoreSupplierPaymentRequest extends FormRequest
 {
@@ -35,20 +37,29 @@ class StoreSupplierPaymentRequest extends FormRequest
                 'date',
             ],
 
+            'payment_type' => [
+                'required',
+                Rule::enum(
+                    SupplierPaymentType::class
+                ),
+            ],
+
             'payment_method' => [
                 'nullable',
                 'string',
+                'max:100',
             ],
 
             'reference_no' => [
                 'nullable',
                 'string',
+                'max:255',
             ],
 
             'amount' => [
                 'required',
                 'numeric',
-                'min:0.01',
+                'gt:0',
             ],
 
             'notes' => [
@@ -57,7 +68,7 @@ class StoreSupplierPaymentRequest extends FormRequest
             ],
 
             'allocations' => [
-                'nullable',
+                'sometimes',
                 'array',
             ],
 
@@ -71,7 +82,7 @@ class StoreSupplierPaymentRequest extends FormRequest
             'allocations.*.allocated_amount' => [
                 'required_with:allocations',
                 'numeric',
-                'min:0.01',
+                'gt:0',
             ],
         ];
     }

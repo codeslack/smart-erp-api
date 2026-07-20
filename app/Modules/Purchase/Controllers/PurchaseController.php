@@ -36,9 +36,12 @@ class PurchaseController extends Controller
         Purchase $purchase
     ) {
         return new PurchaseResource(
-            $this->service->find(
-                $purchase->id
-            )
+            $purchase->load([
+                'supplier',
+                'items.product',
+                'items.warehouse',
+                'advanceAllocations.source'
+            ])
         );
     }
 

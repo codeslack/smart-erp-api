@@ -17,4 +17,15 @@ class JournalEntryRepository
             $model
         );
     }
+
+    public function findWithLines(
+        int|string $id
+    )
+    {
+        return $this->model
+            ->with([
+                'lines.account',
+            ])
+            ->findOrFail($id);
+    }    
 }

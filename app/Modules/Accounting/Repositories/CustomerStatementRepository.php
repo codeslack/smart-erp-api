@@ -2,9 +2,11 @@
 
 namespace App\Modules\Accounting\Repositories;
 
+use Illuminate\Support\Collection;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Customer\Models\Customer;
-use App\Modules\CustomerReceipt\Models\CustomerReceiptAllocation;
+use App\Modules\CustomerReceipt\Models\CustomerReceipt;
+use App\Modules\CustomerReceipt\Enums\CustomerReceiptStatus;
 use App\Modules\Accounting\Repositories\Contracts\CustomerStatementRepositoryInterface;
 
 class CustomerStatementRepository
@@ -17,19 +19,57 @@ implements CustomerStatementRepositoryInterface
     ): array {
 
         $customer = Customer::query()
-            ->findOrFail(
-                $customerId
-            );
+            ->findOrFail($customerId);
 
         $transactions = collect();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Sales Invoices
-        |--------------------------------------------------------------------------
-        */
+        $this->loadInvoices(
+            $transactions,
+            $customerId,
+            $fromDate,
+            $toDate
+        );
 
-        $sales = Sale::query()->with('customer')
+        $this->loadReceipts(
+            $transactions,
+            $customerId,
+            $fromDate,
+            $toDate
+        );
+
+        $transactions = $this->sortTransactions(
+            $transactions
+        );
+
+        $runningBalance =
+            $this->applyRunningBalance(
+                $transactions
+            );
+
+        return [
+
+            'customer' =>
+                $customer,
+
+            'opening_balance' =>
+                0,
+
+            'transactions' =>
+                $transactions,
+
+            'outstanding_balance' =>
+                $runningBalance,
+        ];
+    }
+
+    private function loadInvoices(
+        Collection $transactions,
+        int $customerId,
+        ?string $fromDate,
+        ?string $toDate
+    ): void {
+
+        Sale::query()
 
             ->where(
                 'customer_id',
@@ -38,181 +78,166 @@ implements CustomerStatementRepositoryInterface
 
             ->when(
                 $fromDate,
-                fn($q) => $q->whereDate(
-                    'sale_date',
-                    '>=',
-                    $fromDate
-                )
+                fn ($q) =>
+                    $q->whereDate(
+                        'sale_date',
+                        '>=',
+                        $fromDate
+                    )
             )
 
             ->when(
                 $toDate,
-                fn($q) => $q->whereDate(
-                    'sale_date',
-                    '<=',
-                    $toDate
-                )
+                fn ($q) =>
+                    $q->whereDate(
+                        'sale_date',
+                        '<=',
+                        $toDate
+                    )
             )
 
-            ->get();
+            ->get()
 
-        foreach ($sales as $sale) {
+            ->each(function (
+                Sale $sale
+            ) use (
+                $transactions
+            ) {
 
-            $transactions->push([
+                $transactions->push([
 
-                'date'
-                    => $sale->sale_date,
+                    'date' =>
+                        $sale->sale_date,
 
-                'reference'
-                    => $sale->sale_no,
+                    'reference' =>
+                        $sale->sale_no,
 
-                'type'
-                    => 'invoice',
+                    'type' =>
+                        'invoice',
 
-                'description'
-                    => "Sale Invoice {$sale->sale_no}",
+                    'description' =>
+                        "Sale Invoice {$sale->sale_no}",
 
-                'debit'
-                    => (float) $sale->grand_total,
+                    'debit' =>
+                        (float) $sale->grand_total,
 
-                'credit'
-                    => 0,
-            ]);
-        }
+                    'credit' =>
+                        0,
+                ]);
+            });
+    }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Receipts
-        |--------------------------------------------------------------------------
-        */
+    private function loadReceipts(
+        Collection $transactions,
+        int $customerId,
+        ?string $fromDate,
+        ?string $toDate
+    ): void {
 
-        $allocations = CustomerReceiptAllocation::query()
+        CustomerReceipt::query()
 
-            ->whereHas(
-                'sale',
-                fn($q) => $q->where(
-                    'customer_id',
-                    $customerId
-                )
+            ->where(
+                'customer_id',
+                $customerId
             )
 
-            ->whereHas(
-                'receipt',
-                function ($q) use (
-                    $fromDate,
-                    $toDate
-                ) {
-
-                    $q->when(
-                        $fromDate,
-                        fn($query) =>
-                        $query->whereDate(
-                            'receipt_date',
-                            '>=',
-                            $fromDate
-                        )
-                    );
-
-                    $q->when(
-                        $toDate,
-                        fn($query) =>
-                        $query->whereDate(
-                            'receipt_date',
-                            '<=',
-                            $toDate
-                        )
-                    );
-                }
+            ->where(
+                'status',
+                CustomerReceiptStatus::CONFIRMED
             )
 
-            ->with('receipt')
+            ->when(
+                $fromDate,
+                fn ($q) =>
+                    $q->whereDate(
+                        'receipt_date',
+                        '>=',
+                        $fromDate
+                    )
+            )
 
-            ->get();
+            ->when(
+                $toDate,
+                fn ($q) =>
+                    $q->whereDate(
+                        'receipt_date',
+                        '<=',
+                        $toDate
+                    )
+            )
 
-        foreach ($allocations as $allocation) {
+            ->get()
 
-            $transactions->push([
+            ->each(function (
+                CustomerReceipt $receipt
+            ) use (
+                $transactions
+            ) {
 
-                'date'
-                    => $allocation
-                        ->receipt
-                        ->receipt_date,
+                $transactions->push([
 
-                'reference'
-                    => $allocation
-                        ->receipt
-                        ->receipt_no,
+                    'date' =>
+                        $receipt->receipt_date,
 
-                'type'
-                    => 'receipt',
+                    'reference' =>
+                        $receipt->receipt_no,
 
-                'description'
-                    => "Customer Receipt {$allocation->receipt->receipt_no}",
+                    'type' =>
+                        $receipt->receipt_type->value,
 
-                'debit'
-                    => 0,
+                    'description' =>
+                        "Customer Receipt {$receipt->receipt_no}",
 
-                'credit'
-                    => (float) $allocation->allocated_amount,
-            ]);
-        }
+                    'debit' =>
+                        0,
 
-        /*
-        |--------------------------------------------------------------------------
-        | Sort
-        |--------------------------------------------------------------------------
-        */
+                    'credit' =>
+                        (float) $receipt->amount,
+                ]);
+            });
+    }
 
-        $transactions = $transactions
+    private function sortTransactions(
+        Collection $transactions
+    ): Collection {
+
+        return $transactions
 
             ->sortBy([
                 ['date', 'asc'],
-                ['reference', 'asc']
+                ['reference', 'asc'],
             ])
 
             ->values();
+    }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Running Balance
-        |--------------------------------------------------------------------------
-        */
+    private function applyRunningBalance(
+        Collection $transactions
+    ): float {
 
-        $runningBalance = 0;
+        $balance = 0;
 
-        $transactions = $transactions
+        $transactions->transform(
 
-            ->map(function (
-                $row
+            function (
+                array $row
             ) use (
-                &$runningBalance
+                &$balance
             ) {
 
-                $runningBalance +=
+                $balance +=
                     $row['debit'];
 
-                $runningBalance -=
+                $balance -=
                     $row['credit'];
 
-                $row['balance']
-                    = $runningBalance;
+                $row['balance'] =
+                    $balance;
 
                 return $row;
-            });
+            }
+        );
 
-        return [
-
-            'customer'
-                => $customer,
-
-            'opening_balance'
-                => 0,
-
-            'transactions'
-                => $transactions,
-
-            'outstanding_balance'
-                => $runningBalance,
-        ];
+        return $balance;
     }
 }

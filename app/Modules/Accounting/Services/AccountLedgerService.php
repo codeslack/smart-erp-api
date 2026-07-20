@@ -2,16 +2,15 @@
 
 namespace App\Modules\Accounting\Services;
 
-use App\Modules\Accounting\Enums\AccountType;
 use App\Modules\Accounting\Models\JournalEntry;
-use App\Modules\Accounting\Models\AccountLedger;
 use App\Modules\Accounting\Models\JournalEntryLine;
 use App\Modules\Accounting\Repositories\Contracts\AccountLedgerRepositoryInterface;
 
 class AccountLedgerService
 {
     public function __construct(
-        protected AccountLedgerRepositoryInterface $repository
+        protected AccountLedgerRepositoryInterface $repository,
+        protected BalanceCalculatorService $balanceCalculator
     ) {}
 
     public function createFromJournal(
@@ -19,18 +18,18 @@ class AccountLedgerService
     ): void {
 
         $journalEntry->load([
-            'lines.account'
+            'lines.account',
         ]);
 
-        foreach (
-            $journalEntry->lines as $line
-        ) {
+        foreach ($journalEntry->lines as $line) {
 
-            $runningBalance = $this->calculateRunningBalance(
-                $line
-            );
+            $runningBalance =
+                $this->getNextRunningBalance(
+                    $line
+                );
 
             $this->repository->create([
+
                 'tenant_id'
                     => $journalEntry->tenant_id,
 
@@ -59,88 +58,45 @@ class AccountLedgerService
                     => $line->credit,
 
                 'running_balance'
-                    => $runningBalance,
+                    => (string) $runningBalance,
 
                 'description'
                     => $line->description
-                        ?? $journalEntry->description,
+                    ?? $journalEntry->description,
             ]);
         }
     }
 
-    protected function calculateRunningBalance(
+    protected function getNextRunningBalance(
         JournalEntryLine $line
-    ): string {
+    ): float {
 
-        $account = $line->account;
+        $account =
+            $line->account;
 
-        $lastBalance = AccountLedger::query()
+        $lastBalance =
+            (float) (
+                $this->repository
+                    ->getLastRunningBalance(
+                        tenantId: $line->tenant_id,
+                        accountId: $account->id
+                    )
+                ?? 0
+            );
 
-            ->where(
-                'tenant_id',
-                $line->tenant_id
-            )
+        return $this->balanceCalculator
+            ->calculate(
+                accountType:
+                    $account->account_type,
 
-            ->where(
-                'chart_of_account_id',
-                $account->id
-            )
+                currentBalance:
+                    $lastBalance,
 
-            ->latest('id')
+                debit:
+                    (float) $line->debit,
 
-            ->value(
-                'running_balance'
-            ) ?? 0;
-
-        $balance = $lastBalance;
-
-        switch (
-            $account->account_type
-        ) {
-
-            case AccountType::ASSET:
-
-            case AccountType::EXPENSE:
-
-                // $balance += $line->debit;
-                $balance = bcadd(
-                    (string) $balance,
-                    (string) $line->debit,
-                    4
-                );
-                
-                // $balance -= $line->credit;
-                $balance = bcsub(
-                    (string) $balance,
-                    (string) $line->credit,
-                    4
-                );
-
-                break;
-
-            case AccountType::LIABILITY:
-
-            case AccountType::EQUITY:
-
-            case AccountType::INCOME:
-
-                // $balance -= $line->debit;
-                $balance = bcsub(
-                    (string) $balance,
-                    (string) $line->debit,
-                    4
-                );
-
-                // $balance += $line->credit;
-                $balance = bcadd(
-                    (string) $balance,
-                    (string) $line->credit,
-                    4
-                );
-
-                break;
-        }
-
-        return (string) $balance;
+                credit:
+                    (float) $line->credit
+            );
     }
 }

@@ -13,30 +13,100 @@ class CustomerReceiptResource extends JsonResource
 
         return [
 
-            'id' => $this->id,
+            'id' =>
+                $this->id,
 
-            'receipt_no' => $this->receipt_no,
+            'receipt_no' =>
+                $this->receipt_no,
 
-            'customer_id' => $this->customer_id,
+            'receipt_date' =>
+                $this->receipt_date?->toDateString(),
 
-            'receipt_date' => $this->receipt_date,
+            'receipt_type' =>
+                $this->receipt_type?->value
+                ?? $this->receipt_type,
 
-            'payment_method' => $this->payment_method,
+            'payment_method' =>
+                $this->payment_method,
 
-            'reference_no' => $this->reference_no,
+            'reference_no' =>
+                $this->reference_no,
 
-            'amount' => $this->amount,
+            'amount' =>
+                (float) $this->amount,
 
-            'status' => $this->status,
+            'allocated_amount' =>
+                (float) $this->allocated_amount,
 
-            'notes' => $this->notes,
+            'remaining_advance' =>
+                (float) $this->available_advance,
 
-            'allocations' =>
-                CustomerReceiptAllocationResource::collection(
-                    $this->whenLoaded(
-                        'allocations'
-                    )
+            'status' =>
+                $this->status?->value
+                ?? $this->status,
+
+            'notes' =>
+                $this->notes,
+
+            'customer' =>
+                $this->whenLoaded(
+                    'customer',
+                    fn () => [
+
+                        'id' =>
+                            $this->customer->id,
+
+                        'customer_code' =>
+                            $this->customer->code,
+
+                        'name' =>
+                            $this->customer->name,
+                    ]
                 ),
+
+            'payment_account' =>
+                $this->whenLoaded(
+                    'paymentAccount',
+                    fn () => [
+
+                        'id' =>
+                            $this->paymentAccount->id,
+
+                        'account_code' =>
+                            $this->paymentAccount->account_code,
+
+                        'account_name' =>
+                            $this->paymentAccount->account_name,
+                    ]
+                ),
+
+            'advance_allocations' =>
+                $this->whenLoaded(
+                    'advanceAllocations',
+                    fn () =>
+                        $this->advanceAllocations->map(
+                            fn ($allocation) => [
+
+                                'id' =>
+                                    $allocation->id,
+
+                                'allocated_amount' =>
+                                    (float) $allocation->allocated_amount,
+
+                                'sale_id' =>
+                                    $allocation->target?->id,
+
+                                'sale_no' =>
+                                    $allocation->target?->sale_no,
+                            ]
+                        )
+                ),
+
+            'created_at' =>
+                $this->created_at,
+
+            'updated_at' =>
+                $this->updated_at,
         ];
     }
 }

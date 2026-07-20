@@ -10,13 +10,17 @@ use App\Modules\Inventory\Services\InventoryService;
 use App\Modules\Inventory\Enums\StockTransactionType;
 use App\Modules\Sales\Repositories\Contracts\SaleRepositoryInterface;
 use App\Modules\Accounting\Services\Contracts\AccountingPostingServiceInterface;
+use App\Modules\AdvanceAllocation\Services\CustomerAdvanceAutoAdjustmentService;
+use App\Modules\Accounting\Services\Postings\CustomerAdvanceAdjustmentPostingService;
 
 class SaleService
 {
     public function __construct(
         protected SaleRepositoryInterface $repository,
         protected InventoryService $inventoryService,
-        protected AccountingPostingServiceInterface $postingService
+        protected AccountingPostingServiceInterface $postingService,
+        protected CustomerAdvanceAutoAdjustmentService $customerAdvanceAutoAdjustmentService,
+        protected CustomerAdvanceAdjustmentPostingService $customerAdvanceAdjustmentPostingService,
     ) {}
 
     public function getAll()
@@ -37,20 +41,17 @@ class SaleService
 
             unset($data['items']);
 
-            $nextId = (
-                Sale::max('id') ?? 0
-            ) + 1;
-
-            $data['sale_no'] = sprintf(
-                'SAL-%06d',
-                $nextId
+            $invoiceNo = nextDocumentNumber(
+                'sasale_invoicele',
+                'INV'
             );
 
-            $data['status'] = SaleStatus::DRAFT;
-
-            $sale = $this->repository->create(
-                $data
-            );
+            $sale = $this->repository->create([
+                ...$data,
+                'sale_no' => $invoiceNo,
+                'status' =>
+                    SaleStatus::DRAFT,
+            ]);
 
             $subtotal = 0;
 
@@ -161,12 +162,57 @@ class SaleService
                     'items',
                 ]);
 
+            /*
+            |--------------------------------------------------------------------------
+            | Post Sale Entry
+            |--------------------------------------------------------------------------
+            |
+            | Dr Accounts Receivable
+            | Cr Sales Revenue
+            |
+            */
+
             $this->postingService
                 ->postSale(
                     $sale
                 );
 
-            return $sale;
+            /*
+            |--------------------------------------------------------------------------
+            | Auto Adjust Customer Advance
+            |--------------------------------------------------------------------------
+            */
+
+            $adjustedAmount =
+                $this->customerAdvanceAutoAdjustmentService
+                    ->adjust(
+                        $sale
+                    );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Post Advance Adjustment
+            |--------------------------------------------------------------------------
+            |
+            | Dr Customer Advances
+            | Cr Accounts Receivable
+            |
+            */
+
+            if (
+                $adjustedAmount > 0
+            ) {
+
+                $this->customerAdvanceAdjustmentPostingService
+                    ->post(
+
+                        $sale->fresh(),
+
+                        $adjustedAmount
+                    );
+            }
+
+            return $sale->fresh();
         });
     }
 

@@ -10,17 +10,16 @@ class SupplierStatementService
         protected SupplierStatementRepositoryInterface $repository
     ) {}
 
-    public function getStatement(
+    public function statement(
         int $supplierId,
         ?string $fromDate = null,
         ?string $toDate = null
     ): array {
 
-        return $this->repository
-            ->getStatement(
-                $supplierId,
-                $fromDate,
-                $toDate
-            );
+        return $this->repository->getStatement(
+            supplierId: $supplierId,
+            fromDate: $fromDate,
+            toDate: $toDate
+        );
     }
 }

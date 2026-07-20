@@ -2,63 +2,60 @@
 
 namespace App\Modules\CustomerReceipt\Repositories;
 
+use App\Core\Repositories\BaseRepository;
+use Illuminate\Validation\ValidationException;
 use App\Modules\CustomerReceipt\Models\CustomerReceipt;
+use App\Modules\CustomerReceipt\Enums\CustomerReceiptStatus;
 use App\Modules\CustomerReceipt\Repositories\Contracts\CustomerReceiptRepositoryInterface;
 
-class CustomerReceiptRepository implements CustomerReceiptRepositoryInterface
+class CustomerReceiptRepository 
+    extends BaseRepository
+    implements CustomerReceiptRepositoryInterface
 {
-    public function paginate()
+    public function __construct(
+        CustomerReceipt $model
+    ) {
+        parent::__construct($model);
+    }
+
+    public function paginate(int $perPage = 15)
     {
-        return CustomerReceipt::query()
+        return $this->model
             ->with([
                 'customer',
-                'allocations.sale'
+                'paymentAccount',
             ])
+            ->withCount('allocations')
             ->latest()
-            ->paginate();
+            ->paginate($perPage);
     }
 
-    public function find(
-        int $id
-    ) {
-        return CustomerReceipt::query()
+    public function find(int|string $id)
+    {
+        return $this->model
             ->with([
                 'customer',
-                'allocations.sale'
+                'paymentAccount',
+                'allocations.sale',
             ])
-            ->findOrFail(
-                $id
-            );
+            ->findOrFail($id);
     }
 
-    public function create(
-        array $data
-    ) {
-        return CustomerReceipt::create(
-            $data
-        );
-    }
+    public function delete( int|string $id )
+    {
+        $receipt = $this->find($id);
 
-    public function update(
-        int $id,
-        array $data
-    ) {
-        $receipt = $this->find(
-            $id
-        );
+        if (
+            $receipt->status ===
+                CustomerReceiptStatus::CONFIRMED
+        ) {
+            throw ValidationException::withMessages([
+                'receipt' => [
+                    'Confirmed receipts cannot be deleted.'
+                ]
+            ]);
+        }
 
-        $receipt->update(
-            $data
-        );
-
-        return $receipt->fresh();
-    }
-
-    public function delete(
-        int $id
-    ) {
-        return CustomerReceipt::destroy(
-            $id
-        );
+        return $receipt->delete();
     }
 }

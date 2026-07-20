@@ -4,6 +4,7 @@ namespace App\Modules\Accounting\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Accounting\Requests\CustomerStatementRequest;
+use App\Modules\Accounting\Resources\CustomerStatementResource;
 use App\Modules\Accounting\Services\CustomerStatementService;
 use Dedoc\Scramble\Attributes\Group;
 
@@ -37,8 +38,23 @@ class CustomerStatementController
             'message'
                 => 'Customer Statement fetched successfully',
 
-            'data'
-                => $statement,
+            'data' => [
+                'customer' =>
+                    $statement['customer'],
+
+                'opening_balance' =>
+                    $statement['opening_balance'],
+
+                'outstanding_balance' =>
+                    $statement['outstanding_balance'],
+
+                'transactions' =>
+                    CustomerStatementResource::collection(
+                        collect(
+                            $statement['transactions']
+                        )
+                    ),
+            ],
         ]);
     }
 }

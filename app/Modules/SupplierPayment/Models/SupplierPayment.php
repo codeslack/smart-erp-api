@@ -7,6 +7,8 @@ use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Accounting\Models\ChartOfAccount;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Modules\SupplierPayment\Enums\SupplierPaymentType;
+use App\Modules\AdvanceAllocation\Models\AdvanceAllocation;
 
 class SupplierPayment extends TenantModel
 {
@@ -19,6 +21,8 @@ class SupplierPayment extends TenantModel
         'supplier_id',
 
         'payment_date',
+
+        'payment_type',
 
         'payment_method',
 
@@ -36,6 +40,8 @@ class SupplierPayment extends TenantModel
     protected $casts = [
 
         'payment_date' => 'date',
+
+        'payment_type' => SupplierPaymentType::class,
     ];
 
     public function supplier(): BelongsTo
@@ -58,5 +64,45 @@ class SupplierPayment extends TenantModel
             ChartOfAccount::class,
             'payment_account_id'
         );
+    }
+
+    public function advanceAllocations(): HasMany
+    {
+        return $this->hasMany(
+            AdvanceAllocation::class,
+            'source_id'
+        )
+        ->where(
+            'source_type',
+            self::class
+        );
+    }
+
+    public function getAllocatedAmountAttribute(): float
+    {
+        if ($this->relationLoaded('advanceAllocations')) {
+
+            return (float)
+                $this->advanceAllocations
+                    ->sum('allocated_amount');
+        }
+
+        return (float)
+            $this->advanceAllocations()
+                ->sum('allocated_amount');
+    }
+
+    public function getUnallocatedAmountAttribute(): float
+    {
+        return max(
+            0,
+            $this->amount -
+            $this->allocated_amount
+        );
+    }    
+
+    public function getAvailableAdvanceAttribute(): float
+    {
+        return $this->unallocated_amount;
     }
 }

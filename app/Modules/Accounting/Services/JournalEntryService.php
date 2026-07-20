@@ -3,7 +3,6 @@
 namespace App\Modules\Accounting\Services;
 
 use Illuminate\Support\Facades\DB;
-use App\Modules\Accounting\Enums\AccountType;
 use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Accounting\Models\JournalEntryLine;
@@ -14,7 +13,8 @@ class JournalEntryService
 {
     public function __construct(
         protected JournalEntryRepositoryInterface $repository,
-        protected AccountLedgerService $ledgerService
+        protected AccountLedgerService $ledgerService,
+        protected BalanceCalculatorService $balanceCalculator,
     ) {}
 
     public function getAll()
@@ -42,16 +42,14 @@ class JournalEntryService
 
             unset($data['lines']);
 
+            $voucherNo = nextDocumentNumber(
+                'journal_entry',
+                'JV'
+            );
+
             $journalEntry = $this->repository->create([
                 ...$data,
-                'voucher_no' => 'TEMP',
-            ]);
-
-            $journalEntry->update([
-                'voucher_no' => sprintf(
-                    'JV-%06d',
-                    $journalEntry->id
-                ),
+                'voucher_no' => $voucherNo,
             ]);
 
             foreach ($lines as $line) {
@@ -226,45 +224,9 @@ class JournalEntryService
             $journalEntry->lines as $line
         ) {
 
-            $account = $line->account;
-
-            $balance = (float)
-            $account->current_balance;
-
-            switch ($account->account_type) {
-
-                case AccountType::ASSET:
-
-                case AccountType::EXPENSE:
-
-                    $balance +=
-                        (float) $line->debit;
-
-                    $balance -=
-                        (float) $line->credit;
-
-                    break;
-
-                case AccountType::LIABILITY:
-
-                case AccountType::EQUITY:
-
-                case AccountType::INCOME:
-
-                    $balance -=
-                        (float) $line->debit;
-
-                    $balance +=
-                        (float) $line->credit;
-
-                    break;
-            }
-
-            $account->update([
-
-                'current_balance'
-                => $balance,
-            ]);
+            $this->applyAccountBalance(
+                $line
+            );
         }
     }
 
@@ -320,5 +282,31 @@ class JournalEntryService
             )
 
             ->firstOrFail();
+    }
+
+    protected function applyAccountBalance(
+        JournalEntryLine $line
+    ): void {
+
+        $account = $line->account;
+
+        $account->update([
+
+            'current_balance' => $this->balanceCalculator
+                ->calculate(
+
+                    accountType:
+                        $account->account_type,
+
+                    currentBalance:
+                        (float) $account->current_balance,
+
+                    debit:
+                        (float) $line->debit,
+
+                    credit:
+                        (float) $line->credit
+                )
+        ]);
     }
 }

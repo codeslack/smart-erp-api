@@ -2,8 +2,10 @@
 
 namespace App\Modules\Accounting\Services\Postings;
 
-use App\Modules\SupplierPayment\Models\SupplierPayment;
 use App\Modules\Accounting\Enums\AccountingAccounts;
+
+use App\Modules\SupplierPayment\Models\SupplierPayment;
+use App\Modules\SupplierPayment\Enums\SupplierPaymentType;
 
 class PaymentPostingService extends BasePostingService
 {
@@ -15,17 +17,46 @@ class PaymentPostingService extends BasePostingService
             'paymentAccount'
         );
 
-        abort_if(
-            !$payment->paymentAccount,
-            422,
-            'Payment account not found.'
+        $this->validateAmount(
+            $payment->amount
         );
 
-        abort_if(
-            $payment->amount <= 0,
-            422,
-            'Payment amount must be greater than zero.'
-        );
+        $paymentAccountCode =
+            $this->getAccountCode(
+                $payment->paymentAccount
+            );
+
+        $lines = match (
+            $payment->payment_type
+        ) {
+
+            SupplierPaymentType::INVOICE =>
+                $this->buildInvoicePaymentLines(
+                    paymentAccountCode:
+                        $paymentAccountCode,
+
+                    amount:
+                        $payment->amount
+                ),
+
+            SupplierPaymentType::ADVANCE =>
+                $this->buildAdvancePaymentLines(
+                    paymentAccountCode:
+                        $paymentAccountCode,
+
+                    amount:
+                        $payment->amount
+                ),
+
+            SupplierPaymentType::REFUND =>
+                $this->buildRefundPaymentLines(
+                    paymentAccountCode:
+                        $paymentAccountCode,
+
+                    amount:
+                        $payment->amount
+                ),
+        };
 
         $this->createJournalEntry(
 
@@ -44,30 +75,65 @@ class PaymentPostingService extends BasePostingService
             description:
                 "Supplier Payment {$payment->payment_no}",
 
-            lines: [
-
-                [
-                    'account_code' =>
-                        AccountingAccounts::ACCOUNTS_PAYABLE,
-
-                    'debit' =>
-                        $payment->amount,
-
-                    'credit' => 0,
-                ],
-
-                [
-                    'account_code' =>
-                        $payment
-                            ->paymentAccount
-                            ->account_code,
-
-                    'debit' => 0,
-
-                    'credit' =>
-                        $payment->amount,
-                ],
-            ]
+            lines:
+                $lines
         );
+    }
+
+    protected function buildInvoicePaymentLines(
+        string $paymentAccountCode,
+        float $amount
+    ): array {
+
+        return [
+
+            $this->debit(
+                AccountingAccounts::ACCOUNTS_PAYABLE,
+                $amount
+            ),
+
+            $this->credit(
+                $paymentAccountCode,
+                $amount
+            ),
+        ];
+    }
+
+    protected function buildAdvancePaymentLines(
+        string $paymentAccountCode,
+        float $amount
+    ): array {
+
+        return [
+
+            $this->debit(
+                AccountingAccounts::SUPPLIER_ADVANCES,
+                $amount
+            ),
+
+            $this->credit(
+                $paymentAccountCode,
+                $amount
+            ),
+        ];
+    }
+
+    protected function buildRefundPaymentLines(
+        string $paymentAccountCode,
+        float $amount
+    ): array {
+
+        return [
+
+            $this->debit(
+                $paymentAccountCode,
+                $amount
+            ),
+
+            $this->credit(
+                AccountingAccounts::SUPPLIER_ADVANCES,
+                $amount
+            ),
+        ];
     }
 }

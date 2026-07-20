@@ -20,6 +20,10 @@ class PurchaseResource extends JsonResource
 
             'subtotal' => $this->subtotal,
 
+            'discount_amount' => $this->discount_amount,
+
+            'tax_amount' => $this->tax_amount,
+
             'grand_total' => $this->grand_total,
 
             'paid_amount' => $this->paid_amount,
@@ -29,6 +33,28 @@ class PurchaseResource extends JsonResource
             'status' => $this->status,
 
             'notes' => $this->notes,
+
+            'advance_allocations' =>
+                $this->whenLoaded(
+                    'advanceAllocations',
+                    fn () =>
+                        $this->advanceAllocations->map(
+                            fn ($allocation) => [
+
+                                'id' =>
+                                    $allocation->id,
+
+                                'allocated_amount' =>
+                                    (float) $allocation->allocated_amount,
+
+                                'supplier_payment_id' =>
+                                    $allocation->source_id,
+
+                                'payment_no' =>
+                                    $allocation->source?->payment_no,
+                            ]
+                        )
+                ),
 
             'items' => PurchaseItemResource::collection(
                 $this->whenLoaded('items')

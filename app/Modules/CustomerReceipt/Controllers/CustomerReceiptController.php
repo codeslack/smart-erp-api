@@ -2,11 +2,12 @@
 
 namespace App\Modules\CustomerReceipt\Controllers;
 
+use Illuminate\Http\JsonResponse;
 use App\Http\Controllers\Controller;
 use App\Modules\CustomerReceipt\Models\CustomerReceipt;
 use App\Modules\CustomerReceipt\Services\CustomerReceiptService;
-use App\Modules\CustomerReceipt\Requests\CustomerReceiptRequest;
 use App\Modules\CustomerReceipt\Resources\CustomerReceiptResource;
+use App\Modules\CustomerReceipt\Requests\StoreCustomerReceiptRequest;
 
 class CustomerReceiptController extends Controller
 {
@@ -14,86 +15,146 @@ class CustomerReceiptController extends Controller
         protected CustomerReceiptService $service
     ) {}
 
-    public function index()
+    public function index(): JsonResponse
     {
-        return CustomerReceiptResource::collection(
-            $this->service->getAll()
-        );
-    }
-
-    public function store(
-        CustomerReceiptRequest $request
-    ) {
-        $receipt = $this->service->create(
-            $request->validated()
-        );
+        $receipts =
+            $this->service->getAll();
 
         return response()->json([
 
             'success' => true,
 
-            'message' => 'Customer Receipt created successfully',
+            'data' => CustomerReceiptResource::collection( $receipts ),
 
-            'data' => new CustomerReceiptResource(
-                $receipt
-            ),
+            'meta' => [
 
-        ], 201);
+                'current_page' =>
+                    $receipts->currentPage(),
+
+                'last_page' =>
+                    $receipts->lastPage(),
+
+                'per_page' =>
+                    $receipts->perPage(),
+
+                'total' =>
+                    $receipts->total(),
+            ],
+        ]);
     }
 
     public function show(
         CustomerReceipt $customerReceipt
-    ) {
-        return new CustomerReceiptResource(
-            $this->service->find(
-                $customerReceipt->id
-            )
-        );
-    }
-
-    public function confirm(
-        CustomerReceipt $customerReceipt
-    ) {
-        $receipt = $this->service->confirm(
-            $customerReceipt
-        );
+    ): JsonResponse {
 
         return response()->json([
 
             'success' => true,
 
-            'message' => 'Customer Receipt confirmed successfully',
+            'data' =>
+                new CustomerReceiptResource(
+                    $customerReceipt->load([
+                        'customer',
+                        'paymentAccount',
+                        'advanceAllocations.target',
+                    ])
+                ),
+        ]);
+    }
 
-            'data' => new CustomerReceiptResource(
-                $receipt
-            ),
+    public function store(
+        StoreCustomerReceiptRequest $request
+    ): JsonResponse {
 
+        $receipt =
+            $this->service->create(
+                $request->validated()
+            );
+
+        return response()->json([
+
+            'success' => true,
+
+            'message' =>
+                'Customer receipt created successfully.',
+
+            'data' =>
+                new CustomerReceiptResource(
+                    $receipt
+                ),
+        ], 201);
+    }
+
+    public function update(
+        StoreCustomerReceiptRequest $request,
+        CustomerReceipt $customerReceipt
+    ): JsonResponse {
+
+        $receipt =
+            $this->service->update(
+                $customerReceipt->id,
+                $request->validated()
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Customer receipt updated successfully.',
+                'data' => new CustomerReceiptResource(
+                    $receipt
+                ),
+            ], 200);
+    }
+
+    public function confirm(
+        CustomerReceipt $customerReceipt
+    ): JsonResponse {
+
+        $receipt =
+            $this->service->confirm(
+                $customerReceipt
+            );
+
+        return response()->json([
+
+            'success' => true,
+
+            'message' =>
+                'Customer receipt confirmed successfully.',
+
+            'data' =>
+                new CustomerReceiptResource(
+                    $receipt
+                ),
         ]);
     }
 
     public function cancel(
         CustomerReceipt $customerReceipt
-    ) {
-        $receipt = $this->service->cancel(
-            $customerReceipt
-        );
+    ): JsonResponse {
+
+        $receipt =
+            $this->service->cancel(
+                $customerReceipt
+            );
 
         return response()->json([
 
             'success' => true,
 
-            'message' => 'Customer Receipt cancelled successfully',
+            'message' =>
+                'Customer receipt cancelled successfully.',
 
-            'data' => new CustomerReceiptResource(
-                $receipt
-            ),
-
+            'data' =>
+                new CustomerReceiptResource(
+                    $receipt
+                ),
         ]);
     }
 
     public function destroy(
         CustomerReceipt $customerReceipt
-    ) {
+    ): JsonResponse {
+
         $this->service->delete(
             $customerReceipt->id
         );
@@ -102,8 +163,8 @@ class CustomerReceiptController extends Controller
 
             'success' => true,
 
-            'message' => 'Customer Receipt deleted successfully',
-
+            'message' =>
+                'Customer receipt deleted successfully.',
         ]);
     }
 }

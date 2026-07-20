@@ -2,9 +2,11 @@
 
 namespace App\Modules\Accounting\Repositories;
 
+use Illuminate\Support\Collection;
 use App\Modules\Purchase\Models\Purchase;
 use App\Modules\Supplier\Models\Supplier;
-use App\Modules\SupplierPayment\Models\SupplierPaymentAllocation;
+use App\Modules\SupplierPayment\Models\SupplierPayment;
+use App\Modules\SupplierPayment\Enums\SupplierPaymentStatus;
 use App\Modules\Accounting\Repositories\Contracts\SupplierStatementRepositoryInterface;
 
 class SupplierStatementRepository
@@ -17,19 +19,57 @@ implements SupplierStatementRepositoryInterface
     ): array {
 
         $supplier = Supplier::query()
-            ->findOrFail(
-                $supplierId
-            );
+            ->findOrFail($supplierId);
 
         $transactions = collect();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Purchases Invoices
-        |--------------------------------------------------------------------------
-        */
+        $this->loadPurchases(
+            $transactions,
+            $supplierId,
+            $fromDate,
+            $toDate
+        );
 
-        $purchases = Purchase::query()->with('supplier')
+        $this->loadPayments(
+            $transactions,
+            $supplierId,
+            $fromDate,
+            $toDate
+        );
+
+        $transactions = $this->sortTransactions(
+            $transactions
+        );
+
+        $runningBalance =
+            $this->applyRunningBalance(
+                $transactions
+            );
+
+        return [
+
+            'supplier' =>
+                $supplier,
+
+            'opening_balance' =>
+                0,
+
+            'transactions' =>
+                $transactions,
+
+            'outstanding_balance' =>
+                $runningBalance,
+        ];
+    }
+
+    private function loadPurchases(
+        Collection $transactions,
+        int $supplierId,
+        ?string $fromDate,
+        ?string $toDate
+    ): void {
+
+        Purchase::query()
 
             ->where(
                 'supplier_id',
@@ -38,181 +78,166 @@ implements SupplierStatementRepositoryInterface
 
             ->when(
                 $fromDate,
-                fn($q) => $q->whereDate(
-                    'purchase_date',
-                    '>=',
-                    $fromDate
-                )
+                fn ($q) =>
+                    $q->whereDate(
+                        'purchase_date',
+                        '>=',
+                        $fromDate
+                    )
             )
 
             ->when(
                 $toDate,
-                fn($q) => $q->whereDate(
-                    'purchase_date',
-                    '<=',
-                    $toDate
-                )
+                fn ($q) =>
+                    $q->whereDate(
+                        'purchase_date',
+                        '<=',
+                        $toDate
+                    )
             )
 
-            ->get();
+            ->get()
 
-        foreach ($purchases as $purchase) {
+            ->each(function (
+                Purchase $purchase
+            ) use (
+                $transactions
+            ) {
 
-            $transactions->push([
+                $transactions->push([
 
-                'date'
-                    => $purchase->purchase_date,
+                    'date' =>
+                        $purchase->purchase_date,
 
-                'reference'
-                    => $purchase->purchase_no,
+                    'reference' =>
+                        $purchase->purchase_no,
 
-                'type'
-                    => 'purchase',
+                    'type' =>
+                        'purchase',
 
-                'description'
-                    => "Purchase Invoice {$purchase->purchase_no}",
+                    'description' =>
+                        "Purchase {$purchase->purchase_no}",
 
-                'debit'
-                    => (float) $purchase->grand_total,
+                    'debit' =>
+                        0,
 
-                'credit'
-                    => 0,
-            ]);
-        }
+                    'credit' =>
+                        (float) $purchase->grand_total,
+                ]);
+            });
+    }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Payments
-        |--------------------------------------------------------------------------
-        */
+    private function loadPayments(
+        Collection $transactions,
+        int $supplierId,
+        ?string $fromDate,
+        ?string $toDate
+    ): void {
 
-        $allocations = SupplierPaymentAllocation::query()
+        SupplierPayment::query()
 
-            ->whereHas(
-                'purchase',
-                fn($q) => $q->where(
-                    'supplier_id',
-                    $supplierId
-                )
+            ->where(
+                'supplier_id',
+                $supplierId
             )
 
-            ->whereHas(
-                'payment',
-                function ($q) use (
-                    $fromDate,
-                    $toDate
-                ) {
-
-                    $q->when(
-                        $fromDate,
-                        fn($query) =>
-                        $query->whereDate(
-                            'payment_date',
-                            '>=',
-                            $fromDate
-                        )
-                    );
-
-                    $q->when(
-                        $toDate,
-                        fn($query) =>
-                        $query->whereDate(
-                            'payment_date',
-                            '<=',
-                            $toDate
-                        )
-                    );
-                }
+            ->where(
+                'status',
+                SupplierPaymentStatus::CONFIRMED
             )
 
-            ->with('payment')
+            ->when(
+                $fromDate,
+                fn ($q) =>
+                    $q->whereDate(
+                        'payment_date',
+                        '>=',
+                        $fromDate
+                    )
+            )
 
-            ->get();
+            ->when(
+                $toDate,
+                fn ($q) =>
+                    $q->whereDate(
+                        'payment_date',
+                        '<=',
+                        $toDate
+                    )
+            )
 
-        foreach ($allocations as $allocation) {
+            ->get()
 
-            $transactions->push([
+            ->each(function (
+                SupplierPayment $payment
+            ) use (
+                $transactions
+            ) {
 
-                'date'
-                    => $allocation
-                        ->payment
-                        ->payment_date,
+                $transactions->push([
 
-                'reference'
-                    => $allocation
-                        ->payment
-                        ->payment_no,
+                    'date' =>
+                        $payment->payment_date,
 
-                'type'
-                    => 'payment',
+                    'reference' =>
+                        $payment->payment_no,
 
-                'description'
-                    => "Supplier Payment {$allocation->payment->payment_no}",
+                    'type' =>
+                        'payment',
 
-                'debit'
-                    => 0,
+                    'description' =>
+                        "Supplier Payment {$payment->payment_no}",
 
-                'credit'
-                    => (float) $allocation->allocated_amount,
-            ]);
-        }
+                    'debit' =>
+                        (float) $payment->amount,
 
-        /*
-        |--------------------------------------------------------------------------
-        | Sort
-        |--------------------------------------------------------------------------
-        */
+                    'credit' =>
+                        0,
+                ]);
+            });
+    }
 
-        $transactions = $transactions
+    private function sortTransactions(
+        Collection $transactions
+    ): Collection {
+
+        return $transactions
 
             ->sortBy([
                 ['date', 'asc'],
-                ['reference', 'asc']
+                ['reference', 'asc'],
             ])
 
             ->values();
+    }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Running Balance
-        |--------------------------------------------------------------------------
-        */
+    private function applyRunningBalance(
+        Collection $transactions
+    ): float {
 
-        $runningBalance = 0;
+        $balance = 0;
 
-        $transactions = $transactions
+        $transactions->transform(
 
-            ->map(function (
-                $row
+            function (
+                array $row
             ) use (
-                &$runningBalance
+                &$balance
             ) {
 
-                $runningBalance +=
-                    $row['debit'];
-
-                $runningBalance -=
+                $balance +=
                     $row['credit'];
 
-                $row['balance']
-                    = $runningBalance;
+                $balance -=
+                    $row['debit'];
+
+                $row['balance'] =
+                    $balance;
 
                 return $row;
-            });
+            }
+        );
 
-        return [
-
-            'supplier'
-                => $supplier,
-
-            'opening_balance'
-                => 0,
-
-            'transactions'
-                => $transactions,
-
-            'outstanding_balance'
-                => $runningBalance,
-        ];
+        return $balance;
     }
 }

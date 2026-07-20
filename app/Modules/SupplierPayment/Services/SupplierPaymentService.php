@@ -3,18 +3,29 @@
 namespace App\Modules\SupplierPayment\Services;
 
 use Illuminate\Support\Facades\DB;
+
 use App\Modules\Purchase\Models\Purchase;
+
+use Illuminate\Validation\ValidationException;
+
 use App\Modules\SupplierPayment\Models\SupplierPayment;
-use App\Modules\SupplierPayment\Enums\SupplierPaymentStatus;
 use App\Modules\SupplierPayment\Models\SupplierPaymentAllocation;
-use App\Modules\Accounting\Services\Contracts\AccountingPostingServiceInterface;
+
+use App\Modules\SupplierPayment\Enums\SupplierPaymentStatus;
+use App\Modules\SupplierPayment\Enums\SupplierPaymentType;
+
+use App\Modules\SupplierPayment\Validation\SupplierPaymentValidator;
+
 use App\Modules\SupplierPayment\Repositories\Contracts\SupplierPaymentRepositoryInterface;
+
+use App\Modules\Accounting\Services\Contracts\AccountingPostingServiceInterface;
 
 class SupplierPaymentService
 {
     public function __construct(
         protected SupplierPaymentRepositoryInterface $repository,
-        protected AccountingPostingServiceInterface $postingService
+        protected SupplierPaymentValidator $validator,
+        protected AccountingPostingServiceInterface $postingService,
     ) {}
 
     public function getAll()
@@ -22,175 +33,252 @@ class SupplierPaymentService
         return $this->repository->paginate();
     }
 
-    public function find(int $id)
-    {
-        return $this->repository->find($id);
+    public function find(
+        int|string $id
+    ): SupplierPayment {
+
+        return $this->repository->find(
+            $id
+        );
     }
 
-    public function create(array $data)
-    {
-        return DB::transaction(function () use ($data) {
+    public function create(
+        array $data
+    ): SupplierPayment {
 
-            $allocations = $data['allocations'] ?? [];
+        return DB::transaction(
+            function () use ($data) {
 
-            unset($data['allocations']);
+                $allocations =
+                    $data['allocations'] ?? [];
 
-            if (!empty($allocations)) {
+                unset(
+                    $data['allocations']
+                );
 
-                $totalAllocated = collect($allocations)
-                    ->sum('allocated_amount');
+                $this->validator->validate(
+                    $data,
+                    $allocations
+                );
 
-                abort_if(
-                    bccomp(
-                        (string) $totalAllocated,
-                        (string) $data['amount'],
-                        4
-                    ) !== 0,
-                    422,
-                    'Payment amount must equal total allocated amount.'
+                $paymentNo = nextDocumentNumber(
+                    'supplier_payment',
+                    'PAY'
+                );                
+
+                $payment =
+                    $this->repository->create([
+
+                        ...$data,
+
+                        'payment_no' => $paymentNo,
+
+                        'status' =>
+                            SupplierPaymentStatus::DRAFT,
+                    ]);
+
+                $this->createAllocations(
+                    $payment,
+                    $allocations
+                );
+
+                return $this->find(
+                    $payment->id
                 );
             }
+        );
+    }
 
-            $nextId = (
-                SupplierPayment::max('id') ?? 0
-            ) + 1;
+    public function update(
+        int|string $id,
+        array $data
+    ): SupplierPayment {
 
-            $data['payment_no'] = sprintf(
-                'PAY-%06d',
-                $nextId
-            );
-
-            $data['status'] = SupplierPaymentStatus::DRAFT;
-
-            $payment = $this->repository->create(
+        return DB::transaction(
+            function () use (
+                $id,
                 $data
-            );
+            ) {
 
-            if (!empty($allocations)) {
-                foreach ($allocations as $allocation) {
+                $payment =
+                    $this->find($id);
 
-                    $purchase = Purchase::findOrFail(
-                        $allocation['purchase_id']
-                    );
+                $this->ensureDraft(
+                    $payment
+                );
 
-                    abort_if(
-                        $purchase->supplier_id != $payment->supplier_id,
-                        422,
-                        'Purchase does not belong to supplier.'
-                    );
+                $allocations =
+                    $data['allocations'] ?? [];
 
-                    abort_if(
-                        $allocation['allocated_amount']
-                            >
-                            $purchase->due_amount,
-                        422,
-                        'Allocated amount exceeds invoice due amount.'
-                    );
+                unset(
+                    $data['allocations']
+                );
 
-                    SupplierPaymentAllocation::create([
-                        'supplier_payment_id' => $payment->id,
-                        'purchase_id'         => $purchase->id,
-                        'allocated_amount'    => $allocation['allocated_amount'],
-                    ]);
-                }
+                $this->validator->validate(
+                    $data,
+                    $allocations
+                );
+
+                $payment->update(
+                    $data
+                );
+
+                $payment
+                    ->allocations()
+                    ->delete();
+
+                $this->createAllocations(
+                    $payment,
+                    $allocations
+                );
+
+                return $this->find(
+                    $payment->id
+                );
             }
-
-            return $payment->load(
-                'allocations.purchase'
-            );
-        });
+        );
     }
 
     public function confirm(
         SupplierPayment $payment
-    ) {
-        return DB::transaction(function () use ($payment) {
+    ): SupplierPayment {
 
-            abort_if(
-                $payment->status !== SupplierPaymentStatus::DRAFT,
-                422,
-                'Only draft payments can be confirmed.'
-            );
+        return DB::transaction(
+            function () use ($payment) {
 
-            $payment->loadMissing(
-                'allocations'
-            );
+                $payment =
+                    SupplierPayment::query()
+                        ->lockForUpdate()
+                        ->findOrFail(
+                            $payment->id
+                        );
 
-            foreach (
-                $payment->allocations as $allocation
-            ) {
-
-                $purchase = Purchase::findOrFail(
-                    $allocation->purchase_id
-                );
-
-                abort_if(
-                    $allocation->allocated_amount
-                        >
-                        $purchase->due_amount,
-                    422,
-                    'Invoice due amount exceeded.'
-                );
-
-                $purchase->increment(
-                    'paid_amount',
-                    $allocation->allocated_amount
-                );
-
-                $purchase->decrement(
-                    'due_amount',
-                    $allocation->allocated_amount
-                );
-            }
-
-            $payment->update([
-                'status' => SupplierPaymentStatus::CONFIRMED,
-            ]);
-
-            $payment = $payment->fresh(
-                'allocations.purchase'
-            );
-
-            $this->postingService
-                ->postSupplierPayment(
+                $this->ensureDraft(
                     $payment
                 );
 
-            return $payment;
-        });
+                if (
+                    $payment->payment_type ===
+                    SupplierPaymentType::INVOICE
+                ) {
+
+                    foreach (
+                        $payment->allocations as $allocation
+                    ) {
+
+                        $purchase =
+                            Purchase::query()
+                                ->lockForUpdate()
+                                ->findOrFail(
+                                    $allocation->purchase_id
+                                );
+
+                        $purchase->increment(
+                            'paid_amount',
+                            $allocation->allocated_amount
+                        );
+
+                        $purchase->decrement(
+                            'due_amount',
+                            $allocation->allocated_amount
+                        );
+                    }
+                }
+
+                $payment->update([
+
+                    'status' =>
+                        SupplierPaymentStatus::CONFIRMED,
+                ]);
+
+                $payment =
+                    $this->find(
+                        $payment->id
+                    );
+
+                $this->postingService
+                    ->postSupplierPayment(
+                        $payment
+                    );
+
+                return $payment;
+            }
+        );
     }
 
     public function cancel(
         SupplierPayment $payment
-    ) {
-        abort_if(
-            $payment->status !== SupplierPaymentStatus::DRAFT,
-            422,
-            'Only draft payments can be cancelled.'
+    ): SupplierPayment {
+
+        $this->ensureDraft(
+            $payment
         );
 
         $payment->update([
-            'status' => SupplierPaymentStatus::CANCELLED,
+
+            'status' =>
+                SupplierPaymentStatus::CANCELLED,
         ]);
 
         return $payment->fresh();
     }
 
     public function delete(
-        int $id
-    ) {
-        $payment = $this->find(
-            $id
+        int|string $id
+    ): bool {
+
+        $payment =
+            $this->find($id);
+
+        $this->ensureDraft(
+            $payment
         );
 
-        abort_if(
-            $payment->status !== SupplierPaymentStatus::DRAFT,
-            422,
-            'Only draft payments can be deleted.'
-        );
+        return (bool)
+            $this->repository
+                ->delete($id);
+    }
 
-        return $this->repository->delete(
-            $id
-        );
+    protected function createAllocations(
+        SupplierPayment $payment,
+        array $allocations
+    ): void {
+
+        foreach (
+            $allocations as $allocation
+        ) {
+
+            SupplierPaymentAllocation::create([
+
+                'tenant_id' =>
+                    tenant()->id,
+
+                'supplier_payment_id' =>
+                    $payment->id,
+
+                'purchase_id' =>
+                    $allocation['purchase_id'],
+
+                'allocated_amount' =>
+                    $allocation['allocated_amount'],
+            ]);
+        }
+    }
+
+    protected function ensureDraft(
+        SupplierPayment $payment
+    ): void {
+
+        if (
+            $payment->status !==
+            SupplierPaymentStatus::DRAFT
+        ) {
+
+            throw ValidationException::withMessages([
+                'status' => [
+                    'Only draft payments can be modified.'
+                ]
+            ]);
+        }
     }
 }

@@ -17,4 +17,24 @@ class AccountLedgerRepository
             $model
         );
     }
+
+    public function getLastRunningBalance(
+        int $tenantId,
+        int $accountId
+    ): ?string {
+
+        return $this->model
+            ->where(
+                'tenant_id',
+                $tenantId
+            )
+            ->where(
+                'chart_of_account_id',
+                $accountId
+            )
+            ->latest('id')
+            ->value(
+                'running_balance'
+            );
+    }    
 }

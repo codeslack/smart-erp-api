@@ -24,6 +24,9 @@ return new class extends Migration
 
             $table->date('receipt_date');
 
+            $table->string('receipt_type', 20)
+                ->default('invoice');
+
             $table->string('payment_method')->nullable();
 
             $table->string('reference_no')->nullable();

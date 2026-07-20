@@ -7,6 +7,7 @@ use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Purchase\Models\PurchaseItem;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Modules\AdvanceAllocation\Models\AdvanceAllocation;
 use App\Modules\SupplierPayment\Models\SupplierPaymentAllocation;
 
 class Purchase extends TenantModel
@@ -57,6 +58,18 @@ class Purchase extends TenantModel
     {
         return $this->hasMany(
             SupplierPaymentAllocation::class
+        );
+    }
+
+    public function advanceAllocations(): HasMany
+    {
+        return $this->hasMany(
+            AdvanceAllocation::class,
+            'target_id'
+        )
+        ->where(
+            'target_type',
+            self::class
         );
     }
 }

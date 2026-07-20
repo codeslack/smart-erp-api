@@ -40,6 +40,19 @@
     reference_id   = 10
     voucher_type   = customer_receipt
 
+That is only correct for invoice payments.
+
+For the new design we need:
+
+| Receipt Type    | Debit               |             Credit      |
+|-----------------|---------------------|-------------------------|
+| Invoice Receipt | Cash/Bank           | Accounts Receivable     |
+| Advance Receipt | Cash/Bank           | Customer Advances       |
+| Overpayment     | Cash/Bank           | A/R + Customer Advances |
+| Refund          | Customer Advances   | Cash/Bank               |
+
+This is where the accounting becomes correct.
+
 ### Supplier Payment Journal
     reference_type = SupplierPayment
     reference_id   = 10
@@ -249,6 +262,7 @@ JSON
 {
     "supplier_id": 1,
     "payment_date": "2026-06-06",
+    "payment_type": "invoice",
     "payment_method": "cash",
     "payment_account_id": 1,
     "reference_no": "PAY-001",
@@ -325,6 +339,7 @@ JSON
 {
     "customer_id": 1,
     "receipt_date": "2026-06-12",
+    "receipt_type": "invoice",
     "payment_method": "cash",
     "reference_no": "CASH-001",
     "amount": 15000,
@@ -558,4 +573,20 @@ Expected structure:
         }
     ]
 }
+```
+```bash
+$data['receipt_no'] = nextDocumentNumber(
+    'customer_receipt',
+    'REC'
+);
+
+$data['payment_no'] = nextDocumentNumber(
+    'supplier_payment',
+    'PAY'
+);
+
+$data['journal_no'] = nextDocumentNumber(
+    'journal_entry',
+    'JV'
+);
 ```
