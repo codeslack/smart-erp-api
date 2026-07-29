@@ -2,27 +2,48 @@
 
 namespace App\Modules\Warehouse\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
+use App\Core\Requests\BaseRequest;
+use App\Core\Validation\TenantRule;
 
-class StoreWarehouseRequest extends FormRequest
+class StoreWarehouseRequest extends BaseRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     public function rules(): array
     {
         return [
 
-            'code' => [
-                'required',
-                'string',
-                'max:50',
-            ],
+            /*
+            |--------------------------------------------------------------------------
+            | Basic Information
+            |--------------------------------------------------------------------------
+            */
 
             'name' => [
                 'required',
+                'string',
+                'max:255',
+
+                TenantRule::unique(
+                    'warehouses',
+                    'name'
+                ),
+            ],
+
+            'area_id' => [
+                'nullable',
+
+                TenantRule::exists(
+                    'areas'
+                ),
+            ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Contact Information
+            |--------------------------------------------------------------------------
+            */
+
+            'contact_person' => [
+                'nullable',
                 'string',
                 'max:255',
             ],
@@ -36,14 +57,33 @@ class StoreWarehouseRequest extends FormRequest
             'email' => [
                 'nullable',
                 'email',
+                'max:255',
             ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Address
+            |--------------------------------------------------------------------------
+            */
 
             'address' => [
                 'nullable',
                 'string',
             ],
 
+            /*
+            |--------------------------------------------------------------------------
+            | Status
+            |--------------------------------------------------------------------------
+            */
+
+            'is_default' => [
+                'sometimes',
+                'boolean',
+            ],
+
             'is_active' => [
+                'sometimes',
                 'boolean',
             ],
         ];

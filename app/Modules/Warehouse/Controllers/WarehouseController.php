@@ -2,46 +2,107 @@
 
 namespace App\Modules\Warehouse\Controllers;
 
-use App\Http\Controllers\Controller;
+use Illuminate\Http\JsonResponse;
+
+use App\Http\Controllers\ApiController;
+
 use App\Modules\Warehouse\Models\Warehouse;
-use App\Modules\Warehouse\Resources\WarehouseResource;
+
+use App\Modules\Warehouse\Services\WarehouseService;
+
 use App\Modules\Warehouse\Requests\StoreWarehouseRequest;
 use App\Modules\Warehouse\Requests\UpdateWarehouseRequest;
 
-class WarehouseController extends Controller
+use App\Modules\Warehouse\Resources\WarehouseResource;
+
+class WarehouseController extends ApiController
 {
-    public function index()
+    public function __construct(
+        protected WarehouseService $service
+    ) {}
+
+    public function index(): JsonResponse
     {
-        return WarehouseResource::collection(
-            Warehouse::latest()->paginate()
+        $warehouses =
+            $this->service->paginate();
+
+        return $this->success(
+
+            WarehouseResource::collection(
+                $warehouses
+            ),
+
+            'Warehouses retrieved successfully.'
         );
     }
 
-    public function store(StoreWarehouseRequest $request)
-    {
-        $warehouse = Warehouse::create($request->validated());
+    public function store(
+        StoreWarehouseRequest $request
+    ): JsonResponse {
 
-        return new WarehouseResource($warehouse);
+        $warehouse =
+            $this->service->create(
+                $request->validated()
+            );
+
+        return $this->success(
+
+            new WarehouseResource(
+                $warehouse->load('area')
+            ),
+
+            'Warehouse created successfully.',
+            
+            201
+        );
     }
 
-    public function show(Warehouse $warehouse)
-    {
-        return new WarehouseResource($warehouse);
+    public function show(
+        Warehouse $warehouse
+    ): JsonResponse {
+
+        return $this->success(
+
+            new WarehouseResource(
+                $warehouse->load('area')
+            ),
+
+            'Warehouse retrieved successfully.'
+        );
     }
 
-    public function update(UpdateWarehouseRequest $request, Warehouse $warehouse)
-    {
-        $warehouse->update($request->validated());
+    public function update(
+        UpdateWarehouseRequest $request,
+        Warehouse $warehouse
+    ): JsonResponse {
 
-        return new WarehouseResource($warehouse);
+        $warehouse =
+            $this->service->update(
+                $warehouse,
+                $request->validated()
+            );
+
+        return $this->success(
+
+            new WarehouseResource(
+                $warehouse->load('area')
+            ),
+
+            'Warehouse updated successfully.'
+        );
     }
 
-    public function destroy(Warehouse $warehouse)
-    {
-        $warehouse->delete();
+    public function destroy(
+        Warehouse $warehouse
+    ): JsonResponse {
 
-        return response()->json([
-            'message' => 'Warehouse deleted successfully',
-        ]);
+        $this->service->delete(
+            $warehouse
+        );
+
+        return $this->success(
+            null,
+            'Warehouse deleted successfully.'
+        );
     }
 }

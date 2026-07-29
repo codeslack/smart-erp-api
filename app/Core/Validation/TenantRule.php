@@ -1,52 +1,57 @@
 <?php
 
-/**
- * Implements or use this methods
- *
- * 'name' => [
- *     'required',
- *     TenantRule::unique('units', 'name'),
- * ];
- *
- * 'product_id' => [
- *    'required',
- *    TenantRule::exists('products'),
- *];
- */
-
 namespace App\Core\Validation;
 
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Exists;
+use Illuminate\Validation\Rules\Unique;
 
 class TenantRule
 {
     public static function unique(
         string $table,
         string $column
-    )
-    {
+    ): Unique {
+
         return Rule::unique(
             $table,
             $column
         )->where(
             'tenant_id',
-            tenant()->id
+            tenantId()
         );
+    }
+
+    public static function uniqueIgnore(
+        string $table,
+        string $column,
+        int|string $ignoreId
+    ): Unique {
+
+        return Rule::unique(
+            $table,
+            $column
+        )
+            ->where(
+                'tenant_id',
+                tenantId()
+            )
+            ->ignore(
+                $ignoreId
+            );
     }
 
     public static function exists(
         string $table,
         string $column = 'id'
-    )
-    {
-        $tenantId = tenant()->id;
+    ): Exists {
 
         return Rule::exists(
             $table,
             $column
         )->where(
             'tenant_id',
-            $tenantId
+            tenantId()
         );
     }
 }

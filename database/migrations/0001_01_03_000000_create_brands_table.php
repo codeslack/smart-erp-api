@@ -6,16 +6,22 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::create('brands', function (Blueprint $table) {
+        Schema::create('brands', function (
+            Blueprint $table
+        ) {
 
             $table->id();
 
-            $table->foreignId('tenant_id');
+            $table->uuid('uuid')
+                ->unique();
+
+            $table->foreignId('tenant_id')
+                ->constrained('tenants')
+                ->cascadeOnDelete();
+
+            $table->string('code');
 
             $table->string('name');
 
@@ -27,18 +33,24 @@ return new class extends Migration
 
             $table->timestamps();
 
+            $table->softDeletes();
+
             $table->unique([
                 'tenant_id',
-                'name'
+                'code',
+            ]);
+
+            $table->unique([
+                'tenant_id',
+                'name',
             ]);
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('brands');
+        Schema::dropIfExists(
+            'brands'
+        );
     }
 };

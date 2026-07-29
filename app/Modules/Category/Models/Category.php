@@ -2,19 +2,70 @@
 
 namespace App\Modules\Category\Models;
 
-use App\Core\Tenant\Models\TenantModel;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+use App\Core\Models\TenantModel;
+
+use App\Modules\Tenant\Models\Tenant;
+use App\Modules\Product\Models\Product;
 
 class Category extends TenantModel
 {
+    use SoftDeletes;
+
+    protected $table = 'categories';
+
     protected $fillable = [
+
         'tenant_id',
-        'name',
+
         'code',
+
+        'name',
+
         'description',
+
         'is_active',
     ];
 
-    protected $casts = [
-        'is_active' => 'boolean',
-    ];
+    protected function casts(): array
+    {
+        return [
+
+            'is_active' => 'boolean',
+        ];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
+
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(
+            Tenant::class
+        );
+    }
+
+    public function products(): HasMany
+    {
+        return $this->hasMany(
+            Product::class
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Helpers
+    |--------------------------------------------------------------------------
+    */
+
+    public function isActive(): bool
+    {
+        return $this->is_active;
+    }
 }

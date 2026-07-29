@@ -2,52 +2,94 @@
 
 namespace App\Modules\Unit\Controllers;
 
+use App\Http\Controllers\ApiController;
+
 use App\Modules\Unit\Models\Unit;
-use App\Http\Controllers\Controller;
+
+use App\Modules\Unit\Services\UnitService;
+
 use App\Modules\Unit\Resources\UnitResource;
+
 use App\Modules\Unit\Requests\StoreUnitRequest;
 use App\Modules\Unit\Requests\UpdateUnitRequest;
 
-class UnitController extends Controller
+class UnitController extends ApiController
 {
+    public function __construct(
+        protected UnitService $service
+    ) {}
+
     public function index()
     {
-        return UnitResource::collection(
-            Unit::orderBy('name')->get()
+        $units = $this->service
+            ->paginate();
+
+        return $this->success(
+            UnitResource::collection(
+                $units
+            ),
+            'Units retrieved successfully.'
         );
     }
 
-    public function store(StoreUnitRequest $request)
+    public function store(
+        StoreUnitRequest $request
+    )
     {
-        $unit = Unit::create(
+        $unit = $this->service->create(
             $request->validated()
         );
 
-        return new UnitResource($unit);
+        return $this->success(
+            new UnitResource(
+                $unit
+            ),
+            'Unit created successfully.',
+            201
+        );
     }
 
-    public function show(Unit $unit)
+    public function show(
+        Unit $unit
+    )
     {
-        return new UnitResource($unit);
+        return $this->success(
+            new UnitResource(
+                $unit
+            ),
+            'Unit retrieved successfully.'
+        );
     }
 
     public function update(
         UpdateUnitRequest $request,
         Unit $unit
-    ) {
-        $unit->update(
+    )
+    {
+        $unit = $this->service->update(
+            $unit,
             $request->validated()
         );
 
-        return new UnitResource($unit);
+        return $this->success(
+            new UnitResource(
+                $unit
+            ),
+            'Unit updated successfully.'
+        );
     }
 
-    public function destroy(Unit $unit)
+    public function destroy(
+        Unit $unit
+    )
     {
-        $unit->delete();
+        $this->service->delete(
+            $unit
+        );
 
-        return response()->json([
-            'message' => 'Unit deleted successfully'
-        ]);
+        return $this->success(
+            null,
+            'Unit deleted successfully.'
+        );
     }
 }

@@ -2,22 +2,28 @@
 
 namespace App\Modules\Brand\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
+use App\Core\Validation\TenantRule;
 
-class UpdateBrandRequest extends FormRequest
+use App\Core\Requests\BaseRequest;
+
+class UpdateBrandRequest extends BaseRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     public function rules(): array
     {
+        $brand = $this->route('brand');
+
         return [
+
             'name' => [
-                'required',
+                'sometimes',
                 'string',
                 'max:255',
+
+                TenantRule::uniqueIgnore(
+                    'brands',
+                    'name',
+                    $brand->id
+                ),
             ],
 
             'description' => [
@@ -26,6 +32,7 @@ class UpdateBrandRequest extends FormRequest
             ],
 
             'is_active' => [
+                'sometimes',
                 'boolean',
             ],
         ];

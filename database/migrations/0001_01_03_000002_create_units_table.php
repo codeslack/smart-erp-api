@@ -12,17 +12,34 @@ return new class extends Migration
 
             $table->id();
 
+            $table->uuid('uuid')
+                ->unique();            
+
             $table->foreignId('tenant_id')
                 ->constrained('tenants')
-                ->cascadeOnDelete();
+                ->cascadeOnDelete()
+                ->index();
 
-            $table->string('name');
-            $table->string('short_name');
+            $table->string('code', 50);
+
+            $table->string('name', 255);
+
+            $table->string('short_name', 50);
+
+            $table->text('description')
+                ->nullable();
 
             $table->boolean('is_active')
                 ->default(true);
 
             $table->timestamps();
+
+            $table->softDeletes();
+
+            $table->unique([
+                'tenant_id',
+                'code'
+            ]);
 
             $table->unique([
                 'tenant_id',
@@ -31,7 +48,7 @@ return new class extends Migration
 
             $table->unique([
                 'tenant_id',
-                'short_name'
+                'short_name',
             ]);
         });
     }

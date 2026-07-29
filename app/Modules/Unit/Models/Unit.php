@@ -2,16 +2,34 @@
 
 namespace App\Modules\Unit\Models;
 
-use App\Core\Tenant\Models\TenantModel;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+use App\Core\Models\TenantModel;
+
+use App\Modules\Tenant\Models\Tenant;
+use App\Modules\Product\Models\Product;
+
 
 class Unit extends TenantModel
 {
-    use HasFactory;
+    use SoftDeletes;
+
+    protected $table = 'units';
 
     protected $fillable = [
+
+        'tenant_id',
+
+        'code',
+
         'name',
+
         'short_name',
+
+        'description',
+
         'is_active',
     ];
 
@@ -19,11 +37,34 @@ class Unit extends TenantModel
         'is_active' => 'boolean',
     ];
 
-    /**
-     * Create a new factory instance for the model.
-     */
-    protected static function newFactory()
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
+
+    public function tenant(): BelongsTo
     {
-        return \Database\Factories\UnitFactory::new();
+        return $this->belongsTo(
+            Tenant::class
+        );
+    }
+
+    public function products(): HasMany
+    {
+        return $this->hasMany(
+            Product::class
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Helpers
+    |--------------------------------------------------------------------------
+    */
+
+    public function isActive(): bool
+    {
+        return $this->is_active;
     }
 }

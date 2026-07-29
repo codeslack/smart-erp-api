@@ -2,50 +2,94 @@
 
 namespace App\Modules\Brand\Controllers;
 
+use App\Http\Controllers\ApiController;
+
 use App\Modules\Brand\Models\Brand;
-use App\Http\Controllers\Controller;
+
+use App\Modules\Brand\Services\BrandService;
+
 use App\Modules\Brand\Resources\BrandResource;
+
 use App\Modules\Brand\Requests\StoreBrandRequest;
 use App\Modules\Brand\Requests\UpdateBrandRequest;
 
-class BrandController extends Controller
+class BrandController extends ApiController
 {
+    public function __construct(
+        protected BrandService $service
+    ) {}
+
     public function index()
     {
-        return BrandResource::collection(
-            Brand::latest()->paginate()
+        $brands = $this->service
+            ->paginate();
+
+        return $this->success(
+            BrandResource::collection(
+                $brands
+            ),
+            'Brands retrieved successfully.'
         );
     }
 
-    public function store(StoreBrandRequest $request)
+    public function store(
+        StoreBrandRequest $request
+    )
     {
-        $brand = Brand::create(
+        $brand = $this->service->create(
             $request->validated()
         );
 
-        return new BrandResource($brand);
+        return $this->success(
+            new BrandResource(
+                $brand
+            ),
+            'Brand created successfully.',
+            201
+        );
     }
 
-    public function show(Brand $brand)
+    public function show(
+        Brand $brand
+    )
     {
-        return new BrandResource($brand);
+        return $this->success(
+            new BrandResource(
+                $brand
+            ),
+            'Brand retrieved successfully.'
+        );
     }
 
     public function update(
         UpdateBrandRequest $request,
         Brand $brand
-    ) {
-        $brand->update($request->validated());
+    )
+    {
+        $brand = $this->service->update(
+            $brand,
+            $request->validated()
+        );
 
-        return new BrandResource($brand);
+        return $this->success(
+            new BrandResource(
+                $brand
+            ),
+            'Brand updated successfully.'
+        );
     }
 
-    public function destroy(Brand $brand)
+    public function destroy(
+        Brand $brand
+    )
     {
-        $brand->delete();
+        $this->service->delete(
+            $brand
+        );
 
-        return response()->json([
-            'message' => 'Brand deleted successfully',
-        ]);
+        return $this->success(
+            null,
+            'Brand deleted successfully.'
+        );
     }
 }

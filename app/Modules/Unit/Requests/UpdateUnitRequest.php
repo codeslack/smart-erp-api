@@ -2,21 +2,51 @@
 
 namespace App\Modules\Unit\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
+use App\Core\Validation\TenantRule;
 
-class UpdateUnitRequest extends FormRequest
+use App\Core\Requests\BaseRequest;
+
+class UpdateUnitRequest extends BaseRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     public function rules(): array
     {
+        $unit = $this->route('unit');
+
         return [
-            'name' => ['required', 'string', 'max:100'],
-            'short_name' => ['required', 'string', 'max:20'],
-            'is_active' => ['boolean'],
+
+            'name' => [
+                'sometimes',
+                'string',
+                'max:255',
+
+                TenantRule::uniqueIgnore(
+                    'units',
+                    'name',
+                    $unit->id
+                ),
+            ],
+
+            'short_name' => [
+                'sometimes',
+                'string',
+                'max:50',
+                
+                TenantRule::uniqueIgnore(
+                    'units',
+                    'short_name',
+                    $unit->id
+                ),
+            ],
+
+            'description' => [
+                'nullable',
+                'string',
+            ],
+
+            'is_active' => [
+                'sometimes',
+                'boolean',
+            ],
         ];
     }
 }

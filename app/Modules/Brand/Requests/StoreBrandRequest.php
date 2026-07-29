@@ -2,23 +2,25 @@
 
 namespace App\Modules\Brand\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
+use App\Core\Validation\TenantRule;
 
-class StoreBrandRequest extends FormRequest
+use App\Core\Requests\BaseRequest;
+
+class StoreBrandRequest extends BaseRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     public function rules(): array
     {
         return [
+
             'name' => [
                 'required',
                 'string',
                 'max:255',
-                'unique:brands,name',
+
+                TenantRule::unique(
+                    'brands',
+                    'name'
+                ),
             ],
 
             'description' => [
@@ -27,6 +29,7 @@ class StoreBrandRequest extends FormRequest
             ],
 
             'is_active' => [
+                'sometimes',
                 'boolean',
             ],
         ];

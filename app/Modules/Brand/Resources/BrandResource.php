@@ -7,15 +7,26 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class BrandResource extends JsonResource
 {
-    public function toArray(Request $request): array
-    {
+    public function toArray(
+        Request $request
+    ): array {
         return [
-            'id' => $this->id,
-            'tenant_id' => $this->tenant_id,
-            'name' => $this->name,
-            'description' => $this->description,
-            'is_active' => $this->is_active,
+
+            'id'         => $this->id,
+
+            'uuid'       => $this->uuid,
+
+            'code'       => $this->code,
+
+            'name'       => $this->name,
+
+            'description'=> $this->description,
+
+            'is_active'  => (bool) $this->is_active,
+
             'created_at' => $this->created_at,
+
+            'updated_at' => $this->updated_at,
         ];
     }
 }

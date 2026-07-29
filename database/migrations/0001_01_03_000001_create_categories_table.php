@@ -11,26 +11,41 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('categories', function (Blueprint $table) {
+        Schema::create('categories', function (
+            Blueprint $table
+        ) {
+
             $table->id();
 
+            $table->uuid('uuid')
+                ->unique();
+
             $table->foreignId('tenant_id')
-                ->constrained()
+                ->constrained('tenants')
                 ->cascadeOnDelete();
 
-            $table->string('name');
-            $table->string('code')->nullable();
+            $table->string('code');
 
-            $table->text('description')->nullable();
+            $table->string('name');
+
+            $table->text('description')
+                ->nullable();
 
             $table->boolean('is_active')
                 ->default(true);
 
             $table->timestamps();
 
+            $table->softDeletes();
+
             $table->unique([
                 'tenant_id',
-                'name'
+                'code',
+            ]);
+
+            $table->unique([
+                'tenant_id',
+                'name',
             ]);
         });
     }

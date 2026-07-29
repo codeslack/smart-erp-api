@@ -6,7 +6,7 @@ use App\Modules\Unit\Controllers\UnitController;
 Route::middleware([
     'auth:sanctum',
     'tenant',
-])->prefix('api')->group(function () {
+])->group(function () {
 
     Route::apiResource(
         'units',

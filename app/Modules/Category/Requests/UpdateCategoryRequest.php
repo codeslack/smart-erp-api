@@ -2,22 +2,39 @@
 
 namespace App\Modules\Category\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
+use App\Core\Validation\TenantRule;
 
-class UpdateCategoryRequest extends FormRequest
+use App\Core\Requests\BaseRequest;
+
+class UpdateCategoryRequest extends BaseRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     public function rules(): array
     {
+        $category = $this->route('category');
+
         return [
-            'name' => ['required', 'string', 'max:255'],
-            'code' => ['nullable', 'string', 'max:50'],
-            'description' => ['nullable', 'string'],
-            'is_active' => ['boolean'],
+
+            'name' => [
+                'sometimes',
+                'string',
+                'max:255',
+
+                TenantRule::uniqueIgnore(
+                    'categories',
+                    'name',
+                    $category->id
+                ),
+            ],
+
+            'description' => [
+                'nullable',
+                'string',
+            ],
+
+            'is_active' => [
+                'sometimes',
+                'boolean',
+            ],
         ];
     }
 }

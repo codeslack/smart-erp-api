@@ -6,7 +6,10 @@ use App\Modules\Category\Controllers\CategoryController;
 Route::middleware([
     'auth:sanctum',
     'tenant',
-])->apiResource(
-    'categories',
-    CategoryController::class
-);
+])->group(function () {
+    
+    Route::apiResource(
+        'categories',
+        CategoryController::class
+    );
+});

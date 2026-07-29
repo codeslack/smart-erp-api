@@ -4,25 +4,25 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 
+use App\Core\Modules\ModuleRegistry;
+
 use App\Modules\Rbac\Models\Permission;
-use App\Modules\Rbac\Enums\PermissionEnum;
 
 class PermissionSeeder extends Seeder
 {
     public function run(): void
     {
         foreach (
-            PermissionEnum::cases()
+            array_unique(
+                ModuleRegistry::permissions()
+            )
             as $permission
         ) {
 
             Permission::firstOrCreate(
                 [
-                    'name' =>
-                        $permission->value,
-
-                    'guard_name' =>
-                        'sanctum',
+                    'name' => $permission,
+                    'guard_name' => 'sanctum',
                 ]
             );
         }

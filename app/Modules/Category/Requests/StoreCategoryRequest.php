@@ -2,22 +2,36 @@
 
 namespace App\Modules\Category\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
+use App\Core\Validation\TenantRule;
 
-class StoreCategoryRequest extends FormRequest
+use App\Core\Requests\BaseRequest;
+
+class StoreCategoryRequest extends BaseRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255'],
-            'code' => ['nullable', 'string', 'max:50'],
-            'description' => ['nullable', 'string'],
-            'is_active' => ['boolean'],
+
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+
+                TenantRule::unique(
+                    'categories',
+                    'name'
+                ),
+            ],
+
+            'description' => [
+                'nullable',
+                'string',
+            ],
+
+            'is_active' => [
+                'sometimes',
+                'boolean',
+            ],
         ];
     }
 }

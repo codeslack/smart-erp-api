@@ -18,6 +18,14 @@ enum SystemNumberTypeEnum: string
 
     case ACCOUNT = 'account';
 
+    case AREA = 'area';
+
+    case UNIT = 'unit';
+
+    case BRAND = 'brand';
+
+    case CATEGORY = 'category';
+
     public function prefix(): string
     {
         return match ($this) {
@@ -35,6 +43,14 @@ enum SystemNumberTypeEnum: string
             self::WAREHOUSE => 'WH',
 
             self::ACCOUNT => 'ACC',
+
+            self::AREA => 'ARE',
+
+            self::UNIT => 'UNT',
+
+            self::BRAND => 'BRD',
+
+            self::CATEGORY => 'CAT',
         };
     }
 

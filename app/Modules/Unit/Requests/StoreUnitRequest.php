@@ -2,38 +2,47 @@
 
 namespace App\Modules\Unit\Requests;
 
-use Illuminate\Validation\Rule;
-use Illuminate\Foundation\Http\FormRequest;
+use App\Core\Validation\TenantRule;
 
-class StoreUnitRequest extends FormRequest
+use App\Core\Requests\BaseRequest;
+
+class StoreUnitRequest extends BaseRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     public function rules(): array
     {
-        $tenantId = tenant()?->id;
-        
         return [
+
             'name' => [
                 'required',
                 'string',
-                'max:100',
-                Rule::unique('units', 'name')
-                    ->where('tenant_id', $tenantId)
+                'max:255',
+
+                TenantRule::unique(
+                    'units',
+                    'name'
+                ),
             ],
 
             'short_name' => [
                 'required',
                 'string',
                 'max:50',
-                Rule::unique('units', 'short_name')
-                    ->where('tenant_id', $tenantId)
+                
+                TenantRule::unique(
+                    'units',
+                    'short_name'
+                ),
             ],
 
-            'is_active' => ['boolean'],
+            'description' => [
+                'nullable',
+                'string',
+            ],
+
+            'is_active' => [
+                'sometimes',
+                'boolean',
+            ],
         ];
     }
 }
