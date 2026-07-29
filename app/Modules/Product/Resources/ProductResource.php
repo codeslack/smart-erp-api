@@ -14,29 +14,78 @@ class ProductResource extends JsonResource
 
             'id' => $this->id,
 
-            'tenant_id' => $this->tenant_id,
-
-            'category_id' => $this->category_id,
-
-            'unit_id' => $this->unit_id,
-
-            'brand_id' => $this->brand_id,
-
-            'name' => $this->name,
+            'uuid' => $this->uuid,
 
             'sku' => $this->sku,
 
             'barcode' => $this->barcode,
 
-            'purchase_price' => $this->purchase_price,
+            'name' => $this->name,
 
-            'sale_price' => $this->sale_price,
+            'slug' => $this->slug,
 
-            'minimum_stock' => $this->minimum_stock,
+            'product_type' => $this->product_type,
 
-            'description' => $this->description,
+            'inventory_tracking_type'
+                => $this->inventory_tracking_type,
 
-            'is_active' => $this->is_active,
+            'track_inventory'
+                => $this->track_inventory,
+
+            'track_batch'
+                => $this->track_batch,
+
+            'track_serial'
+                => $this->track_serial,
+
+            'has_expiry'
+                => $this->has_expiry,
+
+            'has_warranty'
+                => $this->has_warranty,
+
+            'requires_prescription'
+                => $this->requires_prescription,
+
+            'purchase_price'
+                => $this->purchase_price,
+
+            'selling_price'
+                => $this->selling_price,
+
+            'minimum_stock'
+                => $this->minimum_stock,
+
+            'maximum_stock'
+                => $this->maximum_stock,
+
+            'reorder_level'
+                => $this->reorder_level,
+
+            'critical_level'
+                => $this->critical_level,
+
+            'status'
+                => $this->status,
+
+            'description'
+                => $this->description,
+
+            'category' => $this->whenLoaded(
+                'category'
+            ),
+
+            'brand' => $this->whenLoaded(
+                'brand'
+            ),
+
+            'unit' => $this->whenLoaded(
+                'unit'
+            ),
+
+            'created_at' => $this->created_at,
+
+            'updated_at' => $this->updated_at,
         ];
     }
 }

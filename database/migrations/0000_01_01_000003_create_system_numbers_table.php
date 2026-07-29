@@ -11,37 +11,25 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('product_stocks', function (Blueprint $table) {
+        Schema::create('system_numbers', function (Blueprint $table) {
 
             $table->id();
 
             $table->foreignId('tenant_id')
+                ->nullable()
                 ->constrained('tenants')
                 ->cascadeOnDelete();
 
-            $table->foreignId('product_id')
-                ->constrained('products')
-                ->cascadeOnDelete();
+            $table->string('type');
 
-            $table->foreignId('warehouse_id')
-                ->constrained('warehouses')
-                ->cascadeOnDelete();
-
-            $table->decimal('quantity', 18, 4)
+            $table->unsignedBigInteger('current_number')
                 ->default(0);
-
-            $table->decimal(
-                'average_cost',
-                18,
-                4
-            )->default(0);
 
             $table->timestamps();
 
             $table->unique([
                 'tenant_id',
-                'product_id',
-                'warehouse_id'
+                'type',
             ]);
         });
     }
@@ -51,6 +39,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('product_stocks');
+        Schema::dropIfExists('system_numbers');
     }
 };

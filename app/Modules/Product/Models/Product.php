@@ -2,55 +2,96 @@
 
 namespace App\Modules\Product\Models;
 
-use App\Modules\Unit\Models\Unit;
+use App\Core\Models\TenantModel;
 use App\Modules\Brand\Models\Brand;
-use App\Core\Tenant\Models\TenantModel;
 use App\Modules\Category\Models\Category;
+use App\Modules\Inventory\Models\ProductStock;
+use App\Modules\Inventory\Models\StockLedger;
+use App\Modules\Unit\Models\Unit;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Modules\Product\Enums\ProductTypeEnum;
+use App\Modules\Product\Enums\ProductStatusEnum;
+use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 
-
+/**
+ * @property string $uuid
+ * @property string $sku
+ * @property string $name
+ */
 class Product extends TenantModel
 {
-    protected $fillable = [
-        'tenant_id',
+    use SoftDeletes;
 
-        'category_id',
-        'unit_id',
-        'brand_id',
+    protected $table = 'products';
 
-        'sku',
-        'barcode',
+    protected function casts(): array
+    {
+        return [
+            'product_type' => ProductTypeEnum::class,
 
-        'name',
-        'description',
+            'status' => ProductStatusEnum::class,
 
-        'purchase_price',
-        'sale_price',
+            'inventory_tracking_type'
+                => InventoryTrackingTypeEnum::class,
 
-        'minimum_stock',
-        
-        'is_active',
-    ];
+            'track_inventory' => 'boolean',
+            'track_batch' => 'boolean',
+            'track_serial' => 'boolean',
 
-    protected $casts = [
-        'purchase_price'    => 'decimal:2',
-        'sale_price'        => 'decimal:2',
-        'minimum_stock'     => 'decimal:2',
-        'is_active'         => 'boolean',
-    ];
+            'has_expiry' => 'boolean',
+            'has_warranty' => 'boolean',
+            'requires_prescription' => 'boolean',
+
+            'purchase_price' => 'decimal:4',
+            'selling_price' => 'decimal:4',
+
+            'minimum_stock' => 'decimal:4',
+            'maximum_stock' => 'decimal:4',
+            'reorder_level' => 'decimal:4',
+            'critical_level' => 'decimal:4',
+        ];
+    }
 
     public function category(): BelongsTo
     {
-        return $this->belongsTo(Category::class);
+        return $this->belongsTo(
+            Category::class
+        );
     }
 
     public function brand(): BelongsTo
     {
-        return $this->belongsTo(Brand::class);
+        return $this->belongsTo(
+            Brand::class
+        );
     }
 
     public function unit(): BelongsTo
     {
-        return $this->belongsTo(Unit::class);
+        return $this->belongsTo(
+            Unit::class
+        );
+    }
+
+    public function batches(): HasMany
+    {
+        return $this->hasMany(ProductBatch::class);
+    }
+
+    public function serials(): HasMany
+    {
+        return $this->hasMany(ProductSerial::class);
+    }
+
+    public function stocks(): HasMany
+    {
+        return $this->hasMany(ProductStock::class);
+    }
+
+    public function stockLedgers(): HasMany
+    {
+        return $this->hasMany(StockLedger::class);
     }
 }

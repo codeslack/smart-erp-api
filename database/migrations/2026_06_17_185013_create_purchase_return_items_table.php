@@ -33,7 +33,7 @@ return new class extends Migration
                 ->cascadeOnDelete();
 
             $table->decimal(
-                'quantity',
+                'returned_quantity',
                 18,
                 4
             );

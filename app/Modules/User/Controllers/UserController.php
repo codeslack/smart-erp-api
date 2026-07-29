@@ -2,58 +2,96 @@
 
 namespace App\Modules\User\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Modules\User\Models\User;
+
 use App\Modules\User\Services\UserService;
+
 use App\Modules\User\Requests\StoreUserRequest;
+use App\Modules\User\Requests\UpdateUserRequest;
+
+use Illuminate\Http\JsonResponse;
 use App\Modules\User\Resources\UserResource;
 
-class UserController extends Controller
+use App\Http\Controllers\ApiController;
+
+class UserController extends ApiController
 {
     public function __construct(
-        private UserService $service
+        protected UserService $service
     ) {}
 
-    public function index()
+    public function index(): JsonResponse
     {
-        return UserResource::collection(
-            User::latest()->paginate()
+        $users = $this->service
+            ->paginate(
+                request(
+                    'per_page',
+                    15
+                )
+            );
+
+        return $this->success(
+            UserResource::collection(
+                $users
+            ),
+            'Users retrieved successfully.'
         );
     }
 
     public function store(
         StoreUserRequest $request
-    ) {
-        $user = $this->service->create([
-            'tenant_id' => tenant()->id,
-            ...$request->validated(),
-        ]);
-
-        return new UserResource($user);
-    }
-
-    public function show(User $user)
-    {
-        return new UserResource($user);
-    }
-
-    public function update(
-        StoreUserRequest $request,
-        User $user
-    ) {
-        $user->update(
+    ): JsonResponse {
+        $user = $this->service->create(
             $request->validated()
         );
 
-        return new UserResource($user);
+        return $this->success(
+            new UserResource(
+                $user->load('roles')
+            ),
+            'User created successfully.',
+            201
+        );
     }
 
-    public function destroy(User $user)
-    {
-        $this->service->delete($user);
+    public function show(
+        User $user
+    ): JsonResponse {
+        return $this->success(
+            new UserResource(
+                $user->load('roles')
+            ),
+            'User retrieved successfully.'
+        );
+    }
 
-        return response()->json([
-            'message' => 'User deleted'
-        ]);
+    public function update(
+        UpdateUserRequest $request,
+        User $user
+    ): JsonResponse {
+        $user = $this->service->update(
+            $user,
+            $request->validated()
+        );
+
+        return $this->success(
+            new UserResource(
+                $user->load('roles')
+            ),
+            'User updated successfully.'
+        );
+    }
+
+    public function destroy(
+        User $user
+    ): JsonResponse {
+        $this->service->delete(
+            $user
+        );
+
+        return $this->success(
+            null,
+            'User deleted successfully.'
+        );
     }
 }

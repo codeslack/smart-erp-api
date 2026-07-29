@@ -70,6 +70,11 @@ return new class extends Migration
             $table->string('refund_type')
                 ->default('credit_note');
 
+            $table->foreignId('refund_account_id')
+                ->nullable()
+                ->constrained('chart_of_accounts')
+                ->nullOnDelete();
+
             $table->string('return_reason')
                 ->nullable();
 

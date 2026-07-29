@@ -2,59 +2,41 @@
 
 namespace App\Modules\PurchaseReturn\Repositories;
 
+use App\Core\Repositories\BaseRepository;
 use App\Modules\PurchaseReturn\Models\PurchaseReturn;
 use App\Modules\PurchaseReturn\Repositories\Contracts\PurchaseReturnRepositoryInterface;
 
-class PurchaseReturnRepository implements PurchaseReturnRepositoryInterface
+class PurchaseReturnRepository 
+    extends BaseRepository 
+    implements PurchaseReturnRepositoryInterface
 {
-    public function paginate()
+    public function __construct(
+        PurchaseReturn $model
+    ) {
+        parent::__construct($model);
+    }
+
+    public function paginate(int $perPage = 15)
     {
-        return PurchaseReturn::query()
+        return $this->query()
             ->with([
                 'supplier',
                 'purchase',
             ])
             ->latest()
-            ->paginate();
+            ->paginate($perPage);
     }
 
-    public function find(int $id)
+    public function find(int|string $id)
     {
-        return PurchaseReturn::query()
+        return $this->query()
             ->with([
                 'supplier',
                 'purchase',
-                'items',
+                'items.product',
+                'items.warehouse',
+                'items.purchaseItem',
             ])
             ->findOrFail($id);
-    }
-
-    public function create(array $data)
-    {
-        return PurchaseReturn::create(
-            $data
-        );
-    }
-
-    public function update(
-        int $id,
-        array $data
-    ) {
-        $purchaseReturn = $this->find(
-            $id
-        );
-
-        $purchaseReturn->update(
-            $data
-        );
-
-        return $purchaseReturn->fresh();
-    }
-
-    public function delete(int $id)
-    {
-        return PurchaseReturn::destroy(
-            $id
-        );
     }
 }

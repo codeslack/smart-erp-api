@@ -232,8 +232,8 @@ class PurchaseReturnService
                 'warehouse_id' =>
                     $item['warehouse_id'],
 
-                'quantity' =>
-                    $item['quantity'],
+                'returned_quantity' =>
+                    $item['returned_quantity'],
 
                 'unit_cost' =>
                     $item['unit_cost'],
@@ -281,7 +281,7 @@ class PurchaseReturnService
     ): array {
 
         $subtotal =
-            $item['quantity']
+            $item['returned_quantity']
             *
             $item['unit_cost'];
 
@@ -346,27 +346,24 @@ class PurchaseReturnService
                 fn ($q) =>
                     $q->whereNotIn(
                         'status',
-                        [
-                            PurchaseReturnStatus::DRAFT,
                             PurchaseReturnStatus::CONFIRMED,
-                        ]
                     )
             )
-            ->sum('quantity');
+            ->sum('returned_quantity');
 
         $availableQty =
             $purchaseItem->quantity
             -
             $returnedQty;
 
-        if ($item['quantity'] > $availableQty) {
+        if ($item['returned_quantity'] > $availableQty) {
 
             throw ValidationException::withMessages([
-                'quantity' => [
+                'returned_quantity' => [
                     sprintf(
                         'Return quantity exceeds available quantity. Available: %s, Requested: %s',
                         $availableQty,
-                        $item['quantity']
+                        $item['returned_quantity']
                     )
                 ]
             ]);
@@ -378,14 +375,14 @@ class PurchaseReturnService
                 $item['warehouse_id']
             );
 
-        if ($item['quantity'] > $currentStock) {
+        if ($item['returned_quantity'] > $currentStock) {
 
             throw ValidationException::withMessages([
-                'quantity' => [
+                'returned_quantity' => [
                     sprintf(
                         'Return quantity exceeds current stock. Current Stock: %s, Requested: %s',
                         $currentStock,
-                        $item['quantity']
+                        $item['returned_quantity']
                     )
                 ]
             ]);

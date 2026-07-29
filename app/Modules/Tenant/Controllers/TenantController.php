@@ -2,56 +2,58 @@
 
 namespace App\Modules\Tenant\Controllers;
 
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\ApiController;
 use App\Modules\Tenant\Models\Tenant;
-use App\Modules\Tenant\Services\TenantService;
-use App\Modules\Tenant\Resources\TenantResource;
 use App\Modules\Tenant\Requests\StoreTenantRequest;
+use App\Modules\Tenant\Resources\TenantResource;
+use App\Modules\Tenant\Repositories\Contracts\TenantRepositoryInterface;
+use App\Modules\Tenant\Services\TenantService;
+use Illuminate\Http\JsonResponse;
 
-class TenantController extends Controller
+class TenantController extends ApiController
 {
     public function __construct(
-        private TenantService $service
-    ) {}
+        protected TenantRepositoryInterface $tenants,
+        protected TenantService $service,
+    ) {
+    }
 
-    public function index()
+    public function index(): JsonResponse
     {
-        return TenantResource::collection(
-            Tenant::latest()->paginate()
+        $tenants = $this->tenants->paginate();
+
+        return $this->success(
+            TenantResource::collection(
+                $tenants
+            )
         );
     }
 
-    public function store(StoreTenantRequest $request)
-    {
+    public function store(
+        StoreTenantRequest $request
+    ): JsonResponse {
+
         $tenant = $this->service->create(
             $request->validated()
         );
 
-        return new TenantResource($tenant);
-    }
-
-    public function show(Tenant $tenant)
-    {
-        return new TenantResource($tenant);
-    }
-
-    public function update(
-        StoreTenantRequest $request,
-        Tenant $tenant
-    ) {
-        $tenant->update(
-            $request->validated()
+        return $this->success(
+            new TenantResource(
+                $tenant
+            ),
+            'Company created successfully.',
+            201
         );
-
-        return new TenantResource($tenant);
     }
 
-    public function destroy(Tenant $tenant)
-    {
-        $tenant->delete();
+    public function show(
+        Tenant $tenant
+    ): JsonResponse {
 
-        return response()->json([
-            'message' => 'Tenant deleted'
-        ]);
+        return $this->success(
+            new TenantResource(
+                $tenant
+            )
+        );
     }
 }

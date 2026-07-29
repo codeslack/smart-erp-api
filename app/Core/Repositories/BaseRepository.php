@@ -3,55 +3,103 @@
 namespace App\Core\Repositories;
 
 use Illuminate\Database\Eloquent\Model;
-use App\Core\Contracts\BaseRepositoryInterface;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
-abstract class BaseRepository implements BaseRepositoryInterface
+use App\Core\Repositories\Contracts\BaseRepositoryInterface;
+
+/**
+ * @template TModel of Model
+ */
+abstract class BaseRepository
+    implements BaseRepositoryInterface
 {
-    protected Model $model;
+    /**
+     * @param TModel $model
+     */
+    public function __construct(
+        protected Model $model
+    ) {}
 
-    public function __construct(Model $model)
-    {
-        $this->model = $model;
-    }
-
-    public function all()
+    public function all(): Collection
     {
         return $this->model
-            ->latest()
+            ->newQuery()
             ->get();
     }
 
-    public function query()
-    {
-        return $this->model->query();
+    public function paginate(
+        int $perPage = 15
+    ): LengthAwarePaginator {
+        return $this->model
+            ->newQuery()
+            ->latest()
+            ->paginate($perPage);
     }
 
-    public function paginate(int $perPage = 15)
-    {
-        return $this->model->paginate($perPage);
+    public function findById(
+        int $id
+    ): ?Model {
+        return $this->model
+            ->newQuery()
+            ->find($id);
     }
 
-    public function find(int|string $id)
-    {
-        return $this->model->findOrFail($id);
+    public function findByUuid(
+        string $uuid
+    ): ?Model {
+        return $this->model
+            ->newQuery()
+            ->where('uuid', $uuid)
+            ->first();
     }
 
-    public function create(array $data)
-    {
-        return $this->model->create($data);
+    public function findOrFail(
+        string $uuid
+    ): Model {
+        return $this->model
+            ->newQuery()
+            ->where('uuid', $uuid)
+            ->firstOrFail();
     }
 
-    public function update(int|string $id, array $data)
-    {
-        $record = $this->find($id);
-
-        $record->update($data);
-
-        return $record->fresh();
+    public function existsByUuid(
+        string $uuid
+    ): bool {
+        return $this->model
+            ->newQuery()
+            ->where('uuid', $uuid)
+            ->exists();
     }
 
-    public function delete(int|string $id)
+    public function count(): int
     {
-        return $this->find($id)->delete();
+        return $this->model
+            ->newQuery()
+            ->count();
+    }
+
+    public function create(
+        array $data
+    ): Model {
+        return $this->model
+            ->newQuery()
+            ->create($data);
+    }
+
+    public function update(
+        Model $model,
+        array $data
+    ): Model {
+
+        $model->update($data);
+
+        return $model->refresh();
+    }
+
+    public function delete(
+        Model $model
+    ): bool {
+        return (bool) $model->delete();
     }
 }

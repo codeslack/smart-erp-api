@@ -1,0 +1,28 @@
+<?php
+
+namespace App\Modules\Inventory\Enums;
+
+enum InventoryTransactionTypeEnum: string
+{
+    case OPENING_STOCK = 'OPENING_STOCK';
+
+    case PURCHASE = 'PURCHASE';
+
+    case PURCHASE_RETURN = 'PURCHASE_RETURN';
+
+    case SALE = 'SALE';
+
+    case SALES_RETURN = 'SALES_RETURN';
+
+    case STOCK_TRANSFER_IN = 'STOCK_TRANSFER_IN';
+
+    case STOCK_TRANSFER_OUT = 'STOCK_TRANSFER_OUT';
+
+    case STOCK_ADJUSTMENT_IN = 'STOCK_ADJUSTMENT_IN';
+
+    case STOCK_ADJUSTMENT_OUT = 'STOCK_ADJUSTMENT_OUT';
+
+    case MANUFACTURING_IN = 'MANUFACTURING_IN';
+
+    case MANUFACTURING_OUT = 'MANUFACTURING_OUT';
+}

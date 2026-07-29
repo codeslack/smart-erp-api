@@ -6,7 +6,17 @@ use App\Modules\Product\Controllers\ProductController;
 Route::middleware([
     'auth:sanctum',
     'tenant',
-])->apiResource(
-    'products',
-    ProductController::class
-);
+])->group(function () {
+
+    Route::get(
+        'products/search',
+        [ProductController::class, 'search']
+    )->name(
+        'products.search'
+    );
+
+    Route::apiResource(
+        'products',
+        ProductController::class
+    );
+});

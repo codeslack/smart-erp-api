@@ -5,6 +5,7 @@ namespace App\Modules\Supplier\Models;
 use App\Core\Tenant\Models\TenantModel;
 use App\Modules\Purchase\Models\Purchase;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Modules\PurchaseReturn\Models\PurchaseReturn;
 use App\Modules\SupplierPayment\Models\SupplierPayment;
 
 class Supplier extends TenantModel
@@ -36,12 +37,19 @@ class Supplier extends TenantModel
         return $this->hasMany(
             Purchase::class
         );
-    }    
+    }
 
     public function payments(): HasMany
     {
         return $this->hasMany(
             SupplierPayment::class
+        );
+    }
+
+    public function purchaseReturns(): HasMany
+    {
+        return $this->hasMany(
+            PurchaseReturn::class
         );
     }
 }

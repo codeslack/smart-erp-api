@@ -2,13 +2,21 @@
 
 namespace App\Modules\Tenant\Repositories\Contracts;
 
+use App\Core\Repositories\Contracts\BaseRepositoryInterface;
 use App\Modules\Tenant\Models\Tenant;
 
 interface TenantRepositoryInterface
+    extends BaseRepositoryInterface
 {
-    public function create(array $data): Tenant;
+    public function findBySlug(
+        string $slug
+    ): ?Tenant;
 
-    public function find(int $id): ?Tenant;
+    public function findByDomain(
+        string $domain
+    ): ?Tenant;
 
-    public function findBySlug(string $slug): ?Tenant;
+    public function existsBySlug(
+        string $slug
+    ): bool;
 }

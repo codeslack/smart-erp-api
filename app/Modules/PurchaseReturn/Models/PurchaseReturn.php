@@ -6,6 +6,7 @@ use App\Modules\User\Models\User;
 use App\Core\Tenant\Models\TenantModel;
 use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Purchase\Models\Purchase;
+use App\Modules\Accounting\Models\ChartOfAccount;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Modules\PurchaseReturn\Enums\PurchaseReturnStatus;
@@ -32,6 +33,7 @@ class PurchaseReturn extends TenantModel
         'credited_amount',
 
         'refund_type',
+        'refund_account_id',
         'return_reason',
 
         'status',
@@ -87,5 +89,28 @@ class PurchaseReturn extends TenantModel
             User::class,
             'approved_by'
         );
+    }
+
+    public function refundAccount(): BelongsTo
+    {
+        return $this->belongsTo(
+            ChartOfAccount::class,
+            'refund_account_id'
+        );
+    }
+
+    public function isDraft(): bool
+    {
+        return $this->status === PurchaseReturnStatus::DRAFT;
+    }
+
+    public function isConfirmed(): bool
+    {
+        return $this->status === PurchaseReturnStatus::CONFIRMED;
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->status === PurchaseReturnStatus::CANCELLED;
     }
 }

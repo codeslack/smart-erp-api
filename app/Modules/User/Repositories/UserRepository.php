@@ -2,50 +2,42 @@
 
 namespace App\Modules\User\Repositories;
 
+use App\Core\Repositories\BaseRepository;
+
 use App\Modules\User\Models\User;
+
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+
 use App\Modules\User\Repositories\Contracts\UserRepositoryInterface;
 
-class UserRepository implements UserRepositoryInterface
+class UserRepository
+    extends BaseRepository
+    implements UserRepositoryInterface
 {
-    public function paginate()
-    {
-        return User::latest()->paginate();
+    public function __construct(
+        User $model
+    ) {
+        parent::__construct($model);
     }
 
-    public function find(int $id): ?User
-    {
-        return User::find($id);
-    }
+    public function paginateWithRoles(
+        int $perPage = 15
+    ): LengthAwarePaginator {
 
-    public function create(array $data): User
-    {
-        return User::create($data);
-    }
-
-    public function update(User $user, array $data): User
-    {
-        $user->update($data);
-
-        return $user->fresh();
-    }
-
-    public function delete(User $user): bool
-    {
-        return $user->delete();
+        return $this->model
+            ->newQuery()
+            ->with('roles')
+            ->latest()
+            ->paginate($perPage);
     }
 
     public function findByEmail(
-        int $tenantId,
         string $email
-    ): ?User {
-        return User::where(
-            'tenant_id',
-            $tenantId
-        )
-        ->where(
-            'email',
-            $email
-        )
-        ->first();
+    ): ?User
+    {
+        return $this->model
+            ->newQuery()
+            ->where('email', $email)
+            ->first();
     }
 }

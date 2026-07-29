@@ -2,41 +2,135 @@
 
 namespace App\Modules\Product\Services;
 
+use App\Core\Exceptions\BusinessException;
+use App\Core\Services\BaseService;
+use App\Modules\Product\Models\Product;
 use App\Modules\Product\Repositories\Contracts\ProductRepositoryInterface;
+use App\Modules\Product\Support\ProductDefaults;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
-class ProductService
+class ProductService extends BaseService
 {
     public function __construct(
-        protected ProductRepositoryInterface $repository
+        protected ProductRepositoryInterface $products
     ) {}
 
-    public function getAll()
+    public function create(array $data): Product
     {
-        return $this->repository->paginate(20);
-    }
+        return DB::transaction(function () use ($data) {
 
-    public function find(int $id)
-    {
-        return $this->repository->find($id);
-    }
+            $data['code'] = nextDocumentNumber(
+                'product',
+                'PRD'
+            );
 
-    public function create(array $data)
-    {
-        return $this->repository->create($data);
+            $defaults = ProductDefaults::for(
+                $data['product_type']
+            );
+
+            $data = array_merge(
+                $defaults,
+                $data
+            );
+
+            $data = $this->prepareData($data);
+
+            return $this->products->create($data);
+        });
     }
 
     public function update(
-        int $id,
+        Product $product,
         array $data
-    ) {
-        return $this->repository->update(
-            $id,
+    ): Product {
+
+        return DB::transaction(function () use (
+            $product,
             $data
-        );
+        ) {
+
+            if (isset($data['product_type'])) {
+
+                $defaults = ProductDefaults::for(
+                    $data['product_type']
+                );
+
+                $data = array_merge(
+                    $defaults,
+                    $data
+                );
+            }
+
+            $data = $this->prepareData(
+                $data,
+                $product
+            );
+
+            $this->products->update(
+                $product,
+                $data
+            );
+
+            return $product->refresh();
+        });
     }
 
-    public function delete(int $id)
+    protected function prepareData(
+        array $data,
+        ?Product $product = null
+    ): array {
+
+        $data['sku'] ??= $product?->sku
+            ?? $this->generateSku();
+
+        if (isset($data['name'])) {
+            $data['slug'] = Str::slug(
+                $data['name']
+            );
+        }
+
+        $this->validateTrackingRules($data);
+
+        return $data;
+    }
+
+    protected function generateSku(): string
     {
-        return $this->repository->delete($id);
+        do {
+
+            $sku = 'PRD-' . strtoupper(
+                Str::random(8)
+            );
+        } while (
+            $this->products->existsBySku($sku)
+        );
+
+        return $sku;
+    }
+
+    protected function validateTrackingRules(
+        array $data
+    ): void {
+
+        if (
+            ($data['track_batch'] ?? false)
+            &&
+            ($data['track_serial'] ?? false)
+        ) {
+            throw new BusinessException(
+                'Product cannot use batch and serial tracking together.'
+            );
+        }
+
+        if (
+            ($data['has_expiry'] ?? false)
+            &&
+            ! ($data['track_batch'] ?? false)
+        ) {
+            throw new BusinessException(
+                'Expiry tracking requires batch tracking.'
+            );
+        }
     }
 }

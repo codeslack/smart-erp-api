@@ -19,7 +19,7 @@ class PurchaseReturnItem extends Model
         'product_id',
         'warehouse_id',
 
-        'quantity',
+        'returned_quantity',
         'unit_cost',
 
         'discount',
@@ -32,15 +32,15 @@ class PurchaseReturnItem extends Model
     ];
 
     protected $casts = [
-        'quantity'   => 'decimal:4',
-        'unit_cost'  => 'decimal:4',
+        'returned_quantity' => 'decimal:4',
+        'unit_cost'         => 'decimal:4',
 
-        'discount'   => 'decimal:4',
-        'tax'        => 'decimal:4',
+        'discount'          => 'decimal:4',
+        'tax'               => 'decimal:4',
 
-        'line_total' => 'decimal:4',
+        'line_total'        => 'decimal:4',
 
-        'condition'  => PurchaseReturnCondition::class,
+        'condition'         => PurchaseReturnCondition::class,
     ];
 
     public function purchaseReturn(): BelongsTo

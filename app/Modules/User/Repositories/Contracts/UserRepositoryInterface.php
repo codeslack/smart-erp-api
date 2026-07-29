@@ -4,20 +4,18 @@ namespace App\Modules\User\Repositories\Contracts;
 
 use App\Modules\User\Models\User;
 
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+
+use App\Core\Repositories\Contracts\BaseRepositoryInterface;
+
 interface UserRepositoryInterface
+    extends BaseRepositoryInterface
 {
-    public function paginate();
-
-    public function find(int $id): ?User;
-
-    public function create(array $data): User;
-
-    public function update(User $user, array $data): User;
-
-    public function delete(User $user): bool;
+    public function paginateWithRoles(
+        int $perPage = 15
+    ): LengthAwarePaginator;
 
     public function findByEmail(
-        int $tenantId,
         string $email
     ): ?User;
 }
