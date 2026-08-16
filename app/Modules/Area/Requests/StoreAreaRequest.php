@@ -12,6 +12,10 @@ class StoreAreaRequest extends BaseRequest
     {
         return [
 
+            /**
+             * The name of the area, which must be unique within the tenant's context.
+             * @example North Zone
+             */
             'name' => [
                 'required',
                 'string',
@@ -23,11 +27,19 @@ class StoreAreaRequest extends BaseRequest
                 ),
             ],
 
+            /**
+             * A brief description of the area.
+             * @example This area covers the northern region of the city.
+             */
             'description' => [
                 'nullable',
                 'string',
             ],
 
+            /**
+             * boolean flag indicating whether the area is active or inactive.
+             * @example true
+             */
             'is_active' => [
                 'sometimes',
                 'boolean',

@@ -66,6 +66,15 @@ class CategoryController extends ApiController
         Category $category
     )
     {
+
+        logger()->info(
+            'CategoryController update fired',
+            [
+                'category_id' => $category->id,
+                'request_data' => $request->validated(),
+            ]
+        );
+        
         $category = $this->service->update(
             $category,
             $request->validated()

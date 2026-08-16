@@ -33,9 +33,15 @@ class Unit extends TenantModel
         'is_active',
     ];
 
-    protected $casts = [
-        'is_active' => 'boolean',
-    ];
+    protected function casts(): array
+    {
+        return array_merge(
+            parent::casts(),
+            [
+                'is_active' => 'boolean',
+            ]
+        );
+    }
 
     /*
     |--------------------------------------------------------------------------

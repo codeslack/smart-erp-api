@@ -2,17 +2,21 @@
 
 namespace App\Modules\Tenant\Models;
 
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+use App\Core\Models\BaseModel;
+
+use App\Modules\User\Models\User;
 use App\Modules\Settings\Models\Setting;
 use App\Modules\Tenant\Enums\BusinessTypeEnum;
-use App\Modules\User\Models\User;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Tenant extends Model
+class Tenant extends BaseModel
 {
     use SoftDeletes, HasUuids;
+
+    protected $table = 'tenants';
 
     protected $fillable = [
         'uuid',

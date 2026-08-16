@@ -4,43 +4,50 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+use App\Modules\Inventory\Enums\ProductSerialStatusEnum;
+
 return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('stock_ledgers', function (Blueprint $table) {
+        Schema::create('product_serials', function (
+            Blueprint $table
+        ) {
 
             $table->id();
 
-            $table->uuid('uuid')->unique();
+            $table->uuid('uuid')
+                ->unique();
 
             /*
             |--------------------------------------------------------------------------
             | Tenant
             |--------------------------------------------------------------------------
             */
+
             $table->foreignId('tenant_id')
                 ->constrained('tenants')
                 ->cascadeOnDelete();
 
             /*
             |--------------------------------------------------------------------------
-            | Product
+            | Relations
             |--------------------------------------------------------------------------
             */
+
             $table->foreignId('product_id')
                 ->constrained('products')
                 ->cascadeOnDelete();
+
+            $table->foreignId('product_variant_id')
+                ->nullable()
+                ->constrained('product_variants')
+                ->nullOnDelete();
 
             $table->foreignId('warehouse_id')
                 ->constrained('warehouses')
                 ->cascadeOnDelete();
 
-            /*
-            |--------------------------------------------------------------------------
-            | Batch Tracking
-            |--------------------------------------------------------------------------
-            */
             $table->foreignId('product_batch_id')
                 ->nullable()
                 ->constrained('product_batches')
@@ -48,75 +55,62 @@ return new class extends Migration
 
             /*
             |--------------------------------------------------------------------------
-            | Serial Tracking
+            | Serial Information
             |--------------------------------------------------------------------------
             */
-            $table->foreignId('product_serial_id')
-                ->nullable()
-                ->constrained('product_serials')
-                ->nullOnDelete();
 
-            /*
-            |--------------------------------------------------------------------------
-            | Transaction Information
-            |--------------------------------------------------------------------------
-            */
-            $table->string('transaction_type', 50);
+            $table->string('serial_number', 150);
 
-            $table->dateTime('transaction_date');
-
-            /*
-            |--------------------------------------------------------------------------
-            | Reference Information
-            |--------------------------------------------------------------------------
-            */
-            $table->string('reference_type', 100)
+            $table->string('imei_number', 150)
                 ->nullable();
-
-            $table->unsignedBigInteger('reference_id')
-                ->nullable();
-
-            $table->string('reference_no', 100)
-                ->nullable();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Quantity Movement
-            |--------------------------------------------------------------------------
-            */
-            $table->decimal('qty_in', 18, 4)
-                ->default(0);
-
-            $table->decimal('qty_out', 18, 4)
-                ->default(0);
 
             /*
             |--------------------------------------------------------------------------
             | Cost Information
             |--------------------------------------------------------------------------
             */
-            $table->decimal('unit_cost', 18, 4)
-                ->default(0);
 
-            $table->decimal('line_cost', 18, 4)
-                ->default(0);
-
-            /*
-            |--------------------------------------------------------------------------
-            | Running Balance
-            |--------------------------------------------------------------------------
-            */
-            $table->decimal('balance_quantity', 18, 4)
-                ->default(0);
-
-            $table->decimal('balance_cost', 18, 4)
-                ->default(0);
+            $table->decimal(
+                'purchase_cost',
+                18,
+                4
+            )->default(0);
 
             /*
             |--------------------------------------------------------------------------
-            | Remarks
+            | Warranty
             |--------------------------------------------------------------------------
             */
+
+            $table->date('warranty_expiry')
+                ->nullable();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Sales Tracking
+            |--------------------------------------------------------------------------
+            */
+
+            $table->timestamp('sold_at')
+                ->nullable();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Status
+            |--------------------------------------------------------------------------
+            */
+
+            $table->string('status')
+                ->default(
+                    ProductSerialStatusEnum::AVAILABLE->value
+                );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Notes
+            |--------------------------------------------------------------------------
+            */
+
             $table->text('remarks')
                 ->nullable();
 
@@ -125,46 +119,72 @@ return new class extends Migration
             | Audit
             |--------------------------------------------------------------------------
             */
+
             $table->foreignId('created_by')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
+
+            $table->foreignId('updated_by')
                 ->nullable()
                 ->constrained('users')
                 ->nullOnDelete();
 
             $table->timestamps();
 
+            $table->softDeletes();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Constraints
+            |--------------------------------------------------------------------------
+            */
+
+            $table->unique(
+                ['tenant_id', 'serial_number'],
+                'product_serials_serial_unique'
+            );
+
+            $table->unique(
+                ['tenant_id', 'imei_number'],
+                'product_serials_imei_unique'
+            );
+
             /*
             |--------------------------------------------------------------------------
             | Indexes
             |--------------------------------------------------------------------------
             */
+
             $table->index([
                 'tenant_id',
-                'product_id',
+                'product_id'
+            ]);
+
+            $table->index([
+                'tenant_id',
                 'warehouse_id'
             ]);
 
             $table->index([
                 'tenant_id',
-                'transaction_type'
+                'status'
             ]);
 
             $table->index([
                 'tenant_id',
-                'transaction_date'
+                'sold_at'
             ]);
 
             $table->index([
-                'reference_type',
-                'reference_id'
+                'tenant_id',
+                'warranty_expiry'
             ]);
-
-            $table->index('product_batch_id');
-            $table->index('product_serial_id');
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('stock_ledgers');
+        Schema::dropIfExists('product_serials');
     }
 };

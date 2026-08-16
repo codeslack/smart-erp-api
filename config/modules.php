@@ -27,4 +27,14 @@ return [
 
     App\Modules\Warehouse\WarehouseModule::class,
 
+    App\Modules\Product\ProductModule::class,
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Transaction
+    |--------------------------------------------------------------------------
+    */
+    App\Modules\OpeningStock\OpeningStockModule::class,
+
 ];

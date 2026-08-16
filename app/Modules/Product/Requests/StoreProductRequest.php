@@ -2,13 +2,9 @@
 
 namespace App\Modules\Product\Requests;
 
-use Illuminate\Validation\Rule;
-use Illuminate\Foundation\Http\FormRequest;
-use App\Modules\Product\Enums\ProductTypeEnum;
-use App\Modules\Product\Enums\ProductStatusEnum;
-use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
+use App\Core\Validation\TenantRule;
 
-class StoreProductRequest extends FormRequest
+class StoreProductRequest extends BaseProductRequest
 {
     public function authorize(): bool
     {
@@ -17,96 +13,91 @@ class StoreProductRequest extends FormRequest
 
     public function rules(): array
     {
-        // $data = $this->applyDefaults($data);
-        return [
+        return array_merge(
+            $this->commonRules(),
 
-            'category_id' => [
-                'nullable',
-                'integer',
-                'exists:categories,id',
-            ],
+            [
 
-            'brand_id' => [
-                'nullable',
-                'integer',
-                'exists:brands,id',
-            ],
+                'sku' => [
+                    'nullable',
+                    'string',
+                    'max:100',
 
-            'unit_id' => [
-                'nullable',
-                'integer',
-                'exists:units,id',
-            ],
+                    TenantRule::unique(
+                        'products',
+                        'sku'
+                    ),
+                ],
 
-            'name' => [
-                'required',
-                'string',
-                'max:255',
-            ],
+                'barcode' => [
+                    'nullable',
+                    'string',
+                    'max:100',
 
-            'barcode' => [
-                'nullable',
-                'string',
-                'max:255',
-            ],
+                    TenantRule::unique(
+                        'products',
+                        'barcode'
+                    ),
+                ],
 
-            'product_type' => [
-                'required',
-                Rule::enum(ProductTypeEnum::class),
-            ],
+                /*
+                |--------------------------------------------------------------------------
+                | Variants
+                |--------------------------------------------------------------------------
+                */
 
-            'inventory_tracking_type' => [
-                'nullable',
-                Rule::enum(
-                    InventoryTrackingTypeEnum::class
-                ),
-            ],
+                'variants' => [
+                    'nullable',
+                    'array',
+                ],
 
-            'purchase_price' => [
-                'nullable',
-                'numeric',
-                'min:0',
-            ],
+                'variants.*.name' => [
+                    'required_with:variants',
+                    'string',
+                    'max:255',
+                ],
 
-            'selling_price' => [
-                'nullable',
-                'numeric',
-                'min:0',
-            ],
+                'variants.*.sku' => [
+                    'required_with:variants',
+                    'string',
+                    'max:100',
+                ],
 
-            'minimum_stock' => [
-                'nullable',
-                'numeric',
-                'min:0',
-            ],
+                'variants.*.barcode' => [
+                    'nullable',
+                    'string',
+                    'max:100',
+                ],
 
-            'maximum_stock' => [
-                'nullable',
-                'numeric',
-                'min:0',
-            ],
+                'variants.*.purchase_price' => [
+                    'nullable',
+                    'numeric',
+                    'min:0',
+                ],
 
-            'reorder_level' => [
-                'nullable',
-                'numeric',
-                'min:0',
-            ],
+                'variants.*.selling_price' => [
+                    'nullable',
+                    'numeric',
+                    'min:0',
+                ],
 
-            'critical_level' => [
-                'nullable',
-                'numeric',
-                'min:0',
-            ],
+                'variants.*.attributes' => [
+                    'nullable',
+                    'array',
+                ],
 
-            'description' => [
-                'nullable',
-                'string',
-            ],
+                'variants.*.attributes.*.attribute_name' => [
+                    'required_with:variants.*.attributes',
+                    'string',
+                    'max:100',
+                ],
 
-            'status' => [
-                'nullable',
-                Rule::enum(ProductStatusEnum::class),
-            ],
-        ];
+                'variants.*.attributes.*.attribute_value' => [
+                    'required_with:variants.*.attributes',
+                    'string',
+                    'max:255',
+                ],
+            ]
+        );
     }
 }

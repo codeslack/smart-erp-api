@@ -8,7 +8,6 @@ return [
     App\Core\Modules\ModuleServiceProvider::class,
 
     App\Modules\Rbac\Providers\RbacServiceProvider::class,
-    App\Modules\Product\Providers\ProductServiceProvider::class,
     // App\Modules\Inventory\Providers\InventoryServiceProvider::class,
     // App\Modules\Supplier\Providers\SupplierServiceProvider::class,
     // App\Modules\Customer\Providers\CustomerServiceProvider::class,

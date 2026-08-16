@@ -2,135 +2,421 @@
 
 namespace App\Modules\Product\Services;
 
-use App\Core\Exceptions\BusinessException;
-use App\Core\Services\BaseService;
-use App\Modules\Product\Models\Product;
-use App\Modules\Product\Repositories\Contracts\ProductRepositoryInterface;
-use App\Modules\Product\Support\ProductDefaults;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+
+use App\Core\Services\BaseService;
+use App\Core\Exceptions\BusinessException;
+
+use App\Modules\Product\Models\Product;
+use App\Modules\Product\Models\ProductVariant;
+
+use App\Modules\SystemNumber\Enums\SystemNumberTypeEnum;
+
+use App\Modules\Product\Repositories\Contracts\ProductRepositoryInterface;
 
 class ProductService extends BaseService
 {
     public function __construct(
-        protected ProductRepositoryInterface $products
+        protected ProductRepositoryInterface $productRepository,
+        protected ProductVariantService $productVariantService,
     ) {}
 
-    public function create(array $data): Product
-    {
-        return DB::transaction(function () use ($data) {
+    public function paginate(
+        int $perPage = 15
+    ): LengthAwarePaginator {
 
-            $data['code'] = nextDocumentNumber(
-                'product',
-                'PRD'
-            );
-
-            $defaults = ProductDefaults::for(
-                $data['product_type']
-            );
-
-            $data = array_merge(
-                $defaults,
-                $data
-            );
-
-            $data = $this->prepareData($data);
-
-            return $this->products->create($data);
-        });
+        return Product::query()
+            ->with(['category', 'brand', 'unit', 'variants.attributes']) // Eager loads all 4 relations
+            ->latest() // Optional: keeps recent products on page 1
+            ->paginate($perPage);
     }
+
+    public function search(
+        ?string $search,
+        int $perPage = 15
+    ): LengthAwarePaginator {
+
+        $query = Product::query()->with(['category', 'brand', 'unit', 'variants.attributes']);
+
+        if (filled($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('code', 'like', "%{$search}%")
+                  ->orWhere('display_name', 'like', "%{$search}%");
+            });
+        }
+
+        return $query->latest()->paginate($perPage);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Create
+    |--------------------------------------------------------------------------
+    */
+
+    public function create(
+        array $data
+    ): Product {
+
+        return DB::transaction(
+            function () use ($data) {
+
+                logger()->info(
+                    'ProductService create fired',
+                    [
+                        'request_data' => $data,
+                    ]
+                );
+
+                $variants =
+                    $data['variants'] ?? [];
+
+                unset(
+                    $data['variants']
+                );
+
+                $data['code'] =
+                    nextSystemNumber(
+                        SystemNumberTypeEnum::PRODUCT
+                    );
+
+                $data['slug'] =
+                    $this->generateUniqueSlug(
+                        $data['name']
+                    );
+
+                $product =
+                    $this->productRepository
+                    ->create(
+                        $data
+                    );
+
+                if (
+                    $product->has_variants &&
+                    ! empty($variants)
+                ) {
+
+                    $this->createVariants(
+                        $product,
+                        $variants
+                    );
+                }
+
+                return $product->load([
+                    'category',
+                    'brand',
+                    'unit',
+                    'variants.attributes',
+                ]);
+            }
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Update
+    |--------------------------------------------------------------------------
+    */
 
     public function update(
         Product $product,
         array $data
     ): Product {
 
-        return DB::transaction(function () use (
-            $product,
-            $data
-        ) {
-
-            if (isset($data['product_type'])) {
-
-                $defaults = ProductDefaults::for(
-                    $data['product_type']
-                );
-
-                $data = array_merge(
-                    $defaults,
-                    $data
-                );
-            }
-
-            $data = $this->prepareData(
-                $data,
-                $product
-            );
-
-            $this->products->update(
+        return DB::transaction(
+            function () use (
                 $product,
                 $data
-            );
+            ) {
 
-            return $product->refresh();
-        });
+                logger()->info(
+                    'ProductService update fired',
+                    [
+                        'product_id' => $product->id,
+                        'request_data' => $data,
+                    ]
+                );
+
+                $variants =
+                    $data['variants'] ?? [];
+
+                unset(
+                    $data['variants']
+                );
+
+                // validate 
+                $this->validateLockedFields(
+                    $product,
+                    $data
+                );
+
+                if (
+                    isset($data['name']) &&
+                    $data['name'] !== $product->name
+                ) {
+
+                    $data['slug'] =
+                        $this->generateUniqueSlug(
+                            $data['name'],
+                            $product->id
+                        );
+                }
+
+                $data = array_filter(
+                    $data,
+                    fn ($value) => !is_null($value)
+                );
+
+                $product =
+                    $this->productRepository
+                    ->update(
+                        $product,
+                        $data
+                    );
+
+                if ($product->has_variants &&
+                        !empty($variants)
+                    ) {
+
+                    $this->syncVariants(
+                        $product,
+                        $variants
+                    );
+                } else {
+
+                    $product->variants()
+                        ->delete();
+                }
+
+                return $product->load([
+                    'category',
+                    'brand',
+                    'unit',
+                    'variants.attributes',
+                ]);
+            }
+        );
     }
 
-    protected function prepareData(
-        array $data,
-        ?Product $product = null
-    ): array {
+    /*
+    |--------------------------------------------------------------------------
+    | Delete
+    |--------------------------------------------------------------------------
+    */
 
-        $data['sku'] ??= $product?->sku
-            ?? $this->generateSku();
+    public function delete(
+        Product $product
+    ): bool {
 
-        if (isset($data['name'])) {
-            $data['slug'] = Str::slug(
-                $data['name']
+        if ($this->hasTransactions($product)) {
+
+            throw new BusinessException(
+                'Product cannot be deleted because transactions exist.'
             );
         }
 
-        $this->validateTrackingRules($data);
+        return DB::transaction(
+            function () use ($product) {
 
-        return $data;
+                $product->variants()
+                    ->delete();
+
+                return $this->productRepository
+                    ->delete(
+                        $product
+                    );
+            }
+        );
     }
 
-    protected function generateSku(): string
-    {
-        do {
+    /*
+    |--------------------------------------------------------------------------
+    | Variants
+    |--------------------------------------------------------------------------
+    */
 
-            $sku = 'PRD-' . strtoupper(
-                Str::random(8)
+    private function createVariants(
+        Product $product,
+        array $variants
+    ): void {
+
+        foreach ($variants as $variant) {
+
+            $this->productVariantService
+                ->create(
+                    $product,
+                    $variant
+                );
+        }
+    }
+
+    private function syncVariants(
+        Product $product,
+        array $variants
+    ): void {
+
+        $existingVariantIds =
+            $product->variants()
+            ->pluck('id')
+            ->toArray();
+
+        $submittedVariantIds = [];
+
+        foreach ($variants as $variantData) {
+
+            /*
+            |--------------------------------------------------------------------------
+            | Existing Variant
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                ! empty($variantData['uuid'])
+            ) {
+
+                $variant =
+                    $product->variants()
+                    ->where(
+                        'uuid',
+                        $variantData['uuid']
+                    )
+                    ->first();
+
+                if ($variant) {
+
+                    $this->productVariantService
+                        ->update(
+                            $variant,
+                            $variantData
+                        );
+
+                    $submittedVariantIds[] =
+                        $variant->id;
+
+                    continue;
+                }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | New Variant
+            |--------------------------------------------------------------------------
+            */
+
+            $newVariant =
+                $this->productVariantService
+                ->create(
+                    $product,
+                    $variantData
+                );
+
+            $submittedVariantIds[] =
+                $newVariant->id;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Delete Removed Variants
+        |--------------------------------------------------------------------------
+        */
+
+        $variantsToDelete =
+            array_diff(
+                $existingVariantIds,
+                $submittedVariantIds
             );
-        } while (
-            $this->products->existsBySku($sku)
+
+        if (
+            ! empty($variantsToDelete)
+        ) {
+
+            ProductVariant::query()
+                ->whereIn(
+                    'id',
+                    $variantsToDelete
+                )
+                ->delete();
+        }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Helpers
+    |--------------------------------------------------------------------------
+    */
+
+    private function generateUniqueSlug(
+        string $name,
+        ?int $ignoreId = null
+    ): string {
+
+        $slug = Str::slug(
+            $name
         );
 
-        return $sku;
+        $originalSlug = $slug;
+
+        $counter = 2;
+
+        while (
+            $this->productRepository
+            ->existsBySlug(
+                $slug,
+                $ignoreId
+            )
+        ) {
+
+            $slug =
+                $originalSlug .
+                '-' .
+                $counter;
+
+            $counter++;
+        }
+
+        return $slug;
     }
 
-    protected function validateTrackingRules(
+    private function hasTransactions(
+        Product $product
+    ): bool {
+
+        return $product
+            ->stockLedgers()
+            ->exists();
+    }
+
+    private function validateLockedFields(
+        Product $product,
         array $data
     ): void {
 
-        if (
-            ($data['track_batch'] ?? false)
-            &&
-            ($data['track_serial'] ?? false)
-        ) {
-            throw new BusinessException(
-                'Product cannot use batch and serial tracking together.'
-            );
+        if (! $product->isLocked()) {
+            return;
         }
 
-        if (
-            ($data['has_expiry'] ?? false)
-            &&
-            ! ($data['track_batch'] ?? false)
+        foreach (
+            [
+                'sku',
+                'barcode',
+                'unit_id',
+                'product_type',
+                'inventory_tracking_type',
+            ] as $field
         ) {
-            throw new BusinessException(
-                'Expiry tracking requires batch tracking.'
-            );
+
+            if (
+                array_key_exists($field, $data) &&
+                $data[$field] != $product->{$field}
+            ) {
+
+                throw new BusinessException(
+                    "{$field} cannot be modified because transactions exist."
+                );
+            }
         }
     }
 }

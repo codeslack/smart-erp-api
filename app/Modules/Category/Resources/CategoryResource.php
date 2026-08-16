@@ -12,7 +12,7 @@ class CategoryResource extends JsonResource
     ): array {
         return [
 
-            'id'         => $this->id,
+            // 'id'         => $this->id,
 
             'uuid'       => $this->uuid,
 

@@ -2,20 +2,24 @@
 
 namespace App\Modules\User\Models;
 
-use Laravel\Sanctum\HasApiTokens;
-use Spatie\Permission\Traits\HasRoles;
-use Illuminate\Notifications\Notifiable;
-use App\Modules\Accounting\Models\JournalEntry;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+use Laravel\Sanctum\HasApiTokens;
+use Spatie\Permission\Traits\HasRoles;
+use Illuminate\Notifications\Notifiable;
+
 use App\Core\Models\TenantAuthenticatable;
+
+use App\Modules\Accounting\Models\JournalEntry;
 
 class User extends TenantAuthenticatable
 {
     use HasApiTokens;
     use Notifiable;
     use HasRoles;
+    use SoftDeletes;
 
     protected $table = 'users';
 
@@ -77,5 +81,25 @@ class User extends TenantAuthenticatable
     public function isActive(): bool
     {
         return $this->is_active;
-    }    
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Media / Avatar Logic
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Get the full URL for the avatar.
+     */
+    // public function getAvatarUrlAttribute(): string
+    // {
+    //     if (!$this->avatar_path) {
+    //         return "https://ui-avatars.com/api/?name=" . urlencode($this->name) . "&color=7F9CF5&background=EBF4FF";
+    //     }
+
+    //     // Returns a route to the FileController for private file streaming
+    //     return route('api.v1.files.show', ['file' => $this->avatar_path]);
+    // }    
 }

@@ -2,112 +2,143 @@
 
 namespace App\Modules\Product\Controllers;
 
-use App\Core\Exceptions\BusinessException;
+use Illuminate\Http\Request;
+
 use App\Http\Controllers\ApiController;
+
 use App\Modules\Product\Models\Product;
-use App\Modules\Product\Repositories\Contracts\ProductRepositoryInterface;
+
+use App\Modules\Product\Services\ProductService;
+
+use App\Modules\Product\Resources\ProductResource;
+
 use App\Modules\Product\Requests\StoreProductRequest;
 use App\Modules\Product\Requests\UpdateProductRequest;
-use App\Modules\Product\Resources\ProductResource;
-use App\Modules\Product\Services\ProductService;
-use Illuminate\Http\JsonResponse;
 
 class ProductController extends ApiController
 {
     public function __construct(
-        protected ProductRepositoryInterface $products,
-        protected ProductService $service,
+        protected ProductService $service
+    ) {}
+
+    /**
+     * List Products
+     *
+     * Retrieves a paginated list of products.
+     */
+    public function index(
+        Request $request
     ) {
-    }
 
-    public function index(): JsonResponse
-    {
-        $products = $this->products
-            ->paginateWithRelations();
+        $products = filled(
+            $request->search
+        )
+
+            ? $this->service->search(
+                $request->string(
+                    'search'
+                ),
+                $request->integer(
+                    'per_page',
+                    15
+                )
+            )
+
+            : $this->service->paginate(
+                $request->integer(
+                    'per_page',
+                    15
+                )
+            );
+
+        // Eager load your nested relationships right here
+        // $products->load(['category', 'brand', 'unit', 'variants']);
 
         return $this->success(
             ProductResource::collection(
                 $products
-            )
+            ),
+            'Products retrieved successfully.'
         );
     }
 
-    public function search(): JsonResponse
-    {
-        $products = $this->products->search(
-            request('search')
-        );
-
-        return $this->success(
-            ProductResource::collection(
-                $products
-            )
-        );
-    }    
-
+    /**
+     * Create Product
+     *
+     * Creates a new product.
+     */
     public function store(
         StoreProductRequest $request
-    ): JsonResponse {
+    ) {
 
         $product = $this->service->create(
             $request->validated()
         );
 
         return $this->success(
-            new ProductResource( $product ),
+            new ProductResource(
+                $product
+            ),
             'Product created successfully.',
             201
         );
     }
 
+    /**
+     * Show Product
+     *
+     * Display a specific product.
+     */
     public function show(
         Product $product
-    ): JsonResponse {
+    ) {
+        
+        $product->load([
+            'category',
+            'brand',
+            'unit',
+            'variants.attributes',
+        ]);
 
         return $this->success(
             new ProductResource(
-                $product->load([
-                    'category',
-                    'brand',
-                    'unit',
-                ])
-            )
+                $product
+            ),
+            'Product retrieved successfully.'
         );
     }
 
+    /**
+     * UpdateProduct
+     *
+     * Update an existing product.
+     */
     public function update(
         UpdateProductRequest $request,
         Product $product
-    ): JsonResponse {
-
+    ) {
         $product = $this->service->update(
             $product,
             $request->validated()
         );
 
         return $this->success(
-            new ProductResource($product),
+            new ProductResource(
+                $product
+            ),
             'Product updated successfully.'
         );
     }
 
+    /**
+     * Delete Product
+     *
+     * Deletes a specific product.
+     */
     public function destroy(
         Product $product
-    ): JsonResponse {
-
-        if ($product->stocks()->exists()) {
-            throw new BusinessException(
-                'Cannot delete product with inventory history.'
-            );
-        }
-
-        if ($product->stockLedgers()->exists()) {
-            throw new BusinessException(
-                'Cannot delete product with inventory history.'
-            );
-        }
-
-        $this->products->delete(
+    ) {
+        $this->service->delete(
             $product
         );
 

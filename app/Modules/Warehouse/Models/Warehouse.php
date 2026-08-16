@@ -40,14 +40,16 @@ class Warehouse extends TenantModel
 
     protected function casts(): array
     {
-        return [
+        return array_merge(
+            parent::casts(),
+            [
+                'area_id' => 'integer',
 
-            'area_id' => 'integer',
+                'is_default' => 'boolean',
 
-            'is_default' => 'boolean',
-
-            'is_active' => 'boolean',
-        ];
+                'is_active' => 'boolean',
+            ]
+        );
     }
 
     /*

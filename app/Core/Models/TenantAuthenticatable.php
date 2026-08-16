@@ -3,15 +3,16 @@
 namespace App\Core\Models;
 
 use App\Core\Scopes\TenantScope;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use App\Core\Traits\HasUuidPrimaryKey;
 
 abstract class TenantAuthenticatable
-    extends Authenticatable
+    extends BaseAuthenticatable
 {
-    use HasUuids;
-
-    protected $guarded = [];
+    /**
+     * Traits UUID Primary Key
+     * @see https://laravel.com/docs/10.x/eloquent#custom-primary-keys
+     */
+    use HasUuidPrimaryKey;
 
     protected static function booted(): void
     {
@@ -28,15 +29,5 @@ abstract class TenantAuthenticatable
                 $model->tenant_id = tenantId();
             }
         });
-    }
-
-    public function uniqueIds(): array
-    {
-        return ['uuid'];
-    }
-
-    public function getRouteKeyName(): string
-    {
-        return 'uuid';
     }
 }

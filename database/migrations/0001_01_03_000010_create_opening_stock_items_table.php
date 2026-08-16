@@ -8,19 +8,20 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('product_stocks', function (Blueprint $table) {
+        Schema::create('opening_stock_items', function (
+            Blueprint $table
+        ) {
 
             $table->id();
 
-            $table->uuid('uuid')->unique();
-
             /*
             |--------------------------------------------------------------------------
-            | Tenant
+            | Header
             |--------------------------------------------------------------------------
             */
-            $table->foreignId('tenant_id')
-                ->constrained('tenants')
+
+            $table->foreignId('opening_stock_id')
+                ->constrained('opening_stocks')
                 ->cascadeOnDelete();
 
             /*
@@ -28,89 +29,109 @@ return new class extends Migration
             | Product
             |--------------------------------------------------------------------------
             */
+
             $table->foreignId('product_id')
                 ->constrained('products')
                 ->cascadeOnDelete();
 
-            /*
-            |--------------------------------------------------------------------------
-            | Warehouse
-            |--------------------------------------------------------------------------
-            */
-            $table->foreignId('warehouse_id')
-                ->constrained('warehouses')
-                ->cascadeOnDelete();
+            $table->foreignId('product_variant_id')
+                ->nullable()
+                ->constrained('product_variants')
+                ->nullOnDelete();
 
             /*
             |--------------------------------------------------------------------------
-            | Current Stock
+            | Batch Tracking
             |--------------------------------------------------------------------------
             */
-            $table->decimal('quantity', 18, 4)
-                ->default(0);
+
+            $table->foreignId('product_batch_id')
+                ->nullable()
+                ->constrained('product_batches')
+                ->nullOnDelete();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Serial Tracking
+            |--------------------------------------------------------------------------
+            |
+            | For serialized products an item normally
+            | represents one serial.
+            |
+            */
+
+            $table->foreignId('product_serial_id')
+                ->nullable()
+                ->constrained('product_serials')
+                ->nullOnDelete();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Quantity
+            |--------------------------------------------------------------------------
+            */
+
+            $table->decimal(
+                'quantity',
+                18,
+                4
+            )->default(0);
 
             /*
             |--------------------------------------------------------------------------
             | Costing
             |--------------------------------------------------------------------------
-            | WAC = Weighted Average Cost
             */
-            $table->decimal('average_cost', 18, 4)
-                ->default(0);
+
+            $table->decimal(
+                'unit_cost',
+                18,
+                4
+            )->default(0);
+
+            $table->decimal(
+                'total_cost',
+                18,
+                4
+            )->default(0);
 
             /*
             |--------------------------------------------------------------------------
-            | Inventory Valuation
-            |--------------------------------------------------------------------------
-            | quantity × average_cost
-            */
-            $table->decimal('inventory_value', 18, 4)
-                ->default(0);
-
-            /*
-            |--------------------------------------------------------------------------
-            | Audit
+            | Remarks
             |--------------------------------------------------------------------------
             */
-            $table->foreignId('created_by')
-                ->nullable()
-                ->constrained('users')
-                ->nullOnDelete();
 
-            $table->foreignId('updated_by')
-                ->nullable()
-                ->constrained('users')
-                ->nullOnDelete();
+            $table->text('remarks')
+                ->nullable();
 
             $table->timestamps();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Constraints
-            |--------------------------------------------------------------------------
-            */
-            $table->unique(
-                [
-                    'tenant_id',
-                    'product_id',
-                    'warehouse_id'
-                ],
-                'product_stocks_unique'
-            );
 
             /*
             |--------------------------------------------------------------------------
             | Indexes
             |--------------------------------------------------------------------------
             */
-            $table->index('tenant_id');
-            $table->index('product_id');
-            $table->index('warehouse_id');
+
+            $table->index([
+                'opening_stock_id',
+                'product_id',
+            ]);
+
+            $table->index([
+                'product_id',
+                'product_variant_id',
+            ]);
+
+            $table->index('product_batch_id');
+
+            $table->index('product_serial_id');
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('product_stocks');
+        Schema::dropIfExists(
+            'opening_stock_items'
+        );
     }
 };

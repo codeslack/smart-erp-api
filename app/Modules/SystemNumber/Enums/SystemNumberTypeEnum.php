@@ -14,6 +14,8 @@ enum SystemNumberTypeEnum: string
 
     case PRODUCT = 'product';
 
+    case PRODUCT_VARIANT = 'product_variant';
+
     case WAREHOUSE = 'warehouse';
 
     case ACCOUNT = 'account';
@@ -39,6 +41,8 @@ enum SystemNumberTypeEnum: string
             self::SUPPLIER => 'SUP',
 
             self::PRODUCT => 'PRD',
+
+            self::PRODUCT_VARIANT => 'VAR',
 
             self::WAREHOUSE => 'WH',
 

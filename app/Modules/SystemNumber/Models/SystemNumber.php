@@ -2,17 +2,16 @@
 
 namespace App\Modules\SystemNumber\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+use App\Core\Models\BaseModel;
 
 use App\Modules\Tenant\Models\Tenant;
 use App\Modules\SystemNumber\Enums\SystemNumberTypeEnum;
 
-class SystemNumber extends Model
+class SystemNumber extends BaseModel
 {
     protected $table = 'system_numbers';
-
-    protected $guarded = [];
 
     protected function casts(): array
     {

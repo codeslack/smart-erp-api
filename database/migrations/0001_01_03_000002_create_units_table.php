@@ -8,12 +8,14 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('units', function (Blueprint $table) {
+        Schema::create('units', function (
+            Blueprint $table
+        ) {
 
             $table->id();
 
             $table->uuid('uuid')
-                ->unique();            
+                ->unique();
 
             $table->foreignId('tenant_id')
                 ->constrained('tenants')

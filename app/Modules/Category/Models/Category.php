@@ -32,10 +32,12 @@ class Category extends TenantModel
 
     protected function casts(): array
     {
-        return [
-
-            'is_active' => 'boolean',
-        ];
+        return array_merge(
+            parent::casts(),
+            [
+                'is_active' => 'boolean',
+            ]
+        );
     }
 
     /*

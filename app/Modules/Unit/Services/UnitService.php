@@ -5,13 +5,15 @@ namespace App\Modules\Unit\Services;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
+use App\Core\Services\BaseService;
+
 use App\Modules\Unit\Models\Unit;
 
 use App\Modules\SystemNumber\Enums\SystemNumberTypeEnum;
 
 use App\Modules\Unit\Repositories\Contracts\UnitRepositoryInterface;
 
-class UnitService
+class UnitService extends BaseService
 {
     public function __construct(
         protected UnitRepositoryInterface $repository,

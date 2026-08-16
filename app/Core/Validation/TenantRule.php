@@ -13,32 +13,19 @@ class TenantRule
         string $column
     ): Unique {
 
-        return Rule::unique(
+        $rule = Rule::unique(
             $table,
             $column
-        )->where(
-            'tenant_id',
-            tenantId()
         );
-    }
 
-    public static function uniqueIgnore(
-        string $table,
-        string $column,
-        int|string $ignoreId
-    ): Unique {
-
-        return Rule::unique(
-            $table,
-            $column
-        )
-            ->where(
+        if ($tenantId = tenant()?->id) {
+            $rule->where(
                 'tenant_id',
-                tenantId()
-            )
-            ->ignore(
-                $ignoreId
+                $tenantId
             );
+        }
+
+        return $rule;
     }
 
     public static function exists(
@@ -46,12 +33,45 @@ class TenantRule
         string $column = 'id'
     ): Exists {
 
-        return Rule::exists(
+        $rule = Rule::exists(
             $table,
             $column
-        )->where(
-            'tenant_id',
-            tenantId()
         );
+
+        if ($tenantId = tenant()?->id) {
+            $rule->where(
+                'tenant_id',
+                $tenantId
+            );
+        }
+
+        return $rule;
+    }
+
+    public static function uniqueIgnore(
+        string $table,
+        string $column,
+        int|string|null $ignoreId
+    ): Unique {
+
+        $rule = Rule::unique(
+            $table,
+            $column
+        );
+
+        if ($tenantId = tenant()?->id) {
+            $rule->where(
+                'tenant_id',
+                $tenantId
+            );
+        }
+
+        if ($ignoreId) {
+            $rule->ignore(
+                $ignoreId
+            );
+        }
+
+        return $rule;
     }
 }

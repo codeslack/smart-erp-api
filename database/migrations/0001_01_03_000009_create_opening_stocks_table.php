@@ -1,91 +1,88 @@
 <?php
 
+use App\Core\Enums\DocumentStatusEnum;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use App\Modules\Product\Enums\SerialStatusEnum;
 
 return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('product_serials', function (Blueprint $table) {
+        Schema::create('opening_stocks', function (
+            Blueprint $table
+        ) {
 
             $table->id();
 
-            $table->uuid('uuid')->unique();
+            $table->uuid('uuid')
+                ->unique();
 
             /*
             |--------------------------------------------------------------------------
             | Tenant
             |--------------------------------------------------------------------------
             */
+
             $table->foreignId('tenant_id')
                 ->constrained('tenants')
                 ->cascadeOnDelete();
 
             /*
             |--------------------------------------------------------------------------
+            | Document
+            |--------------------------------------------------------------------------
+            */
+
+            $table->string('document_no', 50);
+
+            $table->date('opening_date');
+
+            $table->string('status', 20)
+                ->default(
+                    DocumentStatusEnum::DRAFT->value
+                );
+
+            /*
+            |--------------------------------------------------------------------------
             | Relations
             |--------------------------------------------------------------------------
             */
-            $table->foreignId('product_id')
-                ->constrained('products')
-                ->cascadeOnDelete();
 
             $table->foreignId('warehouse_id')
                 ->constrained('warehouses')
                 ->cascadeOnDelete();
 
-            /*
-            |--------------------------------------------------------------------------
-            | Serial Information
-            |--------------------------------------------------------------------------
-            */
-            $table->string('serial_number', 150);
-
-            $table->string('imei_number', 150)
-                ->nullable();
+            $table->foreignId('supplier_id')
+                ->nullable()
+                ->constrained('suppliers')
+                ->nullOnDelete();
 
             /*
             |--------------------------------------------------------------------------
-            | Cost Information
+            | Summary
             |--------------------------------------------------------------------------
             */
-            $table->decimal('purchase_cost', 18, 4)
-                ->default(0);
+
+            $table->decimal(
+                'total_quantity',
+                18,
+                4
+            )->default(0);
+
+            $table->decimal(
+                'total_amount',
+                18,
+                4
+            )->default(0);
 
             /*
             |--------------------------------------------------------------------------
-            | Warranty
+            | Remarks
             |--------------------------------------------------------------------------
             */
-            $table->date('warranty_expiry')
-                ->nullable();
 
-            /*
-            |--------------------------------------------------------------------------
-            | Current Status
-            |--------------------------------------------------------------------------
-            */
-            $table->string('status')
-                ->default(
-                    SerialStatusEnum::AVAILABLE->value
-                );
-
-            /*
-            |--------------------------------------------------------------------------
-            | Reference Tracking
-            |--------------------------------------------------------------------------
-            | Future use:
-            | Sale
-            | Return
-            | Transfer
-            */
-            $table->string('current_document_type')
-                ->nullable();
-
-            $table->unsignedBigInteger('current_document_id')
+            $table->text('remarks')
                 ->nullable();
 
             /*
@@ -93,6 +90,7 @@ return new class extends Migration
             | Audit
             |--------------------------------------------------------------------------
             */
+
             $table->foreignId('created_by')
                 ->nullable()
                 ->constrained('users')
@@ -104,6 +102,7 @@ return new class extends Migration
                 ->nullOnDelete();
 
             $table->timestamps();
+
             $table->softDeletes();
 
             /*
@@ -111,14 +110,10 @@ return new class extends Migration
             | Constraints
             |--------------------------------------------------------------------------
             */
-            $table->unique(
-                ['tenant_id', 'serial_number'],
-                'product_serials_serial_unique'
-            );
 
             $table->unique(
-                ['tenant_id', 'imei_number'],
-                'product_serials_imei_unique'
+                ['tenant_id', 'document_no'],
+                'opening_stocks_tenant_document_no_unique'
             );
 
             /*
@@ -126,19 +121,31 @@ return new class extends Migration
             | Indexes
             |--------------------------------------------------------------------------
             */
+
             $table->index('tenant_id');
-            $table->index('product_id');
+
             $table->index('warehouse_id');
+
             $table->index('status');
+
+            $table->index('opening_date');
+
             $table->index([
-                'current_document_type',
-                'current_document_id'
+                'tenant_id',
+                'status',
+            ]);
+
+            $table->index([
+                'tenant_id',
+                'opening_date',
             ]);
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('product_serials');
+        Schema::dropIfExists(
+            'opening_stocks'
+        );
     }
 };

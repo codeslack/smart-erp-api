@@ -97,7 +97,9 @@ return new class extends Migration
             ]);
         });
 
-        Schema::create('journal_entries', function (Blueprint $table) {
+        Schema::create('journal_entries', function (
+            Blueprint $table
+        ) {
 
             $table->id();
 
@@ -150,7 +152,9 @@ return new class extends Migration
             ]);
         });
 
-        Schema::create('journal_entry_lines', function (Blueprint $table) {
+        Schema::create('journal_entry_lines', function (
+            Blueprint $table
+        ) {
 
             $table->id();
 

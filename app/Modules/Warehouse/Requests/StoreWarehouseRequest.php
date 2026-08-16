@@ -17,6 +17,10 @@ class StoreWarehouseRequest extends BaseRequest
             |--------------------------------------------------------------------------
             */
 
+            /**
+             * The warehouse name, which must be unique within the tenant's context.
+             * @example Main Warehouse
+             */
             'name' => [
                 'required',
                 'string',
@@ -28,6 +32,10 @@ class StoreWarehouseRequest extends BaseRequest
                 ),
             ],
 
+            /**
+             * Area ID associated with the warehouse, which must exist in the areas table for the current tenant.
+             * @example 1
+             */
             'area_id' => [
                 'nullable',
 
@@ -42,18 +50,30 @@ class StoreWarehouseRequest extends BaseRequest
             |--------------------------------------------------------------------------
             */
 
+            /**
+             * The contact person's name for the warehouse.
+             * @example John Doe
+             */
             'contact_person' => [
                 'nullable',
                 'string',
                 'max:255',
             ],
 
+            /**
+             * The contact phone number for the warehouse.
+             * @example +1-555-123-4567
+             */
             'phone' => [
                 'nullable',
                 'string',
                 'max:30',
             ],
 
+            /**
+             * The contact email address for the warehouse.
+             * @example wh.main@erp.com
+             */
             'email' => [
                 'nullable',
                 'email',
@@ -66,6 +86,10 @@ class StoreWarehouseRequest extends BaseRequest
             |--------------------------------------------------------------------------
             */
 
+            /**
+             * The physical address of the warehouse.
+             * @example 123 Main St, West Bengal, India
+             */
             'address' => [
                 'nullable',
                 'string',
@@ -77,11 +101,19 @@ class StoreWarehouseRequest extends BaseRequest
             |--------------------------------------------------------------------------
             */
 
+            /**
+             * A boolean flag indicating whether the warehouse is the default warehouse for the tenant.
+             * @example true
+             */
             'is_default' => [
                 'sometimes',
                 'boolean',
             ],
 
+            /**
+             * A boolean flag indicating whether the warehouse is active or inactive.
+             * @example true
+             */
             'is_active' => [
                 'sometimes',
                 'boolean',

@@ -156,3 +156,21 @@ if (! function_exists('setting')) {
         );
     }
 }
+
+if (! function_exists('resolveModelId')) {
+
+    function resolveModelId(
+        string $model,
+        ?string $uuid
+    ): ?int {
+
+        if (blank($uuid)) {
+            return null;
+        }
+
+        return $model::query()
+            ->where('uuid', $uuid)
+            ->where('tenant_id', tenantId())
+            ->value('id');
+    }
+}

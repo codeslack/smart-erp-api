@@ -3,21 +3,16 @@
 namespace App\Core\Models;
 
 use App\Core\Scopes\TenantScope;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use App\Core\Traits\HasUuidPrimaryKey;
 
-abstract class TenantModel extends Model
+abstract class TenantModel extends BaseModel
 {
-    use HasUuids;
-
     /**
-     * Mass Assignment
+     * Traits UUID Primary Key
+     * @see https://laravel.com/docs/10.x/eloquent#custom-primary-keys
      */
-    protected $guarded = [];
+    use HasUuidPrimaryKey;
 
-    /**
-     * Casts
-     */
     protected function casts(): array
     {
         return [
@@ -36,6 +31,21 @@ abstract class TenantModel extends Model
 
         static::creating(function ($model) {
 
+            logger()->info(
+                'TenantModel creating fired',
+                [
+                    'tenant_id' => tenantId(),
+                    'model' => get_class($model),
+                ]
+            );
+
+            if (! tenantId()) {
+
+                throw new \RuntimeException(
+                    'No active tenant found.'
+                );
+            }
+
             if (
                 empty($model->tenant_id)
                 && tenant()
@@ -43,15 +53,5 @@ abstract class TenantModel extends Model
                 $model->tenant_id = tenantId();
             }
         });
-    }
-
-    public function uniqueIds(): array
-    {
-        return ['uuid'];
-    }
-
-    public function getRouteKeyName(): string
-    {
-        return 'uuid';
     }
 }

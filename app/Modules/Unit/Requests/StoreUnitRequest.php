@@ -12,6 +12,10 @@ class StoreUnitRequest extends BaseRequest
     {
         return [
 
+            /**
+             * The unit name, which must be unique within the tenant's context.
+             * @example Kilogram
+             */
             'name' => [
                 'required',
                 'string',
@@ -23,6 +27,10 @@ class StoreUnitRequest extends BaseRequest
                 ),
             ],
 
+            /**
+             * The unit short name, which must be unique within the tenant's context.
+             * @example kg
+             */
             'short_name' => [
                 'required',
                 'string',
@@ -34,11 +42,19 @@ class StoreUnitRequest extends BaseRequest
                 ),
             ],
 
+            /**
+             * A brief description of the unit.
+             * @example Kilogram is a unit of mass in the metric system.
+             */
             'description' => [
                 'nullable',
                 'string',
             ],
 
+            /**
+             * boolean flag indicating whether the unit is active or inactive.
+             * @example true
+             */
             'is_active' => [
                 'sometimes',
                 'boolean',

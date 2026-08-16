@@ -12,6 +12,10 @@ class StoreCategoryRequest extends BaseRequest
     {
         return [
 
+            /**
+             * The name of the category, which must be unique within the tenant's context.
+             * @example Medicine
+             */
             'name' => [
                 'required',
                 'string',
@@ -23,11 +27,19 @@ class StoreCategoryRequest extends BaseRequest
                 ),
             ],
 
+            /**
+             * A brief description of the category.
+             * @example This category includes all types of medicines and pharmaceuticals.
+             */
             'description' => [
                 'nullable',
                 'string',
             ],
 
+            /**
+             * boolean flag indicating whether the category is active or inactive.
+             * @example true
+             */
             'is_active' => [
                 'sometimes',
                 'boolean',

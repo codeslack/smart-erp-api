@@ -6,9 +6,9 @@ enum SerialStatusEnum: string
 {
     case AVAILABLE = 'AVAILABLE';
 
-    case SOLD = 'SOLD';
-
     case RETURNED = 'RETURNED';
+
+    case SOLD = 'SOLD';
 
     case DAMAGED = 'DAMAGED';
 

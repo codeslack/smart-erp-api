@@ -3,9 +3,13 @@
 namespace App\Core\Exceptions;
 
 use Throwable;
+use Illuminate\Support\Facades\Log;
 use App\Core\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
+// use Illuminate\Database\QueryException;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class ApiExceptionHandler
 {
@@ -16,35 +20,47 @@ class ApiExceptionHandler
     ): JsonResponse {
 
         if ($exception instanceof ValidationException) {
-            return $this->error(
-                'Validation failed.',
-                $exception->errors(),
-                422
-            );
+
+            return response()->json([
+                'success' => false,
+                'code'    => 'VALIDATION_FAILED',
+                'message' => 'Validation failed.',
+                'errors'  => $exception->errors(),
+            ], 422);
         }
 
-        if ($exception instanceof BusinessException) {
-            return $this->error(
-                $exception->getMessage(),
-                null,
-                422
-            );
+        if ($exception instanceof BaseApiException) {
+
+            return response()->json([
+                'success' => false,
+                'code'    => $exception->errorCode(),
+                'message' => $exception->getMessage(),
+                'errors'  => null,
+            ], $exception->status());
         }
 
-        if ($exception instanceof NotFoundException) {
-            return $this->error(
-                $exception->getMessage(),
-                null,
-                404
-            );
+        if (
+            $exception instanceof NotFoundHttpException &&
+            $exception->getPrevious() instanceof ModelNotFoundException
+        ) {
+
+            return response()->json([
+                'success' => false,
+                'code'    => 'RESOURCE_NOT_FOUND',
+                'message' => 'Resource not found.',
+                'errors'  => null,
+            ], 404);
         }
 
-        return $this->error(
-            config('app.debug')
+        Log::error($exception);
+
+        return response()->json([
+            'success' => false,
+            'code'    => 'INTERNAL_SERVER_ERROR',
+            'message' => config('app.debug')
                 ? $exception->getMessage()
-                : 'Server error.',
-            null,
-            500
-        );
+                : 'An unexpected error occurred.',
+            'errors'  => null,
+        ], 500);
     }
 }

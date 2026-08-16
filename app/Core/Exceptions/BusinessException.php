@@ -2,8 +2,16 @@
 
 namespace App\Core\Exceptions;
 
-use Exception;
-
-class BusinessException extends Exception
+class BusinessException extends BaseApiException
 {
+    public function __construct(
+        string $message,
+        ?string $errorCode = null
+    ) {
+        parent::__construct(
+            $message,
+            422,
+            $errorCode
+        );
+    }
 }

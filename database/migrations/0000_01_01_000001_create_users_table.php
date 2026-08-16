@@ -52,6 +52,9 @@ return new class extends Migration
             $table->string('phone', 30)
                 ->nullable();
 
+            $table->string('avatar_path')
+                ->nullable();
+
             /*
             |--------------------------------------------------------------------------
             | Authentication
@@ -84,6 +87,8 @@ return new class extends Migration
             */
 
             $table->timestamps();
+
+            $table->softDeletes();
 
             /*
             |--------------------------------------------------------------------------
