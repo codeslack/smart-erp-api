@@ -2,9 +2,11 @@
 
 namespace App\Modules\Settings\Repositories;
 
-use App\Core\Repositories\BaseRepository;
-use App\Modules\Settings\Models\Setting;
 use Illuminate\Support\Collection;
+
+use App\Modules\Settings\Models\Setting;
+
+use App\Core\Repositories\BaseRepository;
 use App\Modules\Settings\Repositories\Contracts\SettingRepositoryInterface;
 
 /**

@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('product_batches', function (
+        Schema::create('inventory_cost_layers', function (
             Blueprint $table
         ) {
 
@@ -29,7 +29,7 @@ return new class extends Migration
 
             /*
             |--------------------------------------------------------------------------
-            | Product
+            | Stock Identity
             |--------------------------------------------------------------------------
             */
 
@@ -42,70 +42,26 @@ return new class extends Migration
                 ->constrained('product_variants')
                 ->nullOnDelete();
 
-            /*
-            |--------------------------------------------------------------------------
-            | Warehouse
-            |--------------------------------------------------------------------------
-            */
-
             $table->foreignId('warehouse_id')
                 ->constrained('warehouses')
                 ->cascadeOnDelete();
 
             /*
             |--------------------------------------------------------------------------
-            | Source Document
+            | Source Ledger
             |--------------------------------------------------------------------------
             |
-            | Opening Stock
-            | Purchase
-            | Production
-            | Stock Adjustment
+            | Every FIFO layer is created from an IN movement.
             |
             */
 
-            $table->nullableMorphs(
-                'sourceable'
-            );
+            $table->foreignId('stock_ledger_id')
+                ->constrained('stock_ledgers')
+                ->cascadeOnDelete();
 
             /*
             |--------------------------------------------------------------------------
-            | Batch Information
-            |--------------------------------------------------------------------------
-            */
-
-            $table->string(
-                'batch_no',
-                100
-            );
-
-            $table->date(
-                'manufacturing_date'
-            )->nullable();
-
-            $table->dateTime(
-                'received_at'
-            )->nullable();
-
-            $table->date(
-                'expiry_date'
-            )->nullable();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Cost Information
-            |--------------------------------------------------------------------------
-            */
-
-            $table->decimal(
-                'unit_cost',
-                18,
-                4
-            )->default(0);
-
-            /*
-            |--------------------------------------------------------------------------
-            | Quantity Tracking
+            | FIFO Layer Quantity
             |--------------------------------------------------------------------------
             */
 
@@ -113,31 +69,53 @@ return new class extends Migration
                 'original_quantity',
                 18,
                 4
-            )->default(0);
+            );
 
             $table->decimal(
                 'remaining_quantity',
                 18,
                 4
-            )->default(0);
+            );
 
             /*
             |--------------------------------------------------------------------------
-            | Notes
+            | Cost
             |--------------------------------------------------------------------------
             */
 
-            $table->text('remarks')
-                ->nullable();
+            $table->decimal(
+                'unit_cost',
+                18,
+                4
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Layer Date
+            |--------------------------------------------------------------------------
+            |
+            | Used for FIFO ordering.
+            |
+            */
+
+            $table->dateTime(
+                'layer_date'
+            );
 
             /*
             |--------------------------------------------------------------------------
             | Status
             |--------------------------------------------------------------------------
+            |
+            | OPEN     = remaining quantity exists
+            | EXHAUSTED = completely consumed
+            |
             */
 
-            $table->boolean('is_active')
-                ->default(true);
+            $table->string(
+                'status',
+                20
+            )->default('OPEN');
 
             /*
             |--------------------------------------------------------------------------
@@ -145,19 +123,7 @@ return new class extends Migration
             |--------------------------------------------------------------------------
             */
 
-            $table->foreignId('created_by')
-                ->nullable()
-                ->constrained('users')
-                ->nullOnDelete();
-
-            $table->foreignId('updated_by')
-                ->nullable()
-                ->constrained('users')
-                ->nullOnDelete();
-
             $table->timestamps();
-
-            $table->softDeletes();
 
             /*
             |--------------------------------------------------------------------------
@@ -168,11 +134,9 @@ return new class extends Migration
             $table->unique(
                 [
                     'tenant_id',
-                    'product_id',
-                    'warehouse_id',
-                    'batch_no',
+                    'stock_ledger_id',
                 ],
-                'product_batches_unique_batch'
+                'icl_tenant_ledger_unique'
             );
 
             /*
@@ -181,29 +145,59 @@ return new class extends Migration
             |--------------------------------------------------------------------------
             */
 
-            $table->index([
-                'tenant_id',
-                'product_id',
-            ]);
+            $table->index(
+                [
+                    'tenant_id',
+                    'product_id',
+                    'warehouse_id',
+                ],
+                'icl_tenant_product_warehouse_idx'
+            );
 
-            $table->index([
-                'tenant_id',
-                'warehouse_id',
-            ]);
+            $table->index(
+                [
+                    'tenant_id',
+                    'product_variant_id',
+                ],
+                'icl_tenant_variant_idx'
+            );
 
-            $table->index([
-                'tenant_id',
-                'expiry_date',
-            ]);
+            $table->index(
+                [
+                    'tenant_id',
+                    'status',
+                ],
+                'icl_tenant_status_idx'
+            );
 
-            $table->index('batch_no');
+            /*
+            |----------------------------------------------------------------------
+            | Critical FIFO Index
+            |----------------------------------------------------------------------
+            |
+            | Oldest OPEN layer must be found quickly.
+            |
+            */
+
+            $table->index(
+                [
+                    'tenant_id',
+                    'product_id',
+                    'product_variant_id',
+                    'warehouse_id',
+                    'status',
+                    'layer_date',
+                    'id',
+                ],
+                'icl_fifo_consumption_idx'
+            );
         });
     }
 
     public function down(): void
     {
         Schema::dropIfExists(
-            'product_batches'
+            'inventory_cost_layers'
         );
     }
 };

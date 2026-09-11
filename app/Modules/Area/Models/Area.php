@@ -41,6 +41,26 @@ class Area extends TenantModel
         );
     }
 
+    public function setNameAttribute(string $name)
+    {
+        $this->attributes['name'] = strtolower($name);
+    }
+
+    public function getNameAttribute(string $name)
+    {
+        return ucwords($name);
+    }
+
+    public function setDescriptionAttribute(string $description)
+    {
+        $this->attributes['description'] = strtolower($description);
+    }
+
+    public function getDescriptionAttribute(string $description)
+    {
+        return ucwords($description);
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Relationships

@@ -2,85 +2,31 @@
 
 namespace App\Modules\Settings\Services;
 
-use App\Core\Tenant\TenantManager;
-
 use App\Modules\Settings\Enums\InventoryCostingMethodEnum;
 use App\Modules\Settings\Enums\SettingGroupEnum;
 use App\Modules\Settings\Models\Setting;
-
 use App\Modules\Tenant\Enums\BusinessTypeEnum;
 use App\Modules\Tenant\Models\Tenant;
 
-class SettingsSetupService
+class PSettingsSetupService
 {
-    public function __construct(
-        protected TenantManager $tenantManager
-    ) {}
-
     public function setup(
         Tenant $tenant
     ): void {
 
-        /*
-        |--------------------------------------------------------------------------
-        | Establish Tenant Context
-        |--------------------------------------------------------------------------
-        */
+        if (
+            Setting::query()
+            ->where('tenant_id', $tenant->id)
+            ->exists()
+        ) {
+            return;
+        }
 
-        $previousTenant =
-            $this->tenantManager->getTenant();
-
-        $this->tenantManager->setTenant(
-            $tenant
-        );
-
-        try {
-
-            /*
-            |--------------------------------------------------------------------------
-            | Already Configured
-            |--------------------------------------------------------------------------
-            */
-
-            if (
-                Setting::query()
-                    ->where(
-                        'tenant_id',
-                        $tenant->id
-                    )
-                    ->exists()
-            ) {
-                return;
-            }
-
-            /*
-            |--------------------------------------------------------------------------
-            | Create Default Settings
-            |--------------------------------------------------------------------------
-            */
-
-            foreach (
-                $this->defaultSettings($tenant)
-                as $setting
-            ) {
-                Setting::create($setting);
-            }
-
-        } finally {
-
-            /*
-            |--------------------------------------------------------------------------
-            | Restore Previous Tenant Context
-            |--------------------------------------------------------------------------
-            */
-
-            if ($previousTenant) {
-
-                $this->tenantManager->setTenant(
-                    $previousTenant
-                );
-
-            }
+        foreach (
+            $this->defaultSettings($tenant)
+            as $setting
+        ) {
+            Setting::create($setting);
         }
     }
 
@@ -97,7 +43,6 @@ class SettingsSetupService
             | Company
             |--------------------------------------------------------------------------
             */
-
             [
                 'tenant_id' => $tenant->id,
                 'group' => SettingGroupEnum::COMPANY->value,
@@ -157,7 +102,6 @@ class SettingsSetupService
             | Inventory
             |--------------------------------------------------------------------------
             */
-
             [
                 'tenant_id' => $tenant->id,
                 'group' => SettingGroupEnum::INVENTORY->value,
@@ -171,7 +115,7 @@ class SettingsSetupService
                 'tenant_id' => $tenant->id,
                 'group' => SettingGroupEnum::INVENTORY->value,
                 'key' => 'costing_method',
-                'value' => $this->defaultCostingMethod($tenant),
+                'value' => $this->defaultCostingMethod( $tenant ),
                 'created_at' => $now,
                 'updated_at' => $now,
             ],
@@ -181,7 +125,6 @@ class SettingsSetupService
             | Sales
             |--------------------------------------------------------------------------
             */
-
             [
                 'tenant_id' => $tenant->id,
                 'group' => SettingGroupEnum::SALES->value,
@@ -205,7 +148,6 @@ class SettingsSetupService
             | Purchase
             |--------------------------------------------------------------------------
             */
-
             [
                 'tenant_id' => $tenant->id,
                 'group' => SettingGroupEnum::PURCHASE->value,
@@ -220,7 +162,6 @@ class SettingsSetupService
             | Accounting
             |--------------------------------------------------------------------------
             */
-
             [
                 'tenant_id' => $tenant->id,
                 'group' => SettingGroupEnum::ACCOUNTING->value,
@@ -244,7 +185,6 @@ class SettingsSetupService
             | Tax
             |--------------------------------------------------------------------------
             */
-
             [
                 'tenant_id' => $tenant->id,
                 'group' => SettingGroupEnum::TAX->value,
@@ -267,9 +207,11 @@ class SettingsSetupService
 
     protected function defaultCostingMethod(
         Tenant $tenant
-    ): string {
-
-        return match ($tenant->business_type) {
+    ): string
+    {
+        return match (
+            $tenant->business_type
+        ) {
 
             BusinessTypeEnum::MEDICINE,
             BusinessTypeEnum::MOBILE,

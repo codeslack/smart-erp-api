@@ -97,4 +97,10 @@ enum StockTransactionTypeEnum: string
     case RESERVED = 'RESERVED';
 
     case RELEASED = 'RELEASED';
+
+    
+
+    case REVERSAL_IN = 'REVERSAL_IN';
+
+    case REVERSAL_OUT = 'REVERSAL_OUT';
 }

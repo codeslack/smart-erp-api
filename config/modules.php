@@ -10,6 +10,7 @@ return [
     | This is where you can register your modules for the application.
     |
     */
+    App\Modules\Settings\SettingModule::class,
 
 
     /*
@@ -35,6 +36,7 @@ return [
     | Transaction
     |--------------------------------------------------------------------------
     */
+    App\Modules\Inventory\InventoryModule::class,
     App\Modules\OpeningStock\OpeningStockModule::class,
 
 ];

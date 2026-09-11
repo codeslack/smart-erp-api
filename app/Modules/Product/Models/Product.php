@@ -44,6 +44,8 @@ class Product extends TenantModel
 
         'purchase_price',
         'selling_price',
+        
+        'warranty_days',
 
         'minimum_stock',
         'maximum_stock',
@@ -81,6 +83,8 @@ class Product extends TenantModel
 
                 'purchase_price' => 'decimal:4',
                 'selling_price' => 'decimal:4',
+
+                'warranty_days' => 'integer',
 
                 'minimum_stock' => 'decimal:4',
                 'maximum_stock' => 'decimal:4',

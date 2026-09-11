@@ -79,6 +79,9 @@ return new class extends Migration
 
             $table->string('inventory_tracking_type');
 
+            $table->unsignedInteger('warranty_days')
+                ->nullable();
+
             /*
             |--------------------------------------------------------------------------
             | Inventory Behaviour

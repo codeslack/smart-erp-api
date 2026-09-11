@@ -42,6 +42,8 @@ class AccountingAccounts
 
     public const OWNER_EQUITY = '3000';
 
+    public const OPENING_BALANCE_EQUITY = '3010';
+
     /*
     |--------------------------------------------------------------------------
     | Income

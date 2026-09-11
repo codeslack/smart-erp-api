@@ -2,6 +2,7 @@
 
 namespace App\Modules\Inventory\Models;
 
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -123,6 +124,22 @@ class StockLedger extends TenantModel
     public function referenceable(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    public function reversalOf(): BelongsTo
+    {
+        return $this->belongsTo(
+            self::class,
+            'reversal_of_ledger_id'
+        );
+    }
+
+    public function reversal(): HasOne
+    {
+        return $this->hasOne(
+            self::class,
+            'reversal_of_ledger_id'
+        );
     }
 
     /*

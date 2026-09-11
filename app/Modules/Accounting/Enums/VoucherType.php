@@ -17,4 +17,8 @@ class VoucherType
     public const PURCHASE_RETURN = 'purchase_return';
 
     public const JOURNAL = 'journal';
+
+    public const OPENING_STOCK = 'opening_stock';
+
+    // so, i am fixed 1st AccountingAccounts, VoucherType
 }

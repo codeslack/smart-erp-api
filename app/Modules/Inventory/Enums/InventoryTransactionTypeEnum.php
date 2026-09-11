@@ -12,7 +12,7 @@ enum InventoryTransactionTypeEnum: string
 
     case SALE = 'SALE';
 
-    case SALES_RETURN = 'SALES_RETURN';
+    case SALE_RETURN = 'SALE_RETURN';
 
     case STOCK_TRANSFER_IN = 'STOCK_TRANSFER_IN';
 
