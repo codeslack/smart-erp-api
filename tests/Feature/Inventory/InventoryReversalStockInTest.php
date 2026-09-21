@@ -27,7 +27,7 @@ use App\Modules\Inventory\Models\InventoryCostLayer;
 use App\Modules\Inventory\Data\InventoryMovementData;
 use App\Modules\Inventory\Data\InventoryReversalData;
 
-use App\Modules\Inventory\Enums\StockTransactionTypeEnum;
+use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
 use App\Modules\Inventory\Enums\InventoryCostLayerStatusEnum;
 
 use App\Modules\Inventory\Services\InventoryPostingService;
@@ -310,7 +310,7 @@ class InventoryReversalStockInTest extends TestCase
         );
 
         $this->assertEquals(
-            StockTransactionTypeEnum::REVERSAL_OUT,
+            InventoryTransactionTypeEnum::REVERSAL_OUT,
             $reversalLedger->transaction_type
         );
 
@@ -421,7 +421,7 @@ class InventoryReversalStockInTest extends TestCase
                     $this->warehouse->id,
 
                 'transaction_type' =>
-                    StockTransactionTypeEnum::REVERSAL_OUT->value,
+                    InventoryTransactionTypeEnum::REVERSAL_OUT->value,
 
                 'reversal_of_ledger_id' =>
                     $originalLedger->id,

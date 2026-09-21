@@ -2,17 +2,16 @@
 
 namespace App\Modules\Accounting\Models;
 
-use App\Core\Tenant\Models\TenantModel;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+use App\Core\Models\TenantModel;
 
 class ChartOfAccount extends TenantModel
 {
     protected $table = 'chart_of_accounts';
 
     protected $fillable = [
-
-        'tenant_id',
 
         'account_group_id',
 
@@ -33,16 +32,21 @@ class ChartOfAccount extends TenantModel
         'is_active',
     ];
 
-    protected $casts = [
+    protected function casts(): array
+    {
+        return array_merge(
+            parent::casts(),
+            [
+                'opening_balance' => 'decimal:4',
 
-        'opening_balance' => 'decimal:4',
+                'current_balance' => 'decimal:4',
 
-        'current_balance' => 'decimal:4',
+                'is_system' => 'boolean',
 
-        'is_system' => 'boolean',
-
-        'is_active' => 'boolean',
-    ];
+                'is_active' => 'boolean',            
+            ]
+        );
+    }
 
     public function group(): BelongsTo
     {

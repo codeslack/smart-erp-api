@@ -2,7 +2,7 @@
 
 namespace App\Modules\Inventory\Services;
 
-use DomainException;
+use App\Core\Exceptions\BusinessException;
 
 class WeightedAverageCostingService
 {
@@ -35,25 +35,25 @@ class WeightedAverageCostingService
     ): float {
 
         if ($incomingQuantity <= 0) {
-            throw new DomainException(
+            throw new BusinessException(
                 'Incoming quantity must be greater than zero.'
             );
         }
 
         if ($currentQuantity < 0) {
-            throw new DomainException(
+            throw new BusinessException(
                 'Current quantity cannot be negative.'
             );
         }
 
         if ($currentAverageCost < 0) {
-            throw new DomainException(
+            throw new BusinessException(
                 'Current average cost cannot be negative.'
             );
         }
 
         if ($incomingUnitCost < 0) {
-            throw new DomainException(
+            throw new BusinessException(
                 'Incoming unit cost cannot be negative.'
             );
         }
@@ -118,13 +118,13 @@ class WeightedAverageCostingService
     ): float {
 
         if ($quantity <= 0) {
-            throw new DomainException(
+            throw new BusinessException(
                 'Outgoing quantity must be greater than zero.'
             );
         }
 
         if ($averageCost < 0) {
-            throw new DomainException(
+            throw new BusinessException(
                 'Average cost cannot be negative.'
             );
         }
@@ -152,7 +152,7 @@ class WeightedAverageCostingService
         }
 
         if ($totalValue < 0) {
-            throw new DomainException(
+            throw new BusinessException(
                 'Total inventory value cannot be negative.'
             );
         }

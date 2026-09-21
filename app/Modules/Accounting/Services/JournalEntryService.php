@@ -3,10 +3,11 @@
 namespace App\Modules\Accounting\Services;
 
 use Illuminate\Support\Facades\DB;
-use App\Modules\Accounting\Models\JournalEntry;
+
 use App\Modules\Accounting\Models\ChartOfAccount;
+use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Models\JournalEntryLine;
-use App\Modules\Accounting\Services\AccountLedgerService;
+
 use App\Modules\Accounting\Repositories\Contracts\JournalEntryRepositoryInterface;
 
 class JournalEntryService
@@ -19,71 +20,99 @@ class JournalEntryService
 
     public function getAll()
     {
-        return $this->repository->paginate();
+        return $this->repository
+            ->paginate();
     }
 
     public function find(
         int|string $id
-    ) {
-        return $this->repository->find(
-            $id
-        );
+    )
+    {
+        return $this->repository
+            ->findById(
+                $id
+            );
     }
 
     public function create(
         array $data
     ): JournalEntry {
 
-        return DB::transaction(function () use ($data) {
+        return DB::transaction(
+            function () use ($data) {
 
-            $lines = $data['lines'];
+                $lines =
+                    $data['lines'];
 
-            $this->validateLines($lines);
-
-            unset($data['lines']);
-
-            $voucherNo = nextDocumentNumber(
-                'journal_entry',
-                'JV'
-            );
-
-            $journalEntry = $this->repository->create([
-                ...$data,
-                'voucher_no' => $voucherNo,
-            ]);
-
-            foreach ($lines as $line) {
-
-                $account = $this->resolveAccount(
-                    $line,
-                    $journalEntry->tenant_id
+                $this->validateLines(
+                    $lines
                 );
 
-                JournalEntryLine::create([
-                    'tenant_id'           => $journalEntry->tenant_id,
-                    'journal_entry_id'    => $journalEntry->id,
-                    'chart_of_account_id' => $account->id,
-                    'debit'               => $line['debit'] ?? 0,
-                    'credit'              => $line['credit'] ?? 0,
-                    'description'         => $line['description'] ?? null,
-                ]);
-            }
+                unset(
+                    $data['lines']
+                );
 
-            return $journalEntry
-                ->fresh()
-                ->load([
-                    'lines.account',
-                ]);
-        });
+                $voucherNo =
+                    nextDocumentNumber(
+                        'journal_entry',
+                        'JV'
+                    );
+
+                $journalEntry =
+                    $this->repository
+                        ->create([
+                            ...$data,
+                            'voucher_no' => $voucherNo,
+                        ]);
+
+                foreach (
+                    $lines as $line
+                ) {
+
+                    $account =
+                        $this->resolveAccount(
+                            $line,
+                            $journalEntry->tenant_id
+                        );
+
+                    JournalEntryLine::create([
+                        'tenant_id' =>
+                            $journalEntry->tenant_id,
+
+                        'journal_entry_id' =>
+                            $journalEntry->id,
+
+                        'chart_of_account_id' =>
+                            $account->id,
+
+                        'debit' =>
+                            $line['debit'] ?? 0,
+
+                        'credit' =>
+                            $line['credit'] ?? 0,
+
+                        'description' =>
+                            $line['description'] ?? null,
+                    ]);
+                }
+
+                return $journalEntry
+                    ->fresh()
+                    ->load([
+                        'lines.account',
+                    ]);
+            }
+        );
     }
 
     public function createAndPost(
         array $data
     ): JournalEntry {
 
-        $journalEntry = $this->create(
-            $data
-        );
+        $journalEntry =
+            $this->create(
+                $data
+            );
 
         return $this->post(
             $journalEntry
@@ -106,18 +135,19 @@ class JournalEntryService
                 );
 
                 $journalEntry->load([
-                    'lines.account'
+                    'lines.account',
                 ]);
 
-                foreach ($journalEntry->lines as $line) {
+                foreach (
+                    $journalEntry->lines as $line
+                ) {
 
                     abort_if(
-                        !$line->account,
+                        ! $line->account,
                         422,
                         'Account not found.'
                     );
                 }
-
 
                 $this->validateBalancedEntry(
                     $journalEntry
@@ -133,15 +163,13 @@ class JournalEntryService
                 );
 
                 $journalEntry->update([
-
-                    'status'
-                    => 'posted',
+                    'status' => 'posted',
                 ]);
 
                 return $journalEntry
                     ->fresh()
                     ->load([
-                        'lines.account'
+                        'lines.account',
                     ]);
             }
         );
@@ -158,12 +186,11 @@ class JournalEntryService
         );
 
         $journalEntry->update([
-
-            'status'
-            => 'cancelled',
+            'status' => 'cancelled',
         ]);
 
-        return $journalEntry->fresh();
+        return $journalEntry
+            ->fresh();
     }
 
     protected function validateLines(
@@ -176,11 +203,13 @@ class JournalEntryService
             'Journal entry must contain at least two lines.'
         );
 
-        $totalDebit = collect($lines)
-            ->sum('debit');
+        $totalDebit =
+            collect($lines)
+                ->sum('debit');
 
-        $totalCredit = collect($lines)
-            ->sum('credit');
+        $totalCredit =
+            collect($lines)
+                ->sum('credit');
 
         abort_if(
             bccomp(
@@ -197,13 +226,15 @@ class JournalEntryService
         JournalEntry $journalEntry
     ): void {
 
-        $totalDebit = $journalEntry
-            ->lines()
-            ->sum('debit');
+        $totalDebit =
+            $journalEntry
+                ->lines()
+                ->sum('debit');
 
-        $totalCredit = $journalEntry
-            ->lines()
-            ->sum('credit');
+        $totalCredit =
+            $journalEntry
+                ->lines()
+                ->sum('credit');
 
         abort_if(
             bccomp(
@@ -235,52 +266,40 @@ class JournalEntryService
         int $tenantId
     ): ChartOfAccount {
 
-        /*
-        |--------------------------------------------------------------------------
-        | Manual Journal Entry
-        |--------------------------------------------------------------------------
-        */
-
-        if (isset($line['chart_of_account_id'])) {
+        if (
+            isset(
+                $line['chart_of_account_id']
+            )
+        ) {
 
             return ChartOfAccount::query()
-
                 ->where(
                     'tenant_id',
                     $tenantId
                 )
-
                 ->whereKey(
                     $line['chart_of_account_id']
                 )
-
                 ->firstOrFail();
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Posting Services
-        |--------------------------------------------------------------------------
-        */
-
         abort_unless(
-            isset($line['account_code']),
+            isset(
+                $line['account_code']
+            ),
             422,
             'Account code is required.'
         );
 
         return ChartOfAccount::query()
-
             ->where(
                 'tenant_id',
                 $tenantId
             )
-
             ->where(
                 'account_code',
                 $line['account_code']
             )
-
             ->firstOrFail();
     }
 
@@ -288,25 +307,25 @@ class JournalEntryService
         JournalEntryLine $line
     ): void {
 
-        $account = $line->account;
+        $account =
+            $line->account;
 
         $account->update([
+            'current_balance' =>
+                $this->balanceCalculator
+                    ->calculate(
+                        accountType:
+                            $account->account_type,
 
-            'current_balance' => $this->balanceCalculator
-                ->calculate(
+                        currentBalance:
+                            (float) $account->current_balance,
 
-                    accountType:
-                        $account->account_type,
+                        debit:
+                            (float) $line->debit,
 
-                    currentBalance:
-                        (float) $account->current_balance,
-
-                    debit:
-                        (float) $line->debit,
-
-                    credit:
-                        (float) $line->credit
-                )
+                        credit:
+                            (float) $line->credit
+                    ),
         ]);
     }
 }

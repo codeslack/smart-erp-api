@@ -1,4 +1,5 @@
 <?php
+// :::writing{variant="document" id="41826" title="OpeningStockItemResource"}
 
 namespace App\Modules\OpeningStock\Resources;
 
@@ -7,99 +8,56 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class OpeningStockItemResource extends JsonResource
 {
-    /**
-     * Transform the resource into an array.
-     */
     public function toArray(
         Request $request
     ): array {
-
         return [
-
-            /*
-            |--------------------------------------------------------------------------
-            | Identity
-            |--------------------------------------------------------------------------
-            */
-
-            'id' => $this->id,
-
-            /*
-            |--------------------------------------------------------------------------
-            | Product
-            |--------------------------------------------------------------------------
-            */
-
-            'product_id' => $this->product_id,
+            'uuid' => $this->uuid,
 
             'product' => $this->whenLoaded(
                 'product',
-                fn () => [
-                    'id' => $this->product->id,
-                    'uuid' => $this->product->uuid,
-                    'code' => $this->product->code,
-                    'name' => $this->product->name,
-                    'sku' => $this->product->sku,
-                ]
+                fn () => $this->product
+                    ? [
+                        'uuid' => $this->product->uuid,
+                        'name' => $this->product->name,
+                        'code' => $this->product->code,
+                        'sku' => $this->product->sku,
+                    ]
+                    : null
             ),
-
-            /*
-            |--------------------------------------------------------------------------
-            | Variant
-            |--------------------------------------------------------------------------
-            */
-
-            'product_variant_id' => $this->product_variant_id,
 
             'variant' => $this->whenLoaded(
                 'variant',
-                fn () => [
-                    'id' => $this->variant->id,
-                    'uuid' => $this->variant->uuid,
-                    'code' => $this->variant->code,
-                    'name' => $this->variant->name,
-                ]
+                fn () => $this->variant
+                    ? [
+                        'uuid' => $this->variant->uuid,
+                        'name' => $this->variant->name,
+                    ]
+                    : null
             ),
-
-            /*
-            |--------------------------------------------------------------------------
-            | Batch
-            |--------------------------------------------------------------------------
-            */
-
-            'product_batch_id' => $this->product_batch_id,
 
             'batch' => $this->whenLoaded(
                 'batch',
-                fn () => [
-                    'id' => $this->batch->id,
-                    'uuid' => $this->batch->uuid,
-                    'batch_no' => $this->batch->batch_no,
-                ]
+                fn () => $this->batch
+                    ? [
+                        'uuid' => $this->batch->uuid,
+                        'batch_no' => $this->batch->batch_no,
+                    ]
+                    : null
             ),
-
-            /*
-            |--------------------------------------------------------------------------
-            | Serial
-            |--------------------------------------------------------------------------
-            */
-
-            'product_serial_id' => $this->product_serial_id,
 
             'serial' => $this->whenLoaded(
                 'serial',
-                fn () => [
-                    'id' => $this->serial->id,
-                    'uuid' => $this->serial->uuid,
-                    'serial_number' => $this->serial->serial_number,
-                ]
+                fn () => $this->serial
+                    ? [
+                        'uuid' => $this->serial->uuid,
+                        'serial_number' =>
+                            $this->serial->serial_number,
+                        'imei_number' =>
+                            $this->serial->imei_number,
+                    ]
+                    : null
             ),
-
-            /*
-            |--------------------------------------------------------------------------
-            | Quantity & Cost
-            |--------------------------------------------------------------------------
-            */
 
             'quantity' => $this->quantity,
 
@@ -107,13 +65,11 @@ class OpeningStockItemResource extends JsonResource
 
             'total_cost' => $this->total_cost,
 
-            /*
-            |--------------------------------------------------------------------------
-            | Remarks
-            |--------------------------------------------------------------------------
-            */
-
             'remarks' => $this->remarks,
+
+            'created_at' => $this->created_at,
+
+            'updated_at' => $this->updated_at,
         ];
     }
 }

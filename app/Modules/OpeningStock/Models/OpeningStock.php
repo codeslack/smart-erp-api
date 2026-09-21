@@ -54,12 +54,19 @@ class OpeningStock extends TenantModel
         );
     }
 
-    public function items(): HasMany
+    public function sources(): HasMany
     {
         return $this->hasMany(
-            OpeningStockItem::class
+            OpeningStockSource::class
         );
     }
+
+    // public function items(): HasMany
+    // {
+    //     return $this->hasMany(
+    //         OpeningStockItem::class
+    //     );
+    // }
 
     public function creator(): BelongsTo
     {

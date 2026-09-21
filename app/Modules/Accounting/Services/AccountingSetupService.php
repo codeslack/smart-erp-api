@@ -2,6 +2,7 @@
 
 namespace App\Modules\Accounting\Services;
 
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use App\Modules\Tenant\Models\Tenant;
 use App\Modules\Accounting\Enums\AccountType;
@@ -79,6 +80,8 @@ class AccountingSetupService
         ) {
 
             $accounts[] = [
+
+                'uuid' => (string) Str::uuid(),
 
                 'tenant_id' =>
                     $tenant->id,
@@ -248,6 +251,13 @@ class AccountingSetupService
                 'group' => 'equity',
                 'code'  => AccountingAccounts::OWNER_EQUITY,
                 'name'  => 'Owner Equity',
+                'type'  => AccountType::EQUITY,
+            ],
+
+            [
+                'group' => 'equity',
+                'code'  => AccountingAccounts::OPENING_BALANCE_EQUITY,
+                'name'  => 'Opening Balance Equity',
                 'type'  => AccountType::EQUITY,
             ],
 

@@ -10,11 +10,12 @@ use App\Modules\Inventory\Models\StockLedger;
 
 use App\Modules\Inventory\Data\InventoryReversalData;
 
-use App\Modules\Inventory\Enums\StockTransactionTypeEnum;
+use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
 use App\Modules\Inventory\Enums\InventoryCostLayerStatusEnum;
 
 use App\Modules\Inventory\Repositories\Contracts\StockLedgerRepositoryInterface;
 use App\Modules\Inventory\Repositories\Contracts\ProductStockRepositoryInterface;
+use App\Modules\Inventory\Repositories\Contracts\ProductBatchRepositoryInterface;
 use App\Modules\Inventory\Repositories\Contracts\InventoryCostLayerRepositoryInterface;
 use App\Modules\Inventory\Repositories\Contracts\InventoryCostLayerConsumptionRepositoryInterface;
 
@@ -30,6 +31,8 @@ class InventoryReversalService
         protected InventoryCostLayerRepositoryInterface $layerRepository,
 
         protected InventoryCostLayerConsumptionRepositoryInterface $consumptionRepository,
+
+        protected ProductBatchRepositoryInterface $batchRepository,
     ) {}
 
     public function reverse(
@@ -203,6 +206,58 @@ class InventoryReversalService
             );
 
         /*
+        |--------------------------------------------------------------------------
+        | Reverse Product Batch
+        |--------------------------------------------------------------------------
+        |
+        | The original stock-in increased batch.remaining_quantity.
+        | Reversal must remove exactly that quantity.
+        |
+        | original_quantity must never be changed.
+        |
+        */
+
+        if ($ledger->product_batch_id) {
+
+            $batch =
+                $this->batchRepository
+                    ->findForUpdate(
+                        $ledger->product_batch_id
+                    );
+
+            if (! $batch) {
+                throw new BusinessException(
+                    'Product batch not found.',
+                    'BATCH_NOT_FOUND'
+                );
+            }
+
+            $currentRemaining =
+                (float) $batch->remaining_quantity;
+
+            if (
+                bccomp(
+                    (string) $currentRemaining,
+                    (string) $reverseQuantity,
+                    4
+                ) < 0
+            ) {
+                throw new BusinessException(
+                    'Batch quantity is insufficient for reversal.',
+                    'INSUFFICIENT_BATCH_QUANTITY_FOR_REVERSAL'
+                );
+            }
+
+            $this->batchRepository->update(
+                $batch,
+                [
+                    'remaining_quantity' =>
+                        $currentRemaining - $reverseQuantity,
+                ]
+            );
+        }
+
+        /*
         * FIFO layer is not consumed here.
         * It is the exact layer being reversed.
         */
@@ -241,7 +296,7 @@ class InventoryReversalService
                 $ledger->product_serial_id,
 
             'transaction_type' =>
-                \App\Modules\Inventory\Enums\StockTransactionTypeEnum::REVERSAL_OUT,
+                \App\Modules\Inventory\Enums\InventoryTransactionTypeEnum::REVERSAL_OUT,
 
             'transaction_date' =>
                 $movementDate,
@@ -542,7 +597,7 @@ class InventoryReversalService
                 $ledger->product_serial_id,
 
             'transaction_type' =>
-                StockTransactionTypeEnum::REVERSAL_IN,
+                InventoryTransactionTypeEnum::REVERSAL_IN,
 
             'transaction_date' =>
                 $data->reversalDate,

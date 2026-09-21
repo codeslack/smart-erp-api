@@ -18,103 +18,123 @@ use App\Modules\OpeningStock\Requests\UpdateOpeningStockRequest;
 class OpeningStockController extends ApiController
 {
     public function __construct(
-        protected OpeningStockService $service
-    ) {
-    }
+        protected OpeningStockService $service,
+    ) {}
 
     public function index(): JsonResponse
     {
         $openingStocks = OpeningStock::query()
             ->with([
                 'warehouse',
-                'supplier',
+                'sources.supplier',
+                'sources.items.product',
+                'sources.items.variant',
+                'sources.items.batch',
+                'sources.items.serial',
             ])
             ->latest('id')
             ->paginate();
 
         return $this->success(
-            data: OpeningStockResource::collection(
-                $openingStocks
-            ),
-            message: 'Opening stocks retrieved successfully.'
+            data: OpeningStockResource::collection($openingStocks),
+            message: 'Opening stocks retrieved successfully.',
         );
     }
 
     public function store(
-        StoreOpeningStockRequest $request
+        StoreOpeningStockRequest $request,
     ): JsonResponse {
-
         $openingStock = $this->service->create(
-            $request->validated()
+            $request->validated(),
         );
 
         return $this->success(
             data: new OpeningStockResource(
                 $openingStock->load([
                     'warehouse',
-                    'supplier',
-                    'items.product',
-                    'items.variant',
-                ])
+                    'sources.supplier',
+                    'sources.items.product',
+                    'sources.items.variant',
+                    'sources.items.batch',
+                    'sources.items.serial',
+                ]),
             ),
             message: 'Opening stock created successfully.',
-            status: 201
+            status: 201,
         );
     }
 
     public function show(
-        OpeningStock $openingStock
+        OpeningStock $openingStock,
     ): JsonResponse {
-
         $openingStock->load([
             'warehouse',
-            'supplier',
-            'items.product',
-            'items.variant',
-            'items.batch',
-            'items.serial',
+            'sources.supplier',
+            'sources.items.product',
+            'sources.items.variant',
+            'sources.items.batch',
+            'sources.items.serial',
         ]);
 
         return $this->success(
-            data: new OpeningStockResource(
-                $openingStock
-            )
+            data: new OpeningStockResource($openingStock),
         );
     }
 
     public function update(
         UpdateOpeningStockRequest $request,
-        OpeningStock $openingStock
+        OpeningStock $openingStock,
     ): JsonResponse {
-
         $openingStock = $this->service->update(
             $openingStock,
-            $request->validated()
+            $request->validated(),
         );
 
         return $this->success(
             data: new OpeningStockResource(
                 $openingStock->load([
                     'warehouse',
-                    'supplier',
-                    'items.product',
-                    'items.variant',
-                ])
+                    'sources.supplier',
+                    'sources.items.product',
+                    'sources.items.variant',
+                    'sources.items.batch',
+                    'sources.items.serial',
+                ]),
             ),
-            message: 'Opening stock updated successfully.'
+            message: 'Opening stock updated successfully.',
         );
     }
 
     public function destroy(
-        OpeningStock $openingStock
+        OpeningStock $openingStock,
     ): JsonResponse {
-
-        $this->service->delete(
-            $openingStock
-        );
+        $this->service->delete($openingStock);
 
         return $this->success(
-            message: 'Opening stock deleted successfully.'
+            message: 'Opening stock deleted successfully.',
         );
     }
+
+    public function approve(
+        OpeningStock $openingStock,
+    ): JsonResponse {
+        
+        $openingStock = $this->service->approve($openingStock);
+
+        return $this->success(
+            data: new OpeningStockResource(
+                $openingStock->load([
+                    'warehouse',
+                    'sources.supplier',
+                    'sources.items.product',
+                    'sources.items.variant',
+                    'sources.items.batch',
+                    'sources.items.serial',
+                ]),
+            ),
+            message: 'Opening stock approved successfully.',
+        );
+    }
+        
 }
+

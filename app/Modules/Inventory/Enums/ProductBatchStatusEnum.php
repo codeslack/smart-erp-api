@@ -1,9 +1,11 @@
 <?php
 
-namespace App\Modules\Product\Enums;
+namespace App\Modules\Inventory\Enums;
 
-enum BatchStatusEnum: string
+enum ProductBatchStatusEnum: string
 {
+    case DRAFT = 'DRAFT';
+    
     case ACTIVE = 'ACTIVE';
 
     case EXPIRED = 'EXPIRED';

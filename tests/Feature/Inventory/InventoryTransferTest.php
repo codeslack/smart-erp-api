@@ -192,7 +192,7 @@ class InventoryTransferTest extends TestCase
                         0,
 
                     transactionType:
-                        'TRANSFER_OUT',
+                        'STOCK_TRANSFER_OUT',
 
                     transactionDate:
                         now(),
@@ -242,7 +242,7 @@ class InventoryTransferTest extends TestCase
                         (float) $outLedger->unit_cost,
 
                     transactionType:
-                        'TRANSFER_IN',
+                        'STOCK_TRANSFER_IN',
 
                     transactionDate:
                         now(),
@@ -388,7 +388,7 @@ class InventoryTransferTest extends TestCase
                     $this->sourceWarehouse->id,
 
                 'transaction_type' =>
-                    'TRANSFER_OUT',
+                    'STOCK_TRANSFER_OUT',
             ]
         );
 
@@ -399,7 +399,7 @@ class InventoryTransferTest extends TestCase
                     $this->destinationWarehouse->id,
 
                 'transaction_type' =>
-                    'TRANSFER_IN',
+                    'STOCK_TRANSFER_IN',
             ]
         );
     }

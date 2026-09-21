@@ -2,15 +2,15 @@
 
 namespace App\Modules\Accounting\Models;
 
-use App\Core\Tenant\Models\TenantModel;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+
+use App\Core\Models\TenantModel;
 
 class AccountGroup extends TenantModel
 {
     protected $table = 'account_groups';
 
     protected $fillable = [
-        'tenant_id',
         'name',
         'code',
     ];

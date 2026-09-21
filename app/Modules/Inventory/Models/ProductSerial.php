@@ -2,9 +2,10 @@
 
 namespace App\Modules\Inventory\Models;
 
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 use App\Core\Models\TenantModel;
 
@@ -36,24 +37,13 @@ class ProductSerial extends TenantModel
         );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Product
-    |--------------------------------------------------------------------------
-    */
-
     public function product(): BelongsTo
     {
         return $this->belongsTo(
-            Product::class
+            Product::class,
+            'product_id'
         );
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Variant
-    |--------------------------------------------------------------------------
-    */
 
     public function variant(): BelongsTo
     {
@@ -63,24 +53,13 @@ class ProductSerial extends TenantModel
         );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Warehouse
-    |--------------------------------------------------------------------------
-    */
-
     public function warehouse(): BelongsTo
     {
         return $this->belongsTo(
-            Warehouse::class
+            Warehouse::class,
+            'warehouse_id'
         );
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Batch
-    |--------------------------------------------------------------------------
-    */
 
     public function batch(): BelongsTo
     {
@@ -90,16 +69,16 @@ class ProductSerial extends TenantModel
         );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Stock Ledger
-    |--------------------------------------------------------------------------
-    */
+    public function sourceable(): MorphTo
+    {
+        return $this->morphTo();
+    }
 
     public function stockLedgers(): HasMany
     {
         return $this->hasMany(
-            StockLedger::class
+            StockLedger::class,
+            'product_serial_id'
         );
     }
 }

@@ -2,23 +2,27 @@
 
 namespace App\Modules\Accounting\Models;
 
-use App\Modules\User\Models\User;
-use App\Core\Tenant\Models\TenantModel;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+use App\Core\Models\TenantModel;
+
+use App\Modules\User\Models\User;
+
 class JournalEntry extends TenantModel
 {
-    protected $fillable = [
+    protected $table = 'journal_entries';
 
-        'tenant_id',
+    protected $fillable = [
 
         'voucher_no',
         'voucher_type',
 
         'reference_type',
         'reference_id',
+        'reversal_of_journal_entry_id',
 
         'entry_date',
 
@@ -33,10 +37,15 @@ class JournalEntry extends TenantModel
         'status' => 'draft',
     ];
 
-    protected $casts = [
-
-        'entry_date' => 'date',
-    ];
+    protected function casts(): array
+    {
+        return array_merge(
+            parent::casts(),
+            [
+                'entry_date' => 'date',
+            ]
+        );
+    }
 
     public function lines(): HasMany
     {
@@ -63,5 +72,21 @@ class JournalEntry extends TenantModel
         return $this->hasMany(
             AccountLedger::class
         );
-    }    
+    }
+
+    public function reversalOf(): BelongsTo
+    {
+        return $this->belongsTo(
+            self::class,
+            'reversal_of_journal_entry_id'
+        );
+    }
+
+    public function reversal(): HasOne
+    {
+        return $this->hasOne(
+            self::class,
+            'reversal_of_journal_entry_id'
+        );
+    }
 }

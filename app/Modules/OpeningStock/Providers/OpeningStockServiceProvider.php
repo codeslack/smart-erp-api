@@ -6,7 +6,10 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
 use App\Modules\OpeningStock\Repositories\OpeningStockRepository;
+use App\Modules\OpeningStock\Repositories\OpeningStockSourceRepository;
+
 use App\Modules\OpeningStock\Repositories\Contracts\OpeningStockRepositoryInterface;
+use App\Modules\OpeningStock\Repositories\Contracts\OpeningStockSourceRepositoryInterface;
 
 class OpeningStockServiceProvider
     extends ServiceProvider
@@ -16,6 +19,11 @@ class OpeningStockServiceProvider
         $this->app->bind(
             OpeningStockRepositoryInterface::class,
             OpeningStockRepository::class
+        );
+
+        $this->app->bind(
+            OpeningStockSourceRepositoryInterface::class,
+            OpeningStockSourceRepository::class
         );
     }
 

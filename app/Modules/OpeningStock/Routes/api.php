@@ -13,4 +13,9 @@ Route::middleware([
         'opening-stocks',
         OpeningStockController::class
     );
+
+    Route::post( 
+        'opening-stocks/{openingStock}/approve', 
+        [OpeningStockController::class, 'approve'] 
+    )->name('opening-stocks.approve');
 });

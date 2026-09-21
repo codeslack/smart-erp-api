@@ -14,6 +14,9 @@ return new class extends Migration
 
             $table->id();
 
+            $table->uuid('uuid')
+                ->unique();
+
             $table->foreignId('tenant_id')
                 ->constrained()
                 ->cascadeOnDelete();
@@ -36,6 +39,9 @@ return new class extends Migration
         ) {
 
             $table->id();
+
+            $table->uuid('uuid')
+                ->unique();
 
             $table->foreignId('tenant_id')
                 ->constrained()
@@ -103,6 +109,9 @@ return new class extends Migration
 
             $table->id();
 
+            $table->uuid('uuid')
+                ->unique();
+
             $table->foreignId('tenant_id')
                 ->constrained()
                 ->cascadeOnDelete();
@@ -112,6 +121,11 @@ return new class extends Migration
             $table->string('voucher_type', 100);
 
             $table->nullableMorphs('reference');
+
+            $table->foreignId('reversal_of_journal_entry_id')
+                ->nullable()
+                ->constrained('journal_entries')
+                ->nullOnDelete();
 
             $table->date('entry_date');
 
@@ -150,6 +164,11 @@ return new class extends Migration
                 'tenant_id',
                 'status'
             ]);
+
+            $table->index(
+                ['tenant_id', 'reversal_of_journal_entry_id'],
+                'je_tenant_reversal_idx'
+            );
         });
 
         Schema::create('journal_entry_lines', function (
@@ -157,6 +176,9 @@ return new class extends Migration
         ) {
 
             $table->id();
+
+            $table->uuid('uuid')
+                ->unique();
 
             $table->foreignId('tenant_id')
                 ->constrained()
@@ -198,6 +220,9 @@ return new class extends Migration
             function (Blueprint $table) {
 
                 $table->id();
+
+                $table->uuid('uuid')
+                    ->unique();
 
                 $table->foreignId('tenant_id')
                     ->constrained()

@@ -2,14 +2,15 @@
 
 namespace App\Modules\Accounting\Models;
 
-use App\Core\Tenant\Models\TenantModel;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+use App\Core\Models\TenantModel;
 
 class JournalEntryLine extends TenantModel
 {
-    protected $fillable = [
+    protected $table = 'journal_entry_lines';
 
-        'tenant_id',
+    protected $fillable = [
 
         'journal_entry_id',
 
@@ -21,11 +22,16 @@ class JournalEntryLine extends TenantModel
         'description',
     ];
 
-    protected $casts = [
-
-        'debit'  => 'decimal:4',
-        'credit' => 'decimal:4',
-    ];
+    protected function casts(): array
+    {
+        return array_merge(
+            parent::casts(),
+            [
+                'debit'  => 'decimal:4',
+                'credit' => 'decimal:4',
+            ]
+        );
+    }
 
     public function journalEntry(): BelongsTo
     {

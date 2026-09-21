@@ -16,7 +16,7 @@ use App\Modules\Inventory\Models\ProductStock;
 use App\Modules\Inventory\Models\StockLedger;
 use App\Modules\Inventory\Data\InventoryMovementData;
 use App\Modules\Inventory\Services\InventoryPostingService;
-use App\Modules\Inventory\Enums\StockTransactionTypeEnum;
+use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
 
 class InventoryConcurrencyTest extends TestCase
 {
@@ -66,7 +66,7 @@ class InventoryConcurrencyTest extends TestCase
             warehouseId: $this->warehouse->id,
             quantity: 100,
             unitCost: 10,
-            transactionType: StockTransactionTypeEnum::OPENING_STOCK->value,
+            transactionType: InventoryTransactionTypeEnum::OPENING_STOCK->value,
             transactionDate: now(),
             referenceType: null,
             referenceId: null,
@@ -87,7 +87,7 @@ class InventoryConcurrencyTest extends TestCase
                     warehouseId: $this->warehouse->id,
                     quantity: 15,
                     unitCost: 10,
-                    transactionType: StockTransactionTypeEnum::SALE->value,
+                    transactionType: InventoryTransactionTypeEnum::SALE->value,
                     transactionDate: now(),
                     referenceType: null,
                     referenceId: null,
@@ -116,7 +116,7 @@ class InventoryConcurrencyTest extends TestCase
         $ledgerCount = StockLedger::query()
             ->where('product_id', $this->product->id)
             ->where('warehouse_id', $this->warehouse->id)
-            ->where('transaction_type', StockTransactionTypeEnum::SALE)
+            ->where('transaction_type', InventoryTransactionTypeEnum::SALE)
             ->count();
 
         $this->assertSame(6, $successful);
@@ -143,7 +143,7 @@ class InventoryConcurrencyTest extends TestCase
             warehouseId: $this->warehouse->id,
             quantity: 20,
             unitCost: 10,
-            transactionType: StockTransactionTypeEnum::OPENING_STOCK->value,
+            transactionType: InventoryTransactionTypeEnum::OPENING_STOCK->value,
             transactionDate: now(),
             referenceType: null,
             referenceId: null,
@@ -160,7 +160,7 @@ class InventoryConcurrencyTest extends TestCase
                 warehouseId: $this->warehouse->id,
                 quantity: 50,
                 unitCost: 10,
-                transactionType: StockTransactionTypeEnum::SALE->value,
+                transactionType: InventoryTransactionTypeEnum::SALE->value,
                 transactionDate: now(),
                 referenceType: null,
                 referenceId: null,

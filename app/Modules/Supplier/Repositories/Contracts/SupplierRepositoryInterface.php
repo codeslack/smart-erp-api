@@ -2,7 +2,7 @@
 
 namespace App\Modules\Supplier\Repositories\Contracts;
 
-use App\Core\Contracts\BaseRepositoryInterface;
+use App\Core\Repositories\Contracts\BaseRepositoryInterface;
 
 interface SupplierRepositoryInterface
-extends BaseRepositoryInterface {}
+    extends BaseRepositoryInterface {}

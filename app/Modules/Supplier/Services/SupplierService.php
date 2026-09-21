@@ -17,7 +17,7 @@ class SupplierService
 
     public function find(int $id)
     {
-        return $this->repository->find($id);
+        return $this->repository->findById($id);
     }
 
     public function create(array $data)
@@ -26,7 +26,7 @@ class SupplierService
     }
 
     public function update(
-        int $id,
+        $id,
         array $data
     ) {
         return $this->repository->update(
@@ -35,7 +35,7 @@ class SupplierService
         );
     }
 
-    public function delete(int $id)
+    public function delete( $id)
     {
         return $this->repository->delete($id);
     }

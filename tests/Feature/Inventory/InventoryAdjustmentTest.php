@@ -21,7 +21,7 @@ use App\Modules\Inventory\Models\ProductStock;
 
 use App\Modules\Inventory\Data\InventoryMovementData;
 use App\Modules\Inventory\Services\InventoryPostingService;
-use App\Modules\Inventory\Enums\StockTransactionTypeEnum;
+use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
 
 class InventoryAdjustmentTest extends TestCase
 {
@@ -129,7 +129,7 @@ class InventoryAdjustmentTest extends TestCase
                     10,
 
                 transactionType:
-                    StockTransactionTypeEnum::OPENING_STOCK->value,
+                    InventoryTransactionTypeEnum::OPENING_STOCK->value,
 
                 transactionDate:
                     now(),
@@ -170,7 +170,7 @@ class InventoryAdjustmentTest extends TestCase
                         10,
 
                     transactionType:
-                        StockTransactionTypeEnum::ADJUSTMENT_IN->value,
+                        InventoryTransactionTypeEnum::STOCK_ADJUSTMENT_IN->value,
 
                     transactionDate:
                         now(),
@@ -201,7 +201,7 @@ class InventoryAdjustmentTest extends TestCase
         );
 
         $this->assertEquals(
-            StockTransactionTypeEnum::ADJUSTMENT_IN,
+            InventoryTransactionTypeEnum::STOCK_ADJUSTMENT_IN,
             $ledger->transaction_type
         );
 
@@ -245,7 +245,7 @@ class InventoryAdjustmentTest extends TestCase
                     10,
 
                 transactionType:
-                    StockTransactionTypeEnum::OPENING_STOCK->value,
+                    InventoryTransactionTypeEnum::OPENING_STOCK->value,
 
                 transactionDate:
                     now(),
@@ -286,7 +286,7 @@ class InventoryAdjustmentTest extends TestCase
                         10,
 
                     transactionType:
-                        StockTransactionTypeEnum::ADJUSTMENT_OUT->value,
+                        InventoryTransactionTypeEnum::STOCK_ADJUSTMENT_OUT->value,
 
                     transactionDate:
                         now(),
@@ -317,7 +317,7 @@ class InventoryAdjustmentTest extends TestCase
         );
 
         $this->assertEquals(
-            StockTransactionTypeEnum::ADJUSTMENT_OUT,
+            InventoryTransactionTypeEnum::STOCK_ADJUSTMENT_OUT,
             $ledger->transaction_type
         );
 

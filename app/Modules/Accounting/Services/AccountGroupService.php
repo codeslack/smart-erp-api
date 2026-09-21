@@ -18,7 +18,7 @@ class AccountGroupService
 
     public function find(int $id)
     {
-        return $this->repository->find($id);
+        return $this->repository->findById($id);
     }
 
     public function create(array $data)

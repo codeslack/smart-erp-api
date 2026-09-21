@@ -14,7 +14,7 @@ use App\Modules\Product\Models\ProductVariant;
 
 use App\Modules\Warehouse\Models\Warehouse;
 
-use App\Modules\Inventory\Enums\StockTransactionTypeEnum;
+use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
 
 class StockLedger extends TenantModel
 {
@@ -42,7 +42,7 @@ class StockLedger extends TenantModel
                 'balance_average_cost' => 'decimal:4',
 
                 'transaction_type' =>
-                    StockTransactionTypeEnum::class,
+                    InventoryTransactionTypeEnum::class,
             ]
         );
     }

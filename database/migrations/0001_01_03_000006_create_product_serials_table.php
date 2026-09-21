@@ -13,27 +13,13 @@ return new class extends Migration
         Schema::create('product_serials', function (
             Blueprint $table
         ) {
-
             $table->id();
 
-            $table->uuid('uuid')
-                ->unique();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Tenant
-            |--------------------------------------------------------------------------
-            */
+            $table->uuid('uuid')->unique();
 
             $table->foreignId('tenant_id')
                 ->constrained('tenants')
                 ->cascadeOnDelete();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Relations
-            |--------------------------------------------------------------------------
-            */
 
             $table->foreignId('product_id')
                 ->constrained('products')
@@ -54,22 +40,26 @@ return new class extends Migration
                 ->nullOnDelete();
 
             /*
-            |--------------------------------------------------------------------------
-            | Serial Information
-            |--------------------------------------------------------------------------
+            | Source document
             */
-
-            $table->string('serial_number', 150);
-
-            $table->string('imei_number', 150)
-                ->nullable();
+            $table->nullableMorphs('sourceable');
 
             /*
-            |--------------------------------------------------------------------------
-            | Cost Information
-            |--------------------------------------------------------------------------
+            | Serial identity
             */
+            $table->string(
+                'serial_number',
+                150
+            );
 
+            $table->string(
+                'imei_number',
+                150
+            )->nullable();
+
+            /*
+            | Cost
+            */
             $table->decimal(
                 'purchase_cost',
                 18,
@@ -77,49 +67,31 @@ return new class extends Migration
             )->default(0);
 
             /*
-            |--------------------------------------------------------------------------
             | Warranty
-            |--------------------------------------------------------------------------
             */
-
-            $table->date('warranty_expiry')
-                ->nullable();
+            $table->date(
+                'warranty_expiry'
+            )->nullable();
 
             /*
-            |--------------------------------------------------------------------------
-            | Sales Tracking
-            |--------------------------------------------------------------------------
+            | Lifecycle
             */
+            $table->string(
+                'status',
+                30
+            )->default(
+                ProductSerialStatusEnum::DRAFT->value
+            );
 
             $table->timestamp('sold_at')
                 ->nullable();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Status
-            |--------------------------------------------------------------------------
-            */
-
-            $table->string('status')
-                ->default(
-                    ProductSerialStatusEnum::AVAILABLE->value
-                );
-
-            /*
-            |--------------------------------------------------------------------------
-            | Notes
-            |--------------------------------------------------------------------------
-            */
 
             $table->text('remarks')
                 ->nullable();
 
             /*
-            |--------------------------------------------------------------------------
             | Audit
-            |--------------------------------------------------------------------------
             */
-
             $table->foreignId('created_by')
                 ->nullable()
                 ->constrained('users')
@@ -131,54 +103,47 @@ return new class extends Migration
                 ->nullOnDelete();
 
             $table->timestamps();
-
             $table->softDeletes();
 
             /*
-            |--------------------------------------------------------------------------
-            | Constraints
-            |--------------------------------------------------------------------------
+            | Serial must be unique per tenant.
             */
-
-            $table->unique(
-                ['tenant_id', 'serial_number'],
-                'product_serials_serial_unique'
-            );
-
-            $table->unique(
-                ['tenant_id', 'imei_number'],
-                'product_serials_imei_unique'
-            );
+            $table->unique([
+                'tenant_id',
+                'serial_number',
+            ], 'product_serials_serial_unique');
 
             /*
-            |--------------------------------------------------------------------------
-            | Indexes
-            |--------------------------------------------------------------------------
+            | IMEI must be unique when supplied.
             */
+            $table->unique([
+                'tenant_id',
+                'imei_number',
+            ], 'product_serials_imei_unique');
 
             $table->index([
                 'tenant_id',
-                'product_id'
+                'product_id',
             ]);
 
             $table->index([
                 'tenant_id',
-                'warehouse_id'
+                'warehouse_id',
             ]);
 
             $table->index([
                 'tenant_id',
-                'status'
+                'status',
             ]);
 
             $table->index([
                 'tenant_id',
-                'sold_at'
+                'product_batch_id',
             ]);
 
             $table->index([
                 'tenant_id',
-                'warranty_expiry'
+                'warranty_expiry',
             ]);
         });
     }

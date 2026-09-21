@@ -70,4 +70,8 @@ Next:
 17. Expense
 18. Ledger
 19. Journal
-20. Reports              
+20. Reports         
+
+
+
+"Act as an expert software engineer. We have a strict architectural constraint for this project: no single file can exceed 8,000 characters.Before you write, modify, or append any code:Check if the target file will exceed 8,000 characters with your changes.If it already exists and is close to or will exceed the limit, you must create a new, separate file (e.g., a new module, helper, or sub-component) and export/import the logic cleanly.Do not combine multiple features into one file. Keep everything modular. Propose the new file structure before writing the code."

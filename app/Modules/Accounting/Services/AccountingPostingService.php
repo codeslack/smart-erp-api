@@ -8,6 +8,8 @@ use App\Modules\Accounting\Services\Postings\ReceiptPostingService;
 use App\Modules\Accounting\Services\Postings\PaymentPostingService;
 use App\Modules\Accounting\Services\Postings\PurchaseReturnPostingService;
 use App\Modules\Accounting\Services\Postings\SalesReturnPostingService;
+use App\Modules\Accounting\Services\Postings\OpeningStockAccountingPostingService;
+
 use App\Modules\Accounting\Services\Contracts\AccountingPostingServiceInterface;
 
 class AccountingPostingService
@@ -20,7 +22,16 @@ class AccountingPostingService
         protected PaymentPostingService $supplierPaymentPosting,
         protected PurchaseReturnPostingService $purchaseReturnPosting,
         protected SalesReturnPostingService $salesReturnPosting,
+        protected OpeningStockAccountingPostingService $openingStockAccountPosting,
     ) {}
+
+    public function postOpeningStock(
+        mixed $openingStock
+    ): void {
+
+        $this->openingStockAccountPosting
+            ->post($openingStock);
+    }
 
     public function postSale(
         mixed $sale

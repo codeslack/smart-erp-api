@@ -25,4 +25,16 @@ enum InventoryTransactionTypeEnum: string
     case MANUFACTURING_IN = 'MANUFACTURING_IN';
 
     case MANUFACTURING_OUT = 'MANUFACTURING_OUT';
+
+    case STOCK_COUNT_GAIN = 'STOCK_COUNT_GAIN';
+    case STOCK_COUNT_LOSS = 'STOCK_COUNT_LOSS';
+
+    case DAMAGE = 'DAMAGE';
+    case EXPIRY = 'EXPIRY';
+
+    case RESERVED = 'RESERVED';
+    case RELEASED = 'RELEASED';
+
+    case REVERSAL_IN = 'REVERSAL_IN';
+    case REVERSAL_OUT = 'REVERSAL_OUT';
 }

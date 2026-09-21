@@ -2,7 +2,10 @@
 
 namespace App\Modules\Inventory\Repositories;
 
+use Illuminate\Support\Collection;
+
 use App\Modules\Inventory\Models\StockLedger;
+
 use App\Modules\Inventory\Repositories\Contracts\StockLedgerRepositoryInterface;
 
 class StockLedgerRepository
@@ -21,7 +24,6 @@ class StockLedgerRepository
     public function create(
         array $data
     ): StockLedger {
-
         return $this->model
             ->newQuery()
             ->create($data);
@@ -36,16 +38,37 @@ class StockLedgerRepository
     public function findById(
         int $id
     ): ?StockLedger {
-
         return $this->model
             ->newQuery()
             ->find($id);
     }
 
+    public function findByReference(
+        string $referenceType,
+        int $referenceId,
+        string $transactionType
+    ): Collection {
+        return $this->model
+            ->newQuery()
+            ->where(
+                'referenceable_type',
+                $referenceType
+            )
+            ->where(
+                'referenceable_id',
+                $referenceId
+            )
+            ->where(
+                'transaction_type',
+                $transactionType
+            )
+            ->orderBy('id')
+            ->get();
+    }
+
     public function findForUpdate(
         int $id
     ): ?StockLedger {
-
         return $this->model
             ->newQuery()
             ->whereKey($id)
@@ -57,7 +80,6 @@ class StockLedgerRepository
         StockLedger $ledger,
         array $data
     ): StockLedger {
-
         $ledger->update($data);
 
         return $ledger->refresh();
@@ -72,7 +94,6 @@ class StockLedgerRepository
     public function findReversalByOriginalLedgerId(
         int $ledgerId
     ): ?StockLedger {
-
         return $this->model
             ->newQuery()
             ->where(
@@ -85,7 +106,6 @@ class StockLedgerRepository
     public function hasReversal(
         int $ledgerId
     ): bool {
-
         return $this->model
             ->newQuery()
             ->where(
@@ -95,20 +115,73 @@ class StockLedgerRepository
             ->exists();
     }
 
+    public function hasActiveStockInForSerial(
+        int $serialId
+    ): bool {
+        return $this->model
+            ->newQuery()
+            ->where(
+                'product_serial_id',
+                $serialId
+            )
+            ->where(
+                'quantity_in',
+                '>',
+                0
+            )
+            ->whereDoesntHave(
+                'reversal'
+            )
+            ->exists();
+    }
+
     /*
     |--------------------------------------------------------------------------
-    | Next Sequence Number
+    | Inventory History
     |--------------------------------------------------------------------------
-    |
-    | Sequence is maintained per:
-    |
-    | Tenant
-    | Product
-    | Variant
-    | Warehouse
-    |
-    | Used inside a database transaction.
-    |
+    */
+
+    public function hasOtherMovementForBatch(
+        int $batchId,
+        int $openingLedgerId
+    ): bool {
+        return $this->model
+            ->newQuery()
+            ->where(
+                'product_batch_id',
+                $batchId
+            )
+            ->where(
+                'id',
+                '!=',
+                $openingLedgerId
+            )
+            ->exists();
+    }
+
+    public function hasOtherMovementForSerial(
+        int $serialId,
+        int $openingLedgerId
+    ): bool {
+        return $this->model
+            ->newQuery()
+            ->where(
+                'product_serial_id',
+                $serialId
+            )
+            ->where(
+                'id',
+                '!=',
+                $openingLedgerId
+            )
+            ->exists();
+    }
+    
+
+    /*
+    |--------------------------------------------------------------------------
+    | Sequence
+    |--------------------------------------------------------------------------
     */
 
     public function nextSequenceNumber(
@@ -116,7 +189,6 @@ class StockLedgerRepository
         ?int $productVariantId,
         int $warehouseId
     ): int {
-
         return (
             $this->model
                 ->newQuery()

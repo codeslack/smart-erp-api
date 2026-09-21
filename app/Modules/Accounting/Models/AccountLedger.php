@@ -2,14 +2,15 @@
 
 namespace App\Modules\Accounting\Models;
 
-use App\Core\Tenant\Models\TenantModel;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+use App\Core\Models\TenantModel;
 
 class AccountLedger extends TenantModel
 {
-    protected $fillable = [
+    protected $table = 'account_ledgers';
 
-        'tenant_id',
+    protected $fillable = [
 
         'chart_of_account_id',
 
@@ -32,20 +33,25 @@ class AccountLedger extends TenantModel
         'description',
     ];
 
-    protected $casts = [
+    protected function casts(): array
+    {
+        return array_merge(
+            parent::casts(),
+            [
+                'entry_date'
+                    => 'date',
 
-        'entry_date'
-            => 'date',
+                'debit'
+                    => 'decimal:4',
 
-        'debit'
-            => 'decimal:4',
+                'credit'
+                    => 'decimal:4',
 
-        'credit'
-            => 'decimal:4',
-
-        'running_balance'
-            => 'decimal:4',
-    ];
+                'running_balance'
+                    => 'decimal:4',
+            ]
+        );
+    }
 
     public function account(): BelongsTo
     {

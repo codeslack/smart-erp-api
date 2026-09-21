@@ -1,0 +1,30 @@
+<?php
+
+namespace App\Modules\Accounting\Enums;
+
+enum JournalVoucherTypeEnum: string
+{
+    case OPENING_STOCK = 'OPENING_STOCK';
+
+    case OPENING_STOCK_REVERSAL = 'OPENING_STOCK_REVERSAL';
+
+    case PURCHASE = 'PURCHASE';
+
+    case PURCHASE_RETURN = 'PURCHASE_RETURN';
+
+    case SALE = 'SALE';
+
+    case SALES_RETURN = 'SALES_RETURN';
+
+    case PAYMENT = 'PAYMENT';
+
+    case RECEIPT = 'RECEIPT';
+
+    case CUSTOMER_ADVANCE_ADJUSTMENT = 'CUSTOMER_ADVANCE_ADJUSTMENT';
+
+    case SUPPLIER_ADVANCE_ADJUSTMENT = 'SUPPLIER_ADVANCE_ADJUSTMENT';
+
+    case JOURNAL = 'JOURNAL';
+
+    case REVERSAL = 'REVERSAL';
+}

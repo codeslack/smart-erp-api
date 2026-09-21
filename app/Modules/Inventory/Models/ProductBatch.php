@@ -2,24 +2,23 @@
 
 namespace App\Modules\Inventory\Models;
 
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-
-use App\Modules\Product\Enums\BatchStatusEnum;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 use App\Core\Models\TenantModel;
 
+use App\Modules\Inventory\Enums\ProductBatchStatusEnum;
 
 use App\Modules\Product\Models\Product;
-use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Product\Models\ProductVariant;
+use App\Modules\Warehouse\Models\Warehouse;
 
 class ProductBatch extends TenantModel
 {
     use SoftDeletes;
-    
+
     protected $table = 'product_batches';
 
     protected function casts(): array
@@ -28,38 +27,27 @@ class ProductBatch extends TenantModel
             parent::casts(),
             [
                 'manufacturing_date' => 'date',
-
-                'received_at' => 'datetime',
-
                 'expiry_date' => 'date',
+                'received_at' => 'datetime',
 
                 'unit_cost' => 'decimal:4',
 
                 'original_quantity' => 'decimal:4',
                 'remaining_quantity' => 'decimal:4',
 
-                'status' => BatchStatusEnum::class,
+                'status' => ProductBatchStatusEnum::class,
             ]
         );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Product
-    |--------------------------------------------------------------------------
-    */
-
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(
+            Product::class,
+            'product_id'
+        );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Variant
-    |--------------------------------------------------------------------------
-    */
-    
     public function variant(): BelongsTo
     {
         return $this->belongsTo(
@@ -68,59 +56,32 @@ class ProductBatch extends TenantModel
         );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Warehouse
-    |--------------------------------------------------------------------------
-    */
-
     public function warehouse(): BelongsTo
     {
         return $this->belongsTo(
-            Warehouse::class
+            Warehouse::class,
+            'warehouse_id'
         );
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Source Document
-    |--------------------------------------------------------------------------
-    |
-    | Opening Stock
-    | Purchase
-    | Production
-    | Adjustment
-    |
-    */
 
     public function sourceable(): MorphTo
     {
         return $this->morphTo();
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Serials
-    |--------------------------------------------------------------------------
-    */
-
     public function serials(): HasMany
     {
         return $this->hasMany(
-            ProductSerial::class
+            ProductSerial::class,
+            'product_batch_id'
         );
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Stock Ledger
-    |--------------------------------------------------------------------------
-    */
 
     public function stockLedgers(): HasMany
     {
         return $this->hasMany(
-            StockLedger::class
+            StockLedger::class,
+            'product_batch_id'
         );
     }
 }

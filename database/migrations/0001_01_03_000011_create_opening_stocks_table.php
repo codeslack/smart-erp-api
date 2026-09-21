@@ -8,89 +8,67 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('opening_stock_items', function (
+        Schema::create('opening_stocks', function (
             Blueprint $table
         ) {
 
             $table->id();
 
+            $table->uuid('uuid')
+                ->unique();
+
             /*
             |--------------------------------------------------------------------------
-            | Header
+            | Tenant
             |--------------------------------------------------------------------------
             */
 
-            $table->foreignId('opening_stock_id')
-                ->constrained('opening_stocks')
+            $table->foreignId('tenant_id')
+                ->constrained('tenants')
                 ->cascadeOnDelete();
 
             /*
             |--------------------------------------------------------------------------
-            | Product
+            | Document
             |--------------------------------------------------------------------------
             */
 
-            $table->foreignId('product_id')
-                ->constrained('products')
+            $table->string('document_no', 50);
+
+            $table->date('opening_date');
+
+            $table->string('status', 20)
+                ->default('draft');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Relations
+            |--------------------------------------------------------------------------
+            */
+
+            $table->foreignId('warehouse_id')
+                ->constrained('warehouses')
                 ->cascadeOnDelete();
 
-            $table->foreignId('product_variant_id')
+            $table->foreignId('supplier_id')
                 ->nullable()
-                ->constrained('product_variants')
+                ->constrained('suppliers')
                 ->nullOnDelete();
 
             /*
             |--------------------------------------------------------------------------
-            | Batch Tracking
-            |--------------------------------------------------------------------------
-            */
-
-            $table->foreignId('product_batch_id')
-                ->nullable()
-                ->constrained('product_batches')
-                ->nullOnDelete();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Serial Tracking
-            |--------------------------------------------------------------------------
-            |
-            | For serialized products an item normally
-            | represents one serial.
-            |
-            */
-
-            $table->foreignId('product_serial_id')
-                ->nullable()
-                ->constrained('product_serials')
-                ->nullOnDelete();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Quantity
+            | Summary
             |--------------------------------------------------------------------------
             */
 
             $table->decimal(
-                'quantity',
-                18,
-                4
-            )->default(0);
-
-            /*
-            |--------------------------------------------------------------------------
-            | Costing
-            |--------------------------------------------------------------------------
-            */
-
-            $table->decimal(
-                'unit_cost',
+                'total_quantity',
                 18,
                 4
             )->default(0);
 
             $table->decimal(
-                'total_cost',
+                'total_amount',
                 18,
                 4
             )->default(0);
@@ -104,7 +82,36 @@ return new class extends Migration
             $table->text('remarks')
                 ->nullable();
 
+            /*
+            |--------------------------------------------------------------------------
+            | Audit
+            |--------------------------------------------------------------------------
+            */
+
+            $table->foreignId('created_by')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
+
+            $table->foreignId('updated_by')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
+
             $table->timestamps();
+
+            $table->softDeletes();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Constraints
+            |--------------------------------------------------------------------------
+            */
+
+            $table->unique(
+                ['tenant_id', 'document_no'],
+                'opening_stocks_tenant_document_no_unique'
+            );
 
             /*
             |--------------------------------------------------------------------------
@@ -112,26 +119,30 @@ return new class extends Migration
             |--------------------------------------------------------------------------
             */
 
+            $table->index('tenant_id');
+
+            $table->index('warehouse_id');
+
+            $table->index('status');
+
+            $table->index('opening_date');
+
             $table->index([
-                'opening_stock_id',
-                'product_id',
+                'tenant_id',
+                'status',
             ]);
 
             $table->index([
-                'product_id',
-                'product_variant_id',
+                'tenant_id',
+                'opening_date',
             ]);
-
-            $table->index('product_batch_id');
-
-            $table->index('product_serial_id');
         });
     }
 
     public function down(): void
     {
         Schema::dropIfExists(
-            'opening_stock_items'
+            'opening_stocks'
         );
     }
 };

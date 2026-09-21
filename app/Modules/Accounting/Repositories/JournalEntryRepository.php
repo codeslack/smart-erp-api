@@ -20,12 +20,45 @@ class JournalEntryRepository
 
     public function findWithLines(
         int|string $id
-    )
-    {
+    ): JournalEntry {
         return $this->model
+            ->newQuery()
             ->with([
                 'lines.account',
             ])
             ->findOrFail($id);
-    }    
+    }
+
+    public function findPostedByReference(
+        string $referenceType,
+        int $referenceId,
+        string $voucherType
+    ): ?JournalEntry {
+        return $this->model
+            ->newQuery()
+            ->where(
+                'reference_type',
+                $referenceType
+            )
+            ->where(
+                'reference_id',
+                $referenceId
+            )
+            ->where(
+                'voucher_type',
+                $voucherType
+            )
+            ->where(
+                'status',
+                'posted'
+            )
+            ->whereNull(
+                'reversal_of_journal_entry_id'
+            )
+            ->with([
+                'lines.account',
+                'reversal',
+            ])
+            ->first();
+    }
 }

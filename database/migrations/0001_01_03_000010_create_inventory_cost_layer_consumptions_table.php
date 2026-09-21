@@ -11,7 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('inventory_cost_layer_consumptions', function (Blueprint $table) {
+        Schema::create('inventory_cost_layer_consumptions', function (
+            Blueprint $table
+        ) {
 
             /*
             |--------------------------------------------------------------------------

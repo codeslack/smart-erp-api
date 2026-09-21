@@ -17,15 +17,15 @@ class InventoryModule implements ModuleInterface
     {
         return [
 
-            'inventory.view',
-            'inventory.create',
-            'inventory.update',
-            'inventory.delete',
+            // 'inventory.view',
+            // 'inventory.create',
+            // 'inventory.update',
+            // 'inventory.delete',
 
-            'inventory-variant.view',
-            'inventory-variant.create',
-            'inventory-variant.update',
-            'inventory-variant.delete',
+            // 'inventory-variant.view',
+            // 'inventory-variant.create',
+            // 'inventory-variant.update',
+            // 'inventory-variant.delete',
         ];
     }
 

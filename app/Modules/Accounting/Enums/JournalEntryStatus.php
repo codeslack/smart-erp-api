@@ -2,11 +2,13 @@
 
 namespace App\Modules\Accounting\Enums;
 
-class JournalEntryStatus
+enum JournalEntryStatusEnum: string
 {
-    public const DRAFT = 'draft';
+    case DRAFT = 'draft';
 
-    public const POSTED = 'posted';
+    case POSTED = 'posted';
 
-    public const CANCELLED = 'cancelled';
+    case CANCELLED = 'cancelled';
+
+    case REVERSED = 'reversed';
 }

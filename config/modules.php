@@ -36,6 +36,7 @@ return [
     | Transaction
     |--------------------------------------------------------------------------
     */
+    App\Modules\Accounting\AccountingModule::class,
     App\Modules\Inventory\InventoryModule::class,
     App\Modules\OpeningStock\OpeningStockModule::class,
 

@@ -4,19 +4,20 @@ namespace App\Modules\OpeningStock\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-use App\Core\Models\BaseModel;
+use App\Core\Models\TenantModel;
 
 use App\Modules\Product\Models\Product;
 use App\Modules\Inventory\Models\ProductBatch;
 use App\Modules\Inventory\Models\ProductSerial;
 use App\Modules\Product\Models\ProductVariant;
 
-class OpeningStockItem extends BaseModel
+class OpeningStockItem extends TenantModel
 {
     protected $table = 'opening_stock_items';
 
     protected $fillable = [
-        'opening_stock_id',
+        
+        'opening_stock_source_id',
 
         'product_id',
         'product_variant_id',
@@ -47,10 +48,10 @@ class OpeningStockItem extends BaseModel
     |--------------------------------------------------------------------------
     */
 
-    public function openingStock(): BelongsTo
+    public function openingStockSource(): BelongsTo
     {
         return $this->belongsTo(
-            OpeningStock::class
+            OpeningStockSource::class
         );
     }
 

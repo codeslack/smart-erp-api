@@ -7,11 +7,15 @@ use Illuminate\Support\ServiceProvider;
 
 use App\Modules\Inventory\Repositories\StockLedgerRepository;
 use App\Modules\Inventory\Repositories\ProductStockRepository;
+use App\Modules\Inventory\Repositories\ProductBatchRepository;
+use App\Modules\Inventory\Repositories\ProductSerialRepository;
 use App\Modules\Inventory\Repositories\InventoryCostLayerRepository;
 use App\Modules\Inventory\Repositories\InventoryCostLayerConsumptionRepository;
 
 use App\Modules\Inventory\Repositories\Contracts\StockLedgerRepositoryInterface;
 use App\Modules\Inventory\Repositories\Contracts\ProductStockRepositoryInterface;
+use App\Modules\Inventory\Repositories\Contracts\ProductBatchRepositoryInterface;
+use App\Modules\Inventory\Repositories\Contracts\ProductSerialRepositoryInterface;
 use App\Modules\Inventory\Repositories\Contracts\InventoryCostLayerRepositoryInterface;
 use App\Modules\Inventory\Repositories\Contracts\InventoryCostLayerConsumptionRepositoryInterface;
 
@@ -37,6 +41,21 @@ class InventoryServiceProvider extends ServiceProvider
         $this->app->bind(
             InventoryCostLayerConsumptionRepositoryInterface::class,
             InventoryCostLayerConsumptionRepository::class
+        );
+
+        $this->app->bind(
+            InventoryCostLayerConsumptionRepositoryInterface::class,
+            InventoryCostLayerConsumptionRepository::class
+        );
+
+        $this->app->bind(
+            ProductBatchRepositoryInterface::class,
+            ProductBatchRepository::class
+        );
+
+        $this->app->bind(
+            ProductSerialRepositoryInterface::class,
+            ProductSerialRepository::class
         );
     }
 

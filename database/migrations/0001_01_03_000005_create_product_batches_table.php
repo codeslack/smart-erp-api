@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Inventory\Enums\ProductBatchStatusEnum;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -11,27 +12,13 @@ return new class extends Migration
         Schema::create('product_batches', function (
             Blueprint $table
         ) {
-
             $table->id();
 
-            $table->uuid('uuid')
-                ->unique();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Tenant
-            |--------------------------------------------------------------------------
-            */
+            $table->uuid('uuid')->unique();
 
             $table->foreignId('tenant_id')
                 ->constrained('tenants')
                 ->cascadeOnDelete();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Product
-            |--------------------------------------------------------------------------
-            */
 
             $table->foreignId('product_id')
                 ->constrained('products')
@@ -42,61 +29,32 @@ return new class extends Migration
                 ->constrained('product_variants')
                 ->nullOnDelete();
 
-            /*
-            |--------------------------------------------------------------------------
-            | Warehouse
-            |--------------------------------------------------------------------------
-            */
-
             $table->foreignId('warehouse_id')
                 ->constrained('warehouses')
                 ->cascadeOnDelete();
 
             /*
-            |--------------------------------------------------------------------------
-            | Source Document
-            |--------------------------------------------------------------------------
-            |
-            | Opening Stock
-            | Purchase
-            | Production
-            | Stock Adjustment
-            |
+            | Source document
             */
-
-            $table->nullableMorphs(
-                'sourceable'
-            );
+            $table->nullableMorphs('sourceable');
 
             /*
-            |--------------------------------------------------------------------------
-            | Batch Information
-            |--------------------------------------------------------------------------
+            | Batch identity
             */
+            $table->string('batch_no', 100);
 
-            $table->string(
-                'batch_no',
-                100
-            );
+            $table->date('manufacturing_date')
+                ->nullable();
 
-            $table->date(
-                'manufacturing_date'
-            )->nullable();
+            $table->date('expiry_date')
+                ->nullable();
 
-            $table->dateTime(
-                'received_at'
-            )->nullable();
-
-            $table->date(
-                'expiry_date'
-            )->nullable();
+            $table->dateTime('received_at')
+                ->nullable();
 
             /*
-            |--------------------------------------------------------------------------
-            | Cost Information
-            |--------------------------------------------------------------------------
+            | Cost
             */
-
             $table->decimal(
                 'unit_cost',
                 18,
@@ -104,11 +62,11 @@ return new class extends Migration
             )->default(0);
 
             /*
-            |--------------------------------------------------------------------------
-            | Quantity Tracking
-            |--------------------------------------------------------------------------
+            | Batch quantity
+            |
+            | original_quantity = quantity initially received
+            | remaining_quantity = current quantity remaining
             */
-
             $table->decimal(
                 'original_quantity',
                 18,
@@ -121,30 +79,19 @@ return new class extends Migration
                 4
             )->default(0);
 
-            /*
-            |--------------------------------------------------------------------------
-            | Notes
-            |--------------------------------------------------------------------------
-            */
-
             $table->text('remarks')
                 ->nullable();
 
-            /*
-            |--------------------------------------------------------------------------
-            | Status
-            |--------------------------------------------------------------------------
-            */
-
-            $table->boolean('is_active')
-                ->default(true);
+            $table->string(
+                'status',
+                30
+            )->default(
+                ProductBatchStatusEnum::DRAFT->value
+            );
 
             /*
-            |--------------------------------------------------------------------------
             | Audit
-            |--------------------------------------------------------------------------
             */
-
             $table->foreignId('created_by')
                 ->nullable()
                 ->constrained('users')
@@ -156,31 +103,21 @@ return new class extends Migration
                 ->nullOnDelete();
 
             $table->timestamps();
-
             $table->softDeletes();
 
             /*
-            |--------------------------------------------------------------------------
-            | Constraints
-            |--------------------------------------------------------------------------
+            | Batch identity
             */
-
-            $table->unique(
-                [
-                    'tenant_id',
-                    'product_id',
-                    'warehouse_id',
-                    'batch_no',
-                ],
-                'product_batches_unique_batch'
-            );
+            $table->unique([
+                'tenant_id',
+                'product_id',
+                'warehouse_id',
+                'batch_no',
+            ], 'product_batches_unique_batch');
 
             /*
-            |--------------------------------------------------------------------------
             | Indexes
-            |--------------------------------------------------------------------------
             */
-
             $table->index([
                 'tenant_id',
                 'product_id',
@@ -196,14 +133,15 @@ return new class extends Migration
                 'expiry_date',
             ]);
 
-            $table->index('batch_no');
+            $table->index([
+                'tenant_id',
+                'batch_no',
+            ]);
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists(
-            'product_batches'
-        );
+        Schema::dropIfExists('product_batches');
     }
 };
