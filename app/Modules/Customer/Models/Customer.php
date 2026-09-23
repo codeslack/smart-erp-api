@@ -2,16 +2,18 @@
 
 namespace App\Modules\Customer\Models;
 
-use App\Modules\Sales\Models\Sale;
-use App\Core\Tenant\Models\TenantModel;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Modules\CustomerReceipt\Models\CustomerReceipt;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+use App\Core\Models\TenantModel;
+
+use App\Modules\PaymentTerm\Models\PaymentTerm;
 
 class Customer extends TenantModel
 {
-    protected $fillable = [
+    use SoftDeletes;
 
-        'tenant_id',
+    protected $fillable = [
 
         'name',
         'code',
@@ -25,24 +27,36 @@ class Customer extends TenantModel
 
         'tax_number',
 
+        'payment_term_id',
+
+        'credit_days',
+        'credit_limit',
+        'credit_control',
+
         'is_active',
     ];
 
-    protected $casts = [
-        'is_active' => 'boolean',
-    ];
-
-    public function sales(): HasMany
+    protected function casts(): array
     {
-        return $this->hasMany(
-            Sale::class
+        return array_merge(
+            parent::casts(),
+            [
+                'credit_days' => 'integer',
+                'credit_limit' => 'decimal:4',
+                'is_active' => 'boolean',
+            ]
         );
     }
 
-    public function receipts(): HasMany
+    public function paymentTerm(): BelongsTo
     {
-        return $this->hasMany(
-            CustomerReceipt::class
+        return $this->belongsTo(
+            PaymentTerm::class
         );
+    }
+
+    public function isActive(): bool
+    {
+        return $this->is_active;
     }
 }

@@ -2,10 +2,10 @@
 
 namespace App\Modules\Tenant\Services;
 
-
 use App\Modules\Tenant\Models\Tenant;
 
 use App\Modules\Accounting\Services\AccountingSetupService;
+use App\Modules\PaymentTerm\Services\PaymentTermSetupService;
 use App\Modules\Rbac\Services\PermissionSetupService;
 use App\Modules\Rbac\Services\RoleSetupService;
 use App\Modules\Settings\Services\SettingsSetupService;
@@ -21,6 +21,7 @@ class TenantSetupService
         protected PermissionSetupService $permissions,
         protected UnitSetupService $units,
         protected WarehouseSetupService $warehouses,
+        protected PaymentTermSetupService $paymentTerms,
     ) {
     }
 
@@ -55,6 +56,11 @@ class TenantSetupService
 
         logger()->info('Warehouse Setup');
         $this->warehouses->setup(
+            $tenant
+        );
+
+        logger()->info('Payment Term Setup');
+        $this->paymentTerms->setup(
             $tenant
         );
     }

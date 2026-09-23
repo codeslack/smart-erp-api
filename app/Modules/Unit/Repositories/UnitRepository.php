@@ -22,6 +22,19 @@ class UnitRepository extends BaseRepository
         );
     }
 
+    public function findByUuid(
+        string $uuid
+    ): ?Unit {
+
+        return $this->model
+            ->newQuery()
+            ->where(
+                'uuid',
+                $uuid
+            )
+            ->first();
+    }
+
     public function findByCode(
         string $code
     ): ?Unit {

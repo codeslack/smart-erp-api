@@ -2,14 +2,18 @@
 
 namespace App\Modules\Customer\Controllers;
 
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\ApiController;
+
 use App\Modules\Customer\Models\Customer;
+
 use App\Modules\Customer\Services\CustomerService;
+
 use App\Modules\Customer\Resources\CustomerResource;
+
 use App\Modules\Customer\Requests\StoreCustomerRequest;
 use App\Modules\Customer\Requests\UpdateCustomerRequest;
 
-class CustomerController extends Controller
+class CustomerController extends ApiController
 {
     public function __construct(
         protected CustomerService $service
@@ -17,28 +21,36 @@ class CustomerController extends Controller
 
     public function index()
     {
-        return CustomerResource::collection(
-            $this->service->getAll()
+        $customers = $this->service->paginate();
+
+        return $this->success(
+            CustomerResource::collection($customers),
+            'Customers retrieved successfully.'
         );
     }
 
-    public function store(
-        StoreCustomerRequest $request
-    ) {
-        return new CustomerResource(
-            $this->service->create(
-                $request->validated()
-            )
+    public function store(StoreCustomerRequest $request)
+    {
+        $customer = $this->service->create(
+            $request->validated()
+        );
+
+        return $this->success(
+            new CustomerResource($customer),
+            'Customer created successfully.',
+            201
         );
     }
 
-    public function show(
-        Customer $customer
-    ) {
-        return new CustomerResource(
-            $this->service->find(
-                $customer->id
-            )
+    public function show(Customer $customer)
+    {
+        $customer = $this->service->findByUuid(
+            $customer->uuid
+        );
+
+        return $this->success(
+            new CustomerResource($customer),
+            'Customer retrieved successfully.'
         );
     }
 
@@ -46,23 +58,24 @@ class CustomerController extends Controller
         UpdateCustomerRequest $request,
         Customer $customer
     ) {
-        return new CustomerResource(
-            $this->service->update(
-                $customer->id,
-                $request->validated()
-            )
+        $customer = $this->service->update(
+            $customer,
+            $request->validated()
+        );
+
+        return $this->success(
+            new CustomerResource($customer),
+            'Customer updated successfully.'
         );
     }
 
-    public function destroy(
-        Customer $customer
-    ) {
-        $this->service->delete(
-            $customer->id
-        );
+    public function destroy(Customer $customer)
+    {
+        $this->service->delete($customer);
 
-        return response()->json([
-            'message' => 'Customer deleted successfully',
-        ]);
+        return $this->success(
+            null,
+            'Customer deleted successfully.'
+        );
     }
 }

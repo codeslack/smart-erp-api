@@ -6,8 +6,8 @@ use Throwable;
 use Illuminate\Support\Facades\Log;
 use App\Core\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
-// use Illuminate\Database\QueryException;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -18,6 +18,16 @@ class ApiExceptionHandler
     public function render(
         Throwable $exception
     ): JsonResponse {
+
+        if ($exception instanceof AuthenticationException) {
+
+            return response()->json([
+                'success' => false,
+                'code'    => 'UNAUTHENTICATED',
+                'message' => 'Unauthenticated.',
+                'errors'  => null,
+            ], 401);
+        }
 
         if ($exception instanceof ValidationException) {
 

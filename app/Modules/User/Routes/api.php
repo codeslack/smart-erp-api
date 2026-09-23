@@ -30,11 +30,13 @@ Route::prefix('auth')
             });
     });
 
-Route::middleware('auth:sanctum')
-    ->group(function () {
+Route::middleware([
+    'auth:sanctum',
+    'tenant',
+])->group(function () {
 
-        Route::apiResource(
-            'users',
-            UserController::class
-        );
-    });
+    Route::apiResource(
+        'users',
+        UserController::class
+    );
+});

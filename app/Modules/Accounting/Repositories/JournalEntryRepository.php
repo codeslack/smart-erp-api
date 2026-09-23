@@ -3,6 +3,7 @@
 namespace App\Modules\Accounting\Repositories;
 
 use App\Core\Repositories\BaseRepository;
+
 use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Repositories\Contracts\JournalEntryRepositoryInterface;
 
@@ -13,9 +14,7 @@ class JournalEntryRepository
     public function __construct(
         JournalEntry $model
     ) {
-        parent::__construct(
-            $model
-        );
+        parent::__construct($model);
     }
 
     public function findWithLines(
@@ -23,9 +22,7 @@ class JournalEntryRepository
     ): JournalEntry {
         return $this->model
             ->newQuery()
-            ->with([
-                'lines.account',
-            ])
+            ->with(['lines.account'])
             ->findOrFail($id);
     }
 
@@ -36,29 +33,19 @@ class JournalEntryRepository
     ): ?JournalEntry {
         return $this->model
             ->newQuery()
-            ->where(
-                'reference_type',
-                $referenceType
-            )
-            ->where(
-                'reference_id',
-                $referenceId
-            )
-            ->where(
-                'voucher_type',
-                $voucherType
-            )
-            ->where(
-                'status',
-                'posted'
-            )
-            ->whereNull(
-                'reversal_of_journal_entry_id'
-            )
-            ->with([
-                'lines.account',
-                'reversal',
-            ])
+            ->where('reference_type', $referenceType)
+            ->where('reference_id', $referenceId)
+            ->where('voucher_type', $voucherType)
+            ->where('status', 'posted')
+
+            // Only the original journal can be the active journal.
+            ->whereNull('reversal_of_journal_entry_id')
+
+            // The original journal must not already have
+            // a reversal journal.
+            ->whereDoesntHave('reversal')
+
+            ->with(['lines.account'])
             ->first();
     }
 }

@@ -2,14 +2,15 @@
 
 namespace App\Modules\Supplier\Controllers;
 
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\ApiController;
+
 use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Supplier\Services\SupplierService;
 use App\Modules\Supplier\Resources\SupplierResource;
 use App\Modules\Supplier\Requests\StoreSupplierRequest;
 use App\Modules\Supplier\Requests\UpdateSupplierRequest;
 
-class SupplierController extends Controller
+class SupplierController extends ApiController
 {
     public function __construct(
         protected SupplierService $service
@@ -17,28 +18,36 @@ class SupplierController extends Controller
 
     public function index()
     {
-        return SupplierResource::collection(
-            $this->service->getAll()
+        $suppliers = $this->service->paginate();
+
+        return $this->success(
+            SupplierResource::collection($suppliers),
+            'Suppliers retrieved successfully.'
         );
     }
 
-    public function store(
-        StoreSupplierRequest $request
-    ) {
-        return new SupplierResource(
-            $this->service->create(
-                $request->validated()
-            )
+    public function store(StoreSupplierRequest $request)
+    {
+        $supplier = $this->service->create(
+            $request->validated()
+        );
+
+        return $this->success(
+            new SupplierResource($supplier),
+            'Supplier created successfully.',
+            201
         );
     }
 
-    public function show(
-        Supplier $supplier
-    ) {
-        return new SupplierResource(
-            $this->service->find(
-                $supplier->id
-            )
+    public function show(Supplier $supplier)
+    {
+        $supplier = $this->service->findByUuid(
+            $supplier->uuid
+        );
+
+        return $this->success(
+            new SupplierResource($supplier),
+            'Supplier retrieved successfully.'
         );
     }
 
@@ -46,23 +55,24 @@ class SupplierController extends Controller
         UpdateSupplierRequest $request,
         Supplier $supplier
     ) {
-        return new SupplierResource(
-            $this->service->update(
-                $supplier->id,
-                $request->validated()
-            )
+        $supplier = $this->service->update(
+            $supplier,
+            $request->validated()
+        );
+
+        return $this->success(
+            new SupplierResource($supplier),
+            'Supplier updated successfully.'
         );
     }
 
-    public function destroy(
-        Supplier $supplier
-    ) {
-        $this->service->delete(
-            $supplier->id
-        );
+    public function destroy(Supplier $supplier)
+    {
+        $this->service->delete($supplier);
 
-        return response()->json([
-            'message' => 'Supplier deleted successfully',
-        ]);
+        return $this->success(
+            null,
+            'Supplier deleted successfully.'
+        );
     }
 }

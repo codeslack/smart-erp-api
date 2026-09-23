@@ -2,16 +2,18 @@
 
 namespace App\Modules\Supplier\Models;
 
-use App\Core\Tenant\Models\TenantModel;
-use App\Modules\Purchase\Models\Purchase;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Modules\PurchaseReturn\Models\PurchaseReturn;
-use App\Modules\SupplierPayment\Models\SupplierPayment;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+use App\Core\Models\TenantModel;
+
+use App\Modules\PaymentTerm\Models\PaymentTerm;
 
 class Supplier extends TenantModel
 {
+    use SoftDeletes;
+
     protected $fillable = [
-        'tenant_id',
 
         'name',
         'code',
@@ -25,31 +27,36 @@ class Supplier extends TenantModel
 
         'tax_number',
 
+        'payment_term_id',
+
+        'credit_days',
+        'credit_limit',
+        'credit_control',
+
         'is_active',
     ];
 
-    protected $casts = [
-        'is_active' => 'boolean',
-    ];
-
-    public function purchases(): HasMany
+    protected function casts(): array
     {
-        return $this->hasMany(
-            Purchase::class
+        return array_merge(
+            parent::casts(),
+            [
+                'credit_days' => 'integer',
+                'credit_limit' => 'decimal:4',
+                'is_active' => 'boolean',
+            ]
         );
     }
 
-    public function payments(): HasMany
+    public function paymentTerm(): BelongsTo
     {
-        return $this->hasMany(
-            SupplierPayment::class
+        return $this->belongsTo(
+            PaymentTerm::class
         );
     }
 
-    public function purchaseReturns(): HasMany
+    public function isActive(): bool
     {
-        return $this->hasMany(
-            PurchaseReturn::class
-        );
+        return $this->is_active;
     }
 }

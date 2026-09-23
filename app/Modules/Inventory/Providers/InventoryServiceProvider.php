@@ -44,11 +44,6 @@ class InventoryServiceProvider extends ServiceProvider
         );
 
         $this->app->bind(
-            InventoryCostLayerConsumptionRepositoryInterface::class,
-            InventoryCostLayerConsumptionRepository::class
-        );
-
-        $this->app->bind(
             ProductBatchRepositoryInterface::class,
             ProductBatchRepository::class
         );

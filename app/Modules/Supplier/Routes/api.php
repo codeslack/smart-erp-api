@@ -6,7 +6,10 @@ use App\Modules\Supplier\Controllers\SupplierController;
 Route::middleware([
     'auth:sanctum',
     'tenant',
-])->apiResource(
-    'suppliers',
-    SupplierController::class
-);
+])->group(function () {
+
+    Route::apiResource(
+        'suppliers',
+        SupplierController::class
+    );
+});

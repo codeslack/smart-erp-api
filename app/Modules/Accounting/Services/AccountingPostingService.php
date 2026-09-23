@@ -9,6 +9,7 @@ use App\Modules\Accounting\Services\Postings\PaymentPostingService;
 use App\Modules\Accounting\Services\Postings\PurchaseReturnPostingService;
 use App\Modules\Accounting\Services\Postings\SalesReturnPostingService;
 use App\Modules\Accounting\Services\Postings\OpeningStockAccountingPostingService;
+use App\Modules\Accounting\Services\Postings\CustomerOpeningBalanceAccountingPostingService;
 
 use App\Modules\Accounting\Services\Contracts\AccountingPostingServiceInterface;
 
@@ -23,55 +24,67 @@ class AccountingPostingService
         protected PurchaseReturnPostingService $purchaseReturnPosting,
         protected SalesReturnPostingService $salesReturnPosting,
         protected OpeningStockAccountingPostingService $openingStockAccountPosting,
+        protected CustomerOpeningBalanceAccountingPostingService $customerOpeningBalancePosting,
     ) {}
 
     public function postOpeningStock(
         mixed $openingStock
     ): void {
-
         $this->openingStockAccountPosting
             ->post($openingStock);
+    }
+
+    public function postCustomerOpeningBalance(
+        mixed $customer,
+        mixed $openingBills
+    ): void {
+        $this->customerOpeningBalancePosting
+            ->post(
+                $customer,
+                $openingBills
+            );
+    }
+
+    public function postSupplierOpeningBalance(
+        mixed $supplier,
+        mixed $openingBills
+    ): void {
+        // supplier opening bill implementation
     }
 
     public function postSale(
         mixed $sale
     ): void {
-        $this->salePosting
-            ->post($sale);
+        $this->salePosting->post($sale);
     }
 
     public function postPurchase(
         mixed $purchase
     ): void {
-        $this->purchasePosting
-            ->post($purchase);
+        $this->purchasePosting->post($purchase);
     }
 
     public function postCustomerReceipt(
         mixed $receipt
     ): void {
-        $this->customerReceiptPosting
-            ->post($receipt);
+        $this->customerReceiptPosting->post($receipt);
     }
 
     public function postSupplierPayment(
         mixed $payment
     ): void {
-        $this->supplierPaymentPosting
-            ->post($payment);
+        $this->supplierPaymentPosting->post($payment);
     }
 
     public function postPurchaseReturn(
         mixed $purchaseReturn
     ): void {
-        $this->purchaseReturnPosting
-            ->post($purchaseReturn);
+        $this->purchaseReturnPosting->post($purchaseReturn);
     }
 
     public function postSalesReturn(
         mixed $salesReturn
     ): void {
-        $this->salesReturnPosting
-            ->post($salesReturn);
+        $this->salesReturnPosting->post($salesReturn);
     }
 }

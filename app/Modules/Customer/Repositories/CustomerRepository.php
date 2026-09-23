@@ -2,7 +2,10 @@
 
 namespace App\Modules\Customer\Repositories;
 
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+
 use App\Core\Repositories\BaseRepository;
+
 use App\Modules\Customer\Models\Customer;
 use App\Modules\Customer\Repositories\Contracts\CustomerRepositoryInterface;
 
@@ -14,5 +17,25 @@ class CustomerRepository
         Customer $model
     ) {
         parent::__construct($model);
+    }
+
+    public function paginate(
+        int $perPage = 15
+    ): LengthAwarePaginator {
+        return $this->model
+            ->newQuery()
+            ->with('paymentTerm')
+            ->latest()
+            ->paginate($perPage);
+    }
+
+    public function findByUuid(
+        string $uuid
+    ): ?Customer {
+        return $this->model
+            ->newQuery()
+            ->with('paymentTerm')
+            ->where('uuid', $uuid)
+            ->first();
     }
 }

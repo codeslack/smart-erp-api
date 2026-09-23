@@ -3,18 +3,16 @@
 namespace App\Providers;
 
 use Illuminate\Support\Str;
-use Dedoc\Scramble\Scramble;
+use Illuminate\Support\ServiceProvider;
+
 use App\Core\Tenant\TenantManager;
 use App\Core\Tenant\TenantResolver;
-use Illuminate\Support\ServiceProvider;
+
+use Dedoc\Scramble\Scramble;
 use Dedoc\Scramble\Support\Generator\OpenApi;
 use Dedoc\Scramble\Support\Generator\Operation;
-use App\Modules\User\Repositories\UserRepository;
 use Dedoc\Scramble\Support\Generator\SecurityScheme;
-use App\Modules\Tenant\Repositories\TenantRepository;
 use Dedoc\Scramble\Support\Generator\SecurityRequirement;
-use App\Modules\User\Repositories\Contracts\UserRepositoryInterface;
-use App\Modules\Tenant\Repositories\Contracts\TenantRepositoryInterface;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -23,22 +21,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(
+        $this->app->scoped(
             TenantManager::class
         );
 
         $this->app->singleton(
             TenantResolver::class
-        );
-
-        $this->app->bind(
-            TenantRepositoryInterface::class,
-            TenantRepository::class
-        );
-
-        $this->app->bind(
-            UserRepositoryInterface::class,
-            UserRepository::class
         );
     }
 
@@ -68,8 +56,6 @@ class AppServiceProvider extends ServiceProvider
 
                     // Add Bearer Auth Scheme
                     $openApi->components->securitySchemes['bearer'] = SecurityScheme::http('bearer');
-                    $openApi->components->securitySchemes['x_tenant_key'] = SecurityScheme::apiKey('header', 'X-Tenant')
-                        ->setDescription('Enter the target database or system tenant identifier.');
 
                     // Read Package Version
                     $version = config('app.version') ?? '1.0.0';
@@ -93,7 +79,6 @@ class AppServiceProvider extends ServiceProvider
                 ) {
                     $operation->security[] = new SecurityRequirement([
                         'bearer' => [],
-                        'x_tenant_key' => [],
                     ]);
                 }
             });

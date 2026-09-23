@@ -2,7 +2,10 @@
 
 namespace App\Modules\Supplier\Repositories;
 
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+
 use App\Core\Repositories\BaseRepository;
+
 use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Supplier\Repositories\Contracts\SupplierRepositoryInterface;
 
@@ -14,5 +17,25 @@ class SupplierRepository
         Supplier $model
     ) {
         parent::__construct($model);
+    }
+
+    public function paginate(
+        int $perPage = 15
+    ): LengthAwarePaginator {
+        return $this->model
+            ->newQuery()
+            ->with('paymentTerm')
+            ->latest()
+            ->paginate($perPage);
+    }
+
+    public function findByUuid(
+        string $uuid
+    ): ?Supplier {
+        return $this->model
+            ->newQuery()
+            ->with('paymentTerm')
+            ->where('uuid', $uuid)
+            ->first();
     }
 }

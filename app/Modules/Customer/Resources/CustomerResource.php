@@ -5,6 +5,8 @@ namespace App\Modules\Customer\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+use App\Modules\PaymentTerm\Resources\PaymentTermResource;
+
 class CustomerResource extends JsonResource
 {
     public function toArray(
@@ -12,9 +14,7 @@ class CustomerResource extends JsonResource
     ): array {
         return [
 
-            'id' => $this->id,
-
-            'tenant_id' => $this->tenant_id,
+            'uuid' => $this->uuid,
 
             'name' => $this->name,
             'code' => $this->code,
@@ -27,6 +27,16 @@ class CustomerResource extends JsonResource
             'address' => $this->address,
 
             'tax_number' => $this->tax_number,
+
+            'payment_term_id' => $this->payment_term_id,
+            
+            'credit_days' => $this->credit_days,
+            'credit_limit' => $this->credit_limit,
+            'credit_control' => $this->credit_control,
+
+            'payment_term' => PaymentTermResource::make(
+                $this->whenLoaded('paymentTerm')
+            ),
 
             'is_active' => (bool) $this->is_active,
 

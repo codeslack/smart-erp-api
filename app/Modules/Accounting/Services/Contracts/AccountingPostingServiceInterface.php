@@ -4,6 +4,20 @@ namespace App\Modules\Accounting\Services\Contracts;
 
 interface AccountingPostingServiceInterface
 {
+    public function postOpeningStock(
+        mixed $openingStock
+    ): void;
+
+    public function postCustomerOpeningBalance(
+        mixed $customer,
+        mixed $openingBill
+    ): void;
+
+    public function postSupplierOpeningBalance(
+        mixed $supplier,
+        mixed $openingBill
+    ): void;
+
     public function postSale(
         mixed $sale
     ): void;

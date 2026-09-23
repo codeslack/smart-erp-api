@@ -2,29 +2,27 @@
 
 namespace App\Modules\Supplier\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
+use App\Core\Requests\BaseRequest;
+use App\Core\Validation\TenantRule;
+use App\Core\Enums\CreditControlEnum;
 
-class StoreSupplierRequest extends FormRequest
+class StoreSupplierRequest extends BaseRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     public function rules(): array
     {
         return [
-
             'name' => [
                 'required',
                 'string',
                 'max:255',
+                TenantRule::unique('suppliers', 'name'),
             ],
 
             'code' => [
                 'nullable',
                 'string',
                 'max:50',
+                TenantRule::unique('suppliers', 'code'),
             ],
 
             'contact_person' => [
@@ -55,7 +53,37 @@ class StoreSupplierRequest extends FormRequest
                 'max:100',
             ],
 
+            'payment_term_id' => [
+                'nullable',
+                TenantRule::exists('payment_terms', 'id'),
+            ],
+
+            'credit_days' => [
+                'nullable',
+                'integer',
+                'min:0',
+            ],
+
+            'credit_limit' => [
+                'sometimes',
+                'numeric',
+                'min:0',
+            ],
+
+            'credit_control' => [
+                'sometimes',
+                'string',
+                'in:' . implode(
+                    ',',
+                    array_column(
+                        CreditControlEnum::cases(),
+                        'value'
+                    )
+                ),
+            ],
+
             'is_active' => [
+                'sometimes',
                 'boolean',
             ],
         ];

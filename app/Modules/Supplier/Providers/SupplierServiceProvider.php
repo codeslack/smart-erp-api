@@ -4,6 +4,7 @@ namespace App\Modules\Supplier\Providers;
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+
 use App\Modules\Supplier\Repositories\SupplierRepository;
 use App\Modules\Supplier\Repositories\Contracts\SupplierRepositoryInterface;
 
