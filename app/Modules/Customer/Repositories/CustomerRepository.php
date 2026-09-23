@@ -24,7 +24,10 @@ class CustomerRepository
     ): LengthAwarePaginator {
         return $this->model
             ->newQuery()
-            ->with('paymentTerm')
+            ->with([
+                'paymentTerm',
+                'openingBills',
+            ])
             ->latest()
             ->paginate($perPage);
     }
@@ -34,7 +37,10 @@ class CustomerRepository
     ): ?Customer {
         return $this->model
             ->newQuery()
-            ->with('paymentTerm')
+            ->with([
+                'paymentTerm',
+                'openingBills',
+            ])
             ->where('uuid', $uuid)
             ->first();
     }

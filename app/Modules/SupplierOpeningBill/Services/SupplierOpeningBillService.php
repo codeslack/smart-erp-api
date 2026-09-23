@@ -1,6 +1,8 @@
 <?php
 
-namespace App\Modules\CustomerOpeningBill\Services;
+// app/Modules/SupplierOpeningBill/Services/SupplierOpeningBillService.php
+
+namespace App\Modules\SupplierOpeningBill\Services;
 
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -9,24 +11,26 @@ use Illuminate\Support\Facades\DB;
 use App\Core\Services\BaseService;
 use App\Core\Exceptions\BusinessException;
 
-use App\Modules\CustomerOpeningBill\Models\CustomerOpeningBill;
-use App\Modules\CustomerOpeningBill\Repositories\Contracts\CustomerOpeningBillRepositoryInterface;
+use App\Modules\SupplierOpeningBill\Models\SupplierOpeningBill;
+use App\Modules\SupplierOpeningBill\Repositories\Contracts\SupplierOpeningBillRepositoryInterface;
 
-class CustomerOpeningBillService extends BaseService
+class SupplierOpeningBillService extends BaseService
 {
     public function __construct(
-        protected CustomerOpeningBillRepositoryInterface $repository,
+        protected SupplierOpeningBillRepositoryInterface $repository,
     ) {}
 
     public function paginate(
         int $perPage = 15
     ): LengthAwarePaginator {
-        return $this->repository->paginate($perPage);
+        return $this->repository->paginate(
+            $perPage
+        );
     }
 
     public function create(
         array $data
-    ): CustomerOpeningBill {
+    ): SupplierOpeningBill {
         return DB::transaction(
             function () use ($data) {
 
@@ -42,9 +46,9 @@ class CustomerOpeningBillService extends BaseService
     }
 
     public function update(
-        CustomerOpeningBill $openingBill,
+        SupplierOpeningBill $openingBill,
         array $data
-    ): CustomerOpeningBill {
+    ): SupplierOpeningBill {
         return DB::transaction(
             function () use (
                 $openingBill,
@@ -65,7 +69,7 @@ class CustomerOpeningBillService extends BaseService
     }
 
     public function delete(
-        CustomerOpeningBill $openingBill
+        SupplierOpeningBill $openingBill
     ): bool {
         return DB::transaction(
             function () use ($openingBill) {
@@ -76,7 +80,7 @@ class CustomerOpeningBillService extends BaseService
                     (float) $openingBill->amount
                 ) {
                     throw new BusinessException(
-                        'Customer opening bill cannot be deleted after payment allocation.'
+                        'Supplier opening bill cannot be deleted after payment allocation.'
                     );
                 }
 
@@ -89,7 +93,7 @@ class CustomerOpeningBillService extends BaseService
 
     public function findById(
         int $id
-    ): ?CustomerOpeningBill {
+    ): ?SupplierOpeningBill {
         return $this->repository->findById(
             $id
         );
@@ -97,41 +101,41 @@ class CustomerOpeningBillService extends BaseService
 
     public function findByUuid(
         string $uuid
-    ): ?CustomerOpeningBill {
+    ): ?SupplierOpeningBill {
         return $this->repository->findByUuid(
             $uuid
         );
     }
 
-    public function findByCustomerAndBillNo(
-        int $customerId,
+    public function findBySupplierAndBillNo(
+        int $supplierId,
         string $billNo
-    ): ?CustomerOpeningBill {
-        return $this->repository->findByCustomerAndBillNo(
-            $customerId,
+    ): ?SupplierOpeningBill {
+        return $this->repository->findBySupplierAndBillNo(
+            $supplierId,
             $billNo
         );
     }
 
-    public function findByCustomer(
-        int $customerId
+    public function findBySupplier(
+        int $supplierId
     ): Collection {
-        return $this->repository->findByCustomer(
-            $customerId
+        return $this->repository->findBySupplier(
+            $supplierId
         );
     }
 
     public function outstandingBills(
-        int $customerId
+        int $supplierId
     ): Collection {
         return $this->repository->outstandingBills(
-            $customerId
+            $supplierId
         );
     }
 
     protected function validateAmount(
         array $data,
-        ?CustomerOpeningBill $openingBill = null
+        ?SupplierOpeningBill $openingBill = null
     ): void {
         $amount = array_key_exists(
             'amount',

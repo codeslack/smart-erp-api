@@ -1,20 +1,20 @@
 <?php
 
+// app/Modules/Customer/Services/CustomerService.php
+
 namespace App\Modules\Customer\Services;
 
-use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
 use App\Core\Exceptions\BusinessException;
-
 use App\Core\Services\BaseService;
 
 use App\Modules\Customer\Models\Customer;
+use App\Modules\Customer\Repositories\Contracts\CustomerRepositoryInterface;
 
 use App\Modules\CustomerOpeningBill\Services\CustomerOpeningBillService;
 use App\Modules\CustomerOpeningBill\Services\CustomerOpeningBillPostingService;
-
-use App\Modules\Customer\Repositories\Contracts\CustomerRepositoryInterface;
 
 class CustomerService extends BaseService
 {
@@ -27,37 +27,33 @@ class CustomerService extends BaseService
     public function paginate(
         int $perPage = 15
     ): LengthAwarePaginator {
-        return $this->repository
-            ->paginate($perPage);
+        return $this->repository->paginate($perPage);
     }
 
     public function create(
         array $data
     ): Customer {
-        return DB::transaction(
-            function () use ($data) {
+        $customer = DB::transaction(function () use ($data) {
+            $openingBills = $data['opening_bills'] ?? null;
 
-                $openingBills =
-                    $data['opening_bills'] ?? [];
+            unset($data['opening_bills']);
 
-                unset(
-                    $data['opening_bills']
-                );
+            $customer = $this->repository->create($data);
 
-                $customer =
-                    $this->repository
-                        ->create($data);
-
-                $this->createOpeningBills(
+            if ($openingBills !== null) {
+                $this->syncOpeningBills(
                     $customer,
                     $openingBills
                 );
 
-                $this->openingBillPosting
-                    ->post($customer);
-
-                return $customer->refresh();
+                $this->openingBillPosting->post($customer);
             }
+
+            return $customer;
+        });
+
+        return $this->repository->findByUuid(
+            $customer->uuid
         );
     }
 
@@ -65,191 +61,131 @@ class CustomerService extends BaseService
         Customer $customer,
         array $data
     ): Customer {
-        return DB::transaction(
-            function () use (
+        $customer = DB::transaction(function () use (
+            $customer,
+            $data
+        ) {
+            $hasOpeningBills = array_key_exists(
+                'opening_bills',
+                $data
+            );
+
+            $openingBills = $data['opening_bills'] ?? null;
+
+            unset($data['opening_bills']);
+
+            $customer = $this->repository->update(
                 $customer,
                 $data
-            ) {
+            );
 
-                $hasOpeningBills =
-                    array_key_exists(
-                        'opening_bills',
-                        $data
-                    );
-
-                $openingBills =
-                    $data['opening_bills'] ?? [];
-
-                unset(
-                    $data['opening_bills']
+            if ($hasOpeningBills) {
+                $this->openingBillPosting->reverse(
+                    $customer
                 );
 
-                $customer =
-                    $this->repository
-                        ->update(
-                            $customer,
-                            $data
-                        );
+                $this->syncOpeningBills(
+                    $customer,
+                    $openingBills ?? []
+                );
 
-                if ($hasOpeningBills) {
-
-                    $this->openingBillPosting
-                        ->reverse($customer);
-
-                    $this->syncOpeningBills(
-                        $customer,
-                        $openingBills
-                    );
-
-                    $this->openingBillPosting
-                        ->post($customer);
-                }
-
-                return $customer->refresh();
+                $this->openingBillPosting->post(
+                    $customer
+                );
             }
+
+            return $customer;
+        });
+
+        return $this->repository->findByUuid(
+            $customer->uuid
         );
     }
 
     public function delete(
         Customer $customer
     ): bool {
-        return DB::transaction(
-            fn () =>
-                $this->repository
-                    ->delete($customer)
-        );
+        return DB::transaction(function () use ($customer) {
+            $this->openingBillPosting->reverse($customer);
+
+            return $this->repository->delete($customer);
+        });
     }
 
     public function findById(
         int $id
     ): ?Customer {
-        return $this->repository
-            ->findById($id);
+        return $this->repository->findById($id);
     }
 
     public function findByUuid(
         string $uuid
     ): ?Customer {
-        return $this->repository
-            ->findByUuid($uuid);
-    }
-
-    protected function createOpeningBills(
-        Customer $customer,
-        array $openingBills
-    ): void {
-        foreach (
-            $openingBills as $billData
-        ) {
-            $billData['customer_id'] =
-                $customer->id;
-
-            $this->openingBills
-                ->create($billData);
-        }
+        return $this->repository->findByUuid($uuid);
     }
 
     protected function syncOpeningBills(
         Customer $customer,
         array $openingBills
     ): void {
-        foreach (
-            $openingBills as $billData
-        ) {
+        foreach ($openingBills as $billData) {
+            $delete = (bool) ($billData['delete'] ?? false);
+            $uuid = $billData['uuid'] ?? null;
 
-            if (
-                !empty(
-                    $billData['delete']
-                )
-            ) {
-                $this->deleteOpeningBill(
-                    $customer,
-                    $billData
+            if ($uuid) {
+                $openingBill = $this->openingBills->findByUuid(
+                    $uuid
                 );
 
-                continue;
-            }
+                if (!$openingBill) {
+                    throw new BusinessException(
+                        'Customer opening bill not found.'
+                    );
+                }
 
-            unset(
-                $billData['delete']
-            );
+                if (
+                    (int) $openingBill->customer_id
+                    !== (int) $customer->id
+                ) {
+                    throw new BusinessException(
+                        'Customer opening bill does not belong to this customer.'
+                    );
+                }
 
-            if (
-                empty(
-                    $billData['uuid']
-                )
-            ) {
-                $billData['customer_id'] =
-                    $customer->id;
-
-                $this->openingBills
-                    ->create($billData);
-
-                continue;
-            }
-
-            $openingBill =
-                $this->openingBills
-                    ->findByUuid(
-                        $billData['uuid']
+                if ($delete) {
+                    $this->openingBills->delete(
+                        $openingBill
                     );
 
-            if (
-                !$openingBill
-                || $openingBill->customer_id
-                    !== $customer->id
-            ) {
-                throw new BusinessException(
-                    'Customer opening bill not found.'
+                    continue;
+                }
+
+                unset(
+                    $billData['uuid'],
+                    $billData['delete']
                 );
-            }
 
-            unset(
-                $billData['uuid']
-            );
+                $billData['customer_id'] = $customer->id;
 
-            $billData['customer_id'] =
-                $customer->id;
-
-            $this->openingBills
-                ->update(
+                $this->openingBills->update(
                     $openingBill,
                     $billData
                 );
-        }
-    }
 
-    protected function deleteOpeningBill(
-        Customer $customer,
-        array $billData
-    ): void {
-        if (
-            empty(
-                $billData['uuid']
-            )
-        ) {
-            throw new BusinessException(
-                'Customer opening bill not found.'
+                continue;
+            }
+
+            if ($delete) {
+                continue;
+            }
+
+            unset($billData['delete']);
+
+            $billData['customer_id'] = $customer->id;
+
+            $this->openingBills->create(
+                $billData
             );
         }
-
-        $openingBill =
-            $this->openingBills
-                ->findByUuid(
-                    $billData['uuid']
-                );
-
-        if (
-            !$openingBill
-            || $openingBill->customer_id
-                !== $customer->id
-        ) {
-            throw new BusinessException(
-                'Customer opening bill not found.'
-            );
-        }
-
-        $this->openingBills
-            ->delete($openingBill);
     }
 }

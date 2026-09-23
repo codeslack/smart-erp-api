@@ -10,6 +10,7 @@ use App\Modules\Accounting\Services\Postings\PurchaseReturnPostingService;
 use App\Modules\Accounting\Services\Postings\SalesReturnPostingService;
 use App\Modules\Accounting\Services\Postings\OpeningStockAccountingPostingService;
 use App\Modules\Accounting\Services\Postings\CustomerOpeningBalanceAccountingPostingService;
+use App\Modules\Accounting\Services\Postings\SupplierOpeningBalanceAccountingPostingService;
 
 use App\Modules\Accounting\Services\Contracts\AccountingPostingServiceInterface;
 
@@ -25,6 +26,7 @@ class AccountingPostingService
         protected SalesReturnPostingService $salesReturnPosting,
         protected OpeningStockAccountingPostingService $openingStockAccountPosting,
         protected CustomerOpeningBalanceAccountingPostingService $customerOpeningBalancePosting,
+        protected SupplierOpeningBalanceAccountingPostingService $supplierOpeningBalancePosting,
     ) {}
 
     public function postOpeningStock(
@@ -49,7 +51,11 @@ class AccountingPostingService
         mixed $supplier,
         mixed $openingBills
     ): void {
-        // supplier opening bill implementation
+        $this->supplierOpeningBalancePosting
+            ->post(
+                $supplier,
+                $openingBills
+            );
     }
 
     public function postSale(

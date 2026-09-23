@@ -1,24 +1,24 @@
 <?php
 
-namespace App\Modules\CustomerOpeningBill\Repositories;
+namespace App\Modules\SupplierOpeningBill\Repositories;
 
 use Illuminate\Database\Eloquent\Collection;
 
 use App\Core\Repositories\BaseRepository;
 
-use App\Modules\CustomerOpeningBill\Models\CustomerOpeningBill;
+use App\Modules\SupplierOpeningBill\Models\SupplierOpeningBill;
 
-use App\Modules\CustomerOpeningBill\Repositories\Contracts\CustomerOpeningBillRepositoryInterface;
+use App\Modules\SupplierOpeningBill\Repositories\Contracts\SupplierOpeningBillRepositoryInterface;
 
 /**
- * @extends BaseRepository<CustomerOpeningBill>
+ * @extends BaseRepository<SupplierOpeningBill>
  */
-class CustomerOpeningBillRepository
+class SupplierOpeningBillRepository
     extends BaseRepository
-    implements CustomerOpeningBillRepositoryInterface
+    implements SupplierOpeningBillRepositoryInterface
 {
     public function __construct(
-        CustomerOpeningBill $model
+        SupplierOpeningBill $model
     ) {
         parent::__construct(
             $model
@@ -27,7 +27,7 @@ class CustomerOpeningBillRepository
 
     public function findByUuid(
         string $uuid
-    ): ?CustomerOpeningBill {
+    ): ?SupplierOpeningBill {
 
         return $this->model
             ->newQuery()
@@ -38,33 +38,27 @@ class CustomerOpeningBillRepository
             ->first();
     }
 
-    public function findByCustomerAndBillNo(
-        int $customerId,
+    public function findBySupplierAndBillNo(
+        int $supplierId,
         string $billNo
-    ): ?CustomerOpeningBill {
+    ): ?SupplierOpeningBill {
 
         return $this->model
             ->newQuery()
-            ->where(
-                'customer_id',
-                $customerId
-            )
-            ->where(
-                'bill_no',
-                $billNo
-            )
+            ->where('supplier_id', $supplierId)
+            ->where('bill_no', $billNo)
             ->first();
     }
 
-    public function findByCustomer(
-        int $customerId
+    public function findBySupplier(
+        int $supplierId
     ): Collection {
 
         return $this->model
             ->newQuery()
             ->where(
-                'customer_id',
-                $customerId
+                'supplier_id',
+                $supplierId
             )
             ->orderBy(
                 'bill_date'
@@ -74,14 +68,14 @@ class CustomerOpeningBillRepository
     }
 
     public function outstandingBills(
-        int $customerId
+        int $supplierId
     ): Collection {
 
         return $this->model
             ->newQuery()
             ->where(
-                'customer_id',
-                $customerId
+                'supplier_id',
+                $supplierId
             )
             ->where(
                 'balance_amount',

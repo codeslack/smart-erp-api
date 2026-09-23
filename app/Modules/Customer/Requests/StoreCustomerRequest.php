@@ -123,7 +123,6 @@ class StoreCustomerRequest extends BaseRequest
             'opening_bills.*.due_date' => [
                 'nullable',
                 'date',
-                'after_or_equal:opening_bills.*.bill_date',
             ],
 
             'opening_bills.*.amount' => [
@@ -153,6 +152,50 @@ class StoreCustomerRequest extends BaseRequest
                 'nullable',
                 'string',
             ],
+        ];
+    }
+
+    public function after(): array
+    {
+        return [
+            function ($validator) {
+                foreach (
+                    $this->input('opening_bills', []) as $index => $bill
+                ) {
+                    $amount =
+                        isset($bill['amount'])
+                            ? (float) $bill['amount']
+                            : null;
+
+                    $balanceAmount =
+                        isset($bill['balance_amount'])
+                            ? (float) $bill['balance_amount']
+                            : null;
+
+                    if (
+                        $amount !== null
+                        && $balanceAmount !== null
+                        && $balanceAmount > $amount
+                    ) {
+                        $validator->errors()->add(
+                            "opening_bills.{$index}.balance_amount",
+                            'The balance amount cannot exceed the bill amount.'
+                        );
+                    }
+
+                    if (
+                        !empty($bill['bill_date'])
+                        && !empty($bill['due_date'])
+                        && strtotime($bill['due_date'])
+                            < strtotime($bill['bill_date'])
+                    ) {
+                        $validator->errors()->add(
+                            "opening_bills.{$index}.due_date",
+                            'The due date must be on or after the bill date.'
+                        );
+                    }
+                }
+            },
         ];
     }
 }

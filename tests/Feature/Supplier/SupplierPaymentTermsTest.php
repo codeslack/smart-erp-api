@@ -14,7 +14,7 @@ use App\Modules\Supplier\Models\Supplier;
 use App\Modules\PaymentTerm\Models\PaymentTerm;
 use App\Modules\Supplier\Services\SupplierService;
 
-class SupplierPaymentTermCRUDTest extends TestCase
+class SupplierPaymentTermsTest extends TestCase
 {
     use RefreshDatabase;
     use CreatesTenant;

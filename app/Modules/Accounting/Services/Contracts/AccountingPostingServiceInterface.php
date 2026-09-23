@@ -10,12 +10,12 @@ interface AccountingPostingServiceInterface
 
     public function postCustomerOpeningBalance(
         mixed $customer,
-        mixed $openingBill
+        mixed $openingBills
     ): void;
 
     public function postSupplierOpeningBalance(
         mixed $supplier,
-        mixed $openingBill
+        mixed $openingBills
     ): void;
 
     public function postSale(

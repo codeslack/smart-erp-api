@@ -14,28 +14,82 @@ return new class extends Migration
         Schema::create('supplier_opening_bills', function (
             Blueprint $table
         ) {
-            
+
             $table->id();
-            $table->uuid('uuid')->unique();
+
+            $table->uuid('uuid')
+                ->unique();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Tenant
+            |--------------------------------------------------------------------------
+            */
 
             $table->foreignId('tenant_id')
                 ->constrained('tenants')
                 ->cascadeOnDelete();
 
+            /*
+            |--------------------------------------------------------------------------
+            | Supplier
+            |--------------------------------------------------------------------------
+            */
+
             $table->foreignId('supplier_id')
                 ->constrained('suppliers')
                 ->cascadeOnDelete();
 
+            /*
+            |--------------------------------------------------------------------------
+            | Bill Information
+            |--------------------------------------------------------------------------
+            */
+
             $table->string('bill_no', 100);
+
             $table->date('bill_date');
-            $table->date('due_date')->nullable();
 
-            $table->string('opening_balance_type', 20);
+            $table->date('due_date')
+                ->nullable();
 
-            $table->decimal('amount', 18, 4);
-            $table->decimal('balance_amount', 18, 4);
+            /*
+            |--------------------------------------------------------------------------
+            | Balance
+            |--------------------------------------------------------------------------
+            */
 
-            $table->text('remarks')->nullable();
+            $table->decimal(
+                'amount',
+                18,
+                4
+            );
+
+            $table->decimal(
+                'balance_amount',
+                18,
+                4
+            );
+
+            $table->string(
+                'balance_type',
+                20
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Notes
+            |--------------------------------------------------------------------------
+            */
+
+            $table->text('notes')
+                ->nullable();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Audit
+            |--------------------------------------------------------------------------
+            */
 
             $table->foreignId('created_by')
                 ->nullable()
@@ -48,32 +102,51 @@ return new class extends Migration
                 ->nullOnDelete();
 
             $table->timestamps();
+
             $table->softDeletes();
 
-            $table->unique(
-                ['tenant_id', 'bill_no'],
-                'supplier_opening_bills_tenant_bill_no_unique'
-            );
+            /*
+            |--------------------------------------------------------------------------
+            | Unique Constraints
+            |--------------------------------------------------------------------------
+            */
 
-            $table->index(
-                ['tenant_id', 'supplier_id'],
-                'supplier_opening_bills_tenant_supplier_index'
-            );
+            $table->unique([
+                'tenant_id',
+                'supplier_id',
+                'bill_no',
+            ]);
 
-            $table->index(
-                ['tenant_id', 'bill_date'],
-                'supplier_opening_bills_tenant_bill_date_index'
-            );
+            /*
+            |--------------------------------------------------------------------------
+            | Indexes
+            |--------------------------------------------------------------------------
+            */
 
-            $table->index(
-                ['tenant_id', 'due_date'],
-                'supplier_opening_bills_tenant_due_date_index'
-            );
+            $table->index([
+                'tenant_id',
+                'supplier_id',
+            ]);
 
-            $table->index(
-                ['tenant_id', 'opening_balance_type'],
-                'supplier_opening_bills_tenant_balance_type_index'
-            );
+            $table->index([
+                'tenant_id',
+                'bill_date',
+            ]);
+
+            $table->index([
+                'tenant_id',
+                'due_date',
+            ]);
+
+            $table->index([
+                'tenant_id',
+                'balance_amount',
+            ]);
+
+            $table->index([
+                'tenant_id',
+                'balance_type',
+            ]);
         });
     }
 

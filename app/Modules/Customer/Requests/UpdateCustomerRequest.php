@@ -122,7 +122,7 @@ class UpdateCustomerRequest extends BaseRequest
             ],
 
             'opening_bills.*.uuid' => [
-                'required_if:opening_bills.*.delete,true',
+                'sometimes',
                 'nullable',
                 'string',
                 'uuid',
@@ -134,35 +134,36 @@ class UpdateCustomerRequest extends BaseRequest
             ],
 
             'opening_bills.*.bill_no' => [
-                'required_unless:opening_bills.*.delete,true',
+                'sometimes',
                 'string',
                 'max:100',
             ],
 
             'opening_bills.*.bill_date' => [
-                'required_unless:opening_bills.*.delete,true',
+                'sometimes',
                 'date',
             ],
 
             'opening_bills.*.due_date' => [
+                'sometimes',
                 'nullable',
                 'date',
             ],
 
             'opening_bills.*.amount' => [
-                'required_unless:opening_bills.*.delete,true',
+                'sometimes',
                 'numeric',
                 'gt:0',
             ],
 
             'opening_bills.*.balance_amount' => [
-                'required_unless:opening_bills.*.delete,true',
+                'sometimes',
                 'numeric',
                 'gte:0',
             ],
 
             'opening_bills.*.balance_type' => [
-                'required_unless:opening_bills.*.delete,true',
+                'sometimes',
                 'string',
                 Rule::in(
                     array_column(
@@ -173,9 +174,139 @@ class UpdateCustomerRequest extends BaseRequest
             ],
 
             'opening_bills.*.notes' => [
+                'sometimes',
                 'nullable',
                 'string',
             ],
+        ];
+    }
+
+    public function after(): array
+    {
+        return [
+            function ($validator) {
+                foreach (
+                    $this->input('opening_bills', []) as $index => $bill
+                ) {
+                    $delete =
+                        (bool) (
+                            $bill['delete'] ?? false
+                        );
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Delete row
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if ($delete) {
+
+                        if (
+                            empty($bill['uuid'])
+                        ) {
+                            $validator->errors()->add(
+                                "opening_bills.{$index}.uuid",
+                                'A bill UUID is required when deleting an opening bill.'
+                            );
+                        }
+
+                        continue;
+                    }
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Create / Update row
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if (
+                        empty($bill['bill_no'])
+                    ) {
+                        $validator->errors()->add(
+                            "opening_bills.{$index}.bill_no",
+                            'The bill number is required.'
+                        );
+                    }
+
+                    if (
+                        empty($bill['bill_date'])
+                    ) {
+                        $validator->errors()->add(
+                            "opening_bills.{$index}.bill_date",
+                            'The bill date is required.'
+                        );
+                    }
+
+                    if (
+                        !array_key_exists(
+                            'amount',
+                            $bill
+                        )
+                    ) {
+                        $validator->errors()->add(
+                            "opening_bills.{$index}.amount",
+                            'The bill amount is required.'
+                        );
+                    }
+
+                    if (
+                        !array_key_exists(
+                            'balance_amount',
+                            $bill
+                        )
+                    ) {
+                        $validator->errors()->add(
+                            "opening_bills.{$index}.balance_amount",
+                            'The balance amount is required.'
+                        );
+                    }
+
+                    if (
+                        empty($bill['balance_type'])
+                    ) {
+                        $validator->errors()->add(
+                            "opening_bills.{$index}.balance_type",
+                            'The balance type is required.'
+                        );
+                    }
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Balance cannot exceed original amount
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if (
+                        isset($bill['amount'])
+                        && isset($bill['balance_amount'])
+                        && (float) $bill['balance_amount']
+                            > (float) $bill['amount']
+                    ) {
+                        $validator->errors()->add(
+                            "opening_bills.{$index}.balance_amount",
+                            'The balance amount cannot exceed the bill amount.'
+                        );
+                    }
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Due date cannot be before bill date
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if (
+                        !empty($bill['bill_date'])
+                        && !empty($bill['due_date'])
+                        && strtotime($bill['due_date'])
+                            < strtotime($bill['bill_date'])
+                    ) {
+                        $validator->errors()->add(
+                            "opening_bills.{$index}.due_date",
+                            'The due date must be on or after the bill date.'
+                        );
+                    }
+                }
+            },
         ];
     }
 }

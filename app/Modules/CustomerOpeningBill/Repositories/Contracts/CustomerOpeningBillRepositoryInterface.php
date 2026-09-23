@@ -15,7 +15,8 @@ interface CustomerOpeningBillRepositoryInterface
         string $uuid
     ): ?CustomerOpeningBill;
 
-    public function findByBillNo(
+    public function findByCustomerAndBillNo(
+        int $customerId,
         string $billNo
     ): ?CustomerOpeningBill;
 

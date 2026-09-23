@@ -58,6 +58,7 @@ return [
     App\Modules\Customer\CustomerModule::class,
     App\Modules\Supplier\SupplierModule::class,
     App\Modules\CustomerOpeningBill\CustomerOpeningBillModule::class,
+    App\Modules\SupplierOpeningBill\SupplierOpeningBillModule::class,
 
     /*
     |--------------------------------------------------------------------------

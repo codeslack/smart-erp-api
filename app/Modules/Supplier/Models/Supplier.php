@@ -3,11 +3,13 @@
 namespace App\Modules\Supplier\Models;
 
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 use App\Core\Models\TenantModel;
 
 use App\Modules\PaymentTerm\Models\PaymentTerm;
+use App\Modules\SupplierOpeningBill\Models\SupplierOpeningBill;
 
 class Supplier extends TenantModel
 {
@@ -52,6 +54,13 @@ class Supplier extends TenantModel
     {
         return $this->belongsTo(
             PaymentTerm::class
+        );
+    }
+
+    public function openingBills(): HasMany
+    {
+        return $this->hasMany(
+            SupplierOpeningBill::class
         );
     }
 

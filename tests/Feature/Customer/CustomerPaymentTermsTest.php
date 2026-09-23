@@ -7,7 +7,6 @@ use Tests\Support\CreatesTenant;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
-use App\Core\Exceptions\BusinessException;
 use App\Core\Tenant\TenantManager;
 
 use App\Modules\Tenant\Models\Tenant;
@@ -15,7 +14,7 @@ use App\Modules\Customer\Models\Customer;
 use App\Modules\PaymentTerm\Models\PaymentTerm;
 use App\Modules\Customer\Services\CustomerService;
 
-class CustomerPaymentTermCRUDTest extends TestCase
+class CustomerPaymentTermsTest extends TestCase
 {
     use RefreshDatabase;
     use CreatesTenant;

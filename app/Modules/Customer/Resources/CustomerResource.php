@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 use App\Modules\PaymentTerm\Resources\PaymentTermResource;
+use App\Modules\CustomerOpeningBill\Resources\CustomerOpeningBillResource;
 
 class CustomerResource extends JsonResource
 {
@@ -29,13 +30,17 @@ class CustomerResource extends JsonResource
             'tax_number' => $this->tax_number,
 
             'payment_term_id' => $this->payment_term_id,
-            
+
             'credit_days' => $this->credit_days,
             'credit_limit' => $this->credit_limit,
             'credit_control' => $this->credit_control,
 
             'payment_term' => PaymentTermResource::make(
                 $this->whenLoaded('paymentTerm')
+            ),
+
+            'opening_bills' => CustomerOpeningBillResource::collection(
+                $this->whenLoaded('openingBills')
             ),
 
             'is_active' => (bool) $this->is_active,
