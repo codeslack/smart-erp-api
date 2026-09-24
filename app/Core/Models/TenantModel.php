@@ -31,14 +31,6 @@ abstract class TenantModel extends BaseModel
 
         static::creating(function ($model) {
 
-            logger()->info(
-                'TenantModel creating fired',
-                [
-                    'tenant_id' => tenantId(),
-                    'model' => get_class($model),
-                ]
-            );
-
             if (! tenantId()) {
 
                 throw new \RuntimeException(

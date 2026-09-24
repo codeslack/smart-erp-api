@@ -5,6 +5,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 
+use App\Core\Exceptions\BaseApiException;
 use App\Core\Exceptions\ApiExceptionHandler;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -24,6 +25,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn(Request $request) => $request->is('api/*'),
         );
+
+        $exceptions->dontReport([
+            BaseApiException::class,
+        ]);
 
         $exceptions->render(
             function (

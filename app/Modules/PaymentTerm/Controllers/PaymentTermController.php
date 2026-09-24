@@ -80,7 +80,7 @@ class PaymentTermController extends ApiController
     }
 
     /**
-     * UpdatePayment Term
+     * Update Payment Term
      *
      * Update an existing payment term.
      */

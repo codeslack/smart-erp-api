@@ -8,7 +8,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 use Tests\Support\CreatesTenant;
 
-use App\Modules\Tenant\Models\Tenant;
 use App\Modules\PaymentTerm\Models\PaymentTerm;
 use App\Modules\Tenant\Services\TenantSetupService;
 
@@ -48,7 +47,7 @@ class PaymentTermSetupTest extends TestCase
         );
     }
 
-    public function test_default_payment_terms_have_correct_due_days(): void
+    public function test_default_payment_terms_have_correct_values(): void
     {
         $tenant = $this->createTestTenant();
 
@@ -56,15 +55,51 @@ class PaymentTermSetupTest extends TestCase
             ->setup($tenant);
 
         $expected = [
-            'CASH'  => 0,
-            'NET7'  => 7,
-            'NET15' => 15,
-            'NET30' => 30,
-            'NET45' => 45,
-            'NET60' => 60,
+            'CASH' => [
+                'due_days' => 0,
+                'discount_days' => 0,
+                'discount_percent' => '0.0000',
+                'grace_days' => 0,
+            ],
+
+            'NET7' => [
+                'due_days' => 7,
+                'discount_days' => 0,
+                'discount_percent' => '0.0000',
+                'grace_days' => 0,
+            ],
+
+            'NET15' => [
+                'due_days' => 15,
+                'discount_days' => 0,
+                'discount_percent' => '0.0000',
+                'grace_days' => 0,
+            ],
+
+            'NET30' => [
+                'due_days' => 30,
+                'discount_days' => 0,
+                'discount_percent' => '0.0000',
+                'grace_days' => 0,
+            ],
+
+            'NET45' => [
+                'due_days' => 45,
+                'discount_days' => 0,
+                'discount_percent' => '0.0000',
+                'grace_days' => 0,
+            ],
+
+            'NET60' => [
+                'due_days' => 60,
+                'discount_days' => 0,
+                'discount_percent' => '0.0000',
+                'grace_days' => 0,
+            ],
         ];
 
-        foreach ($expected as $code => $dueDays) {
+        foreach ($expected as $code => $values) {
+
             $paymentTerm = PaymentTerm::query()
                 ->where('tenant_id', $tenant->id)
                 ->where('code', $code)
@@ -76,8 +111,23 @@ class PaymentTermSetupTest extends TestCase
             );
 
             $this->assertSame(
-                $dueDays,
+                $values['due_days'],
                 $paymentTerm->due_days
+            );
+
+            $this->assertSame(
+                $values['discount_days'],
+                $paymentTerm->discount_days
+            );
+
+            $this->assertSame(
+                $values['discount_percent'],
+                $paymentTerm->discount_percent
+            );
+
+            $this->assertSame(
+                $values['grace_days'],
+                $paymentTerm->grace_days
             );
 
             $this->assertTrue(

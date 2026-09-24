@@ -24,6 +24,12 @@ class PaymentTerm extends TenantModel
 
         'due_days',
 
+        'discount_days',
+
+        'discount_percent',
+
+        'grace_days',
+
         'description',
 
         'is_active',
@@ -35,6 +41,12 @@ class PaymentTerm extends TenantModel
             parent::casts(),
             [
                 'due_days' => 'integer',
+
+                'discount_days' => 'integer',
+
+                'discount_percent' => 'decimal:4',
+
+                'grace_days' => 'integer',
 
                 'is_active' => 'boolean',
             ]

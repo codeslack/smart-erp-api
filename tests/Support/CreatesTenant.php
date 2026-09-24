@@ -16,6 +16,10 @@ trait CreatesTenant
             'slug' => 'test-company-' . uniqid(),
             'domain' => 'test-' . uniqid() . '.local',
             'business_type' => BusinessTypeEnum::COMPUTER,
+            "admin_name" => "Administrator",
+            "admin_email" => "admin@erp.com",
+            "admin_password" => "password123",
+            "admin_password_confirmation" => "password123",
             'is_active' => true,
         ]);
 

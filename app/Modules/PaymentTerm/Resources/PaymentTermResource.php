@@ -21,6 +21,12 @@ class PaymentTermResource extends JsonResource
 
             'due_days' => $this->due_days,
 
+            'discount_days' => $this->discount_days,
+
+            'discount_percent' => $this->discount_percent,
+
+            'grace_days' => $this->grace_days,
+
             'description' => $this->description,
 
             'is_active' => (bool) $this->is_active,

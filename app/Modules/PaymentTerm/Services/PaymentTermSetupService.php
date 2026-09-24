@@ -26,10 +26,13 @@ class PaymentTermSetupService implements TenantSetupInterface
                         'code'      => $term['code'],
                     ],
                     [
-                        'name'        => $term['name'],
-                        'due_days'    => $term['due_days'],
-                        'description' => $term['description'],
-                        'is_active'   => true,
+                        'name'             => $term['name'],
+                        'due_days'         => $term['due_days'],
+                        'discount_days'    => $term['discount_days'],
+                        'discount_percent' => $term['discount_percent'],
+                        'grace_days'       => $term['grace_days'],
+                        'description'      => $term['description'],
+                        'is_active'        => true,
                     ]
                 );
         }
@@ -40,45 +43,63 @@ class PaymentTermSetupService implements TenantSetupInterface
         return [
 
             [
-                'code'        => 'CASH',
-                'name'        => 'Cash',
-                'due_days'    => 0,
-                'description' => 'Payment due immediately.',
+                'code'             => 'CASH',
+                'name'             => 'Cash',
+                'due_days'         => 0,
+                'discount_days'    => 0,
+                'discount_percent' => 0,
+                'grace_days'       => 0,
+                'description'      => 'Payment due immediately.',
             ],
 
             [
-                'code'        => 'NET7',
-                'name'        => 'Net 7 Days',
-                'due_days'    => 7,
-                'description' => 'Payment due within 7 days.',
+                'code'             => 'NET7',
+                'name'             => 'Net 7 Days',
+                'due_days'         => 7,
+                'discount_days'    => 0,
+                'discount_percent' => 0,
+                'grace_days'       => 0,
+                'description'      => 'Payment due within 7 days.',
             ],
 
             [
-                'code'        => 'NET15',
-                'name'        => 'Net 15 Days',
-                'due_days'    => 15,
-                'description' => 'Payment due within 15 days.',
+                'code'             => 'NET15',
+                'name'             => 'Net 15 Days',
+                'due_days'         => 15,
+                'discount_days'    => 0,
+                'discount_percent' => 0,
+                'grace_days'       => 0,
+                'description'      => 'Payment due within 15 days.',
             ],
 
             [
-                'code'        => 'NET30',
-                'name'        => 'Net 30 Days',
-                'due_days'    => 30,
-                'description' => 'Payment due within 30 days.',
+                'code'             => 'NET30',
+                'name'             => 'Net 30 Days',
+                'due_days'         => 30,
+                'discount_days'    => 0,
+                'discount_percent' => 0,
+                'grace_days'       => 0,
+                'description'      => 'Payment due within 30 days.',
             ],
 
             [
-                'code'        => 'NET45',
-                'name'        => 'Net 45 Days',
-                'due_days'    => 45,
-                'description' => 'Payment due within 45 days.',
+                'code'             => 'NET45',
+                'name'             => 'Net 45 Days',
+                'due_days'         => 45,
+                'discount_days'    => 0,
+                'discount_percent' => 0,
+                'grace_days'       => 0,
+                'description'      => 'Payment due within 45 days.',
             ],
 
             [
-                'code'        => 'NET60',
-                'name'        => 'Net 60 Days',
-                'due_days'    => 60,
-                'description' => 'Payment due within 60 days.',
+                'code'             => 'NET60',
+                'name'             => 'Net 60 Days',
+                'due_days'         => 60,
+                'discount_days'    => 0,
+                'discount_percent' => 0,
+                'grace_days'       => 0,
+                'description'      => 'Payment due within 60 days.',
             ],
         ];
     }

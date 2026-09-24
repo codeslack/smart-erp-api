@@ -43,6 +43,18 @@ return new class extends Migration
             $table->text('description')
                 ->nullable();
 
+            $table->unsignedInteger('discount_days')
+                ->default(0);
+
+            $table->decimal(
+                'discount_percent',
+                8,
+                4
+            )->default(0);
+
+            $table->unsignedInteger('grace_days')
+                ->default(0);
+
             /*
             |--------------------------------------------------------------------------
             | Status

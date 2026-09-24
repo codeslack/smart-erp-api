@@ -3,13 +3,13 @@
 namespace App\Core\Exceptions;
 
 use Throwable;
-use Illuminate\Support\Facades\Log;
-use App\Core\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+
+use App\Core\Traits\ApiResponse;
 
 class ApiExceptionHandler
 {
@@ -62,7 +62,7 @@ class ApiExceptionHandler
             ], 404);
         }
 
-        Log::error($exception);
+        // Log::error($exception);
 
         return response()->json([
             'success' => false,

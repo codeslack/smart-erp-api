@@ -10,7 +10,7 @@ class UpdatePaymentTermRequest extends BaseRequest
 {
     public function rules(): array
     {
-        $paymentTerm = $this->route('paymentTerm');
+        $paymentTerm = $this->route('payment_term');
 
         return [
 
@@ -59,6 +59,38 @@ class UpdatePaymentTermRequest extends BaseRequest
             ],
 
             /**
+             * Number of days during which an early-payment
+             * discount is available.
+             * @example 10
+             */
+            'discount_days' => [
+                'sometimes',
+                'integer',
+                'min:0',
+            ],
+
+            /**
+             * Early-payment discount percentage.
+             * @example 2
+             */
+            'discount_percent' => [
+                'sometimes',
+                'numeric',
+                'min:0',
+                'max:100',
+            ],
+
+            /**
+             * Additional grace period after the normal due date.
+             * @example 5
+             */
+            'grace_days' => [
+                'sometimes',
+                'integer',
+                'min:0',
+            ],
+
+            /**
              * A brief description of the payment term.
              */
             'description' => [
@@ -75,6 +107,31 @@ class UpdatePaymentTermRequest extends BaseRequest
                 'sometimes',
                 'boolean',
             ],
+        ];
+    }
+
+    public function after(): array
+    {
+        return [
+            function ($validator) {
+
+                $dueDays = (int) $this->input(
+                    'due_days',
+                    $this->route('payment_term')->due_days
+                );
+
+                $discountDays = (int) $this->input(
+                    'discount_days',
+                    $this->route('payment_term')->discount_days
+                );
+
+                if ($discountDays > $dueDays) {
+                    $validator->errors()->add(
+                        'discount_days',
+                        'Discount days cannot exceed due days.'
+                    );
+                }
+            },
         ];
     }
 }
