@@ -3,27 +3,29 @@
 namespace App\Modules\Accounting\Services\Postings;
 
 use App\Modules\Purchase\Models\Purchase;
+
 use App\Modules\Accounting\Enums\AccountingAccounts;
+use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
 
 class PurchasePostingService extends BasePostingService
 {
     public function post(
         Purchase $purchase
     ): void {
+        $amount = $this->decimal(
+            $purchase->grand_total
+        );
 
-        abort_if(
-            $purchase->grand_total <= 0,
-            422,
-            'Purchase amount must be greater than zero.'
+        $this->validateAmount(
+            $amount
         );
 
         $this->createJournalEntry(
-
             entryDate:
                 $purchase->purchase_date,
 
             voucherType:
-                'purchase',
+                JournalVoucherTypeEnum::PURCHASE->value,
 
             referenceType:
                 Purchase::class,
@@ -35,26 +37,15 @@ class PurchasePostingService extends BasePostingService
                 "Purchase {$purchase->purchase_no}",
 
             lines: [
+                $this->debit(
+                    AccountingAccounts::INVENTORY,
+                    $amount
+                ),
 
-                [
-                    'account_code' =>
-                        AccountingAccounts::INVENTORY,
-
-                    'debit' =>
-                        $purchase->grand_total,
-
-                    'credit' => 0,
-                ],
-
-                [
-                    'account_code' =>
-                        AccountingAccounts::ACCOUNTS_PAYABLE,
-
-                    'debit' => 0,
-
-                    'credit' =>
-                        $purchase->grand_total,
-                ],
+                $this->credit(
+                    AccountingAccounts::ACCOUNTS_PAYABLE,
+                    $amount
+                ),
             ]
         );
     }

@@ -37,7 +37,7 @@ class JournalEntry extends TenantModel
     ];
 
     protected $attributes = [
-        'status' => 'draft',
+        'status' => JournalEntryStatusEnum::DRAFT->value,
     ];
 
     protected function casts(): array

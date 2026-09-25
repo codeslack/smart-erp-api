@@ -2,6 +2,8 @@
 
 namespace App\Modules\Accounting\Repositories;
 
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+
 use App\Core\Repositories\BaseRepository;
 
 use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
@@ -17,6 +19,16 @@ class JournalEntryRepository
         JournalEntry $model
     ) {
         parent::__construct($model);
+    }
+
+    public function paginate(
+        int $perPage = 15
+    ): LengthAwarePaginator {
+        return $this->model
+            ->newQuery()
+            ->with(['lines.account'])
+            ->latest()
+            ->paginate($perPage);
     }
 
     public function findWithLines(
@@ -42,14 +54,8 @@ class JournalEntryRepository
                 'status',
                 JournalEntryStatusEnum::POSTED->value
             )
-
-            // Only the original journal can be the active journal.
             ->whereNull('reversal_of_journal_entry_id')
-
-            // The original journal must not already have
-            // a reversal journal.
             ->whereDoesntHave('reversal')
-
             ->with(['lines.account'])
             ->first();
     }

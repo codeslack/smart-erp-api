@@ -4,6 +4,8 @@ namespace App\Modules\Accounting\Services\Postings;
 
 use App\Core\Exceptions\BusinessException;
 
+use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
+
 use App\Modules\Accounting\Models\ChartOfAccount;
 
 use App\Modules\Accounting\Services\JournalEntry\JournalEntryService;
@@ -14,57 +16,74 @@ abstract class BasePostingService
         protected JournalEntryService $journalEntryService
     ) {}
 
-    /**
-     * Validate posting amount.
-     */
     protected function validateAmount(
-        string $amount
+        string|int|float $amount
     ): void {
-        if (bccomp($amount, '0', 4) <= 0) {
+        $amount = (string) $amount;
+
+        if (
+            ! is_numeric($amount)
+            || bccomp($amount, '0', 4) <= 0
+        ) {
             throw new BusinessException(
                 'Amount must be greater than zero.'
             );
         }
     }
 
-    /**
-     * Resolve account code safely.
-     */
-    protected function getAccountCode(
-        ?ChartOfAccount $account
-    ): string {
-        if (! $account) {
+    protected function getAccount(
+        string $accountCode
+    ): ChartOfAccount {
+        $tenantId = tenant()?->id;
+
+        if (! $tenantId) {
             throw new BusinessException(
-                'Account not found.'
+                'Active tenant not found.'
             );
         }
 
-        return $account->account_code;
+        $account = ChartOfAccount::query()
+            ->where('tenant_id', $tenantId)
+            ->where('account_code', $accountCode)
+            ->where('is_active', true)
+            ->first();
+
+        if (! $account) {
+            throw new BusinessException(
+                "Account {$accountCode} not found."
+            );
+        }
+
+        return $account;
     }
 
-    /**
-     * Generic journal line builder.
-     */
+    protected function getAccountUuid(
+        string $accountCode
+    ): string {
+        return $this->getAccount($accountCode)->uuid;
+    }
+
     protected function buildEntryLine(
         string $accountCode,
-        string $debit = '0',
-        string $credit = '0',
+        string|int|float $debit = '0',
+        string|int|float $credit = '0',
         ?string $description = null
     ): array {
         return [
-            'account_code' => $accountCode,
-            'debit' => $debit,
-            'credit' => $credit,
+            'chart_of_account_uuid'
+                => $this->getAccountUuid($accountCode),
+
+            'debit' => $this->decimal($debit),
+
+            'credit' => $this->decimal($credit),
+
             'description' => $description,
         ];
     }
 
-    /**
-     * Debit helper.
-     */
     protected function debit(
         string $accountCode,
-        string $amount,
+        string|int|float $amount,
         ?string $description = null
     ): array {
         return $this->buildEntryLine(
@@ -75,12 +94,9 @@ abstract class BasePostingService
         );
     }
 
-    /**
-     * Credit helper.
-     */
     protected function credit(
         string $accountCode,
-        string $amount,
+        string|int|float $amount,
         ?string $description = null
     ): array {
         return $this->buildEntryLine(
@@ -91,9 +107,6 @@ abstract class BasePostingService
         );
     }
 
-    /**
-     * Create and post journal entry.
-     */
     protected function createJournalEntry(
         string $entryDate,
         string $voucherType,
@@ -114,9 +127,31 @@ abstract class BasePostingService
             'reference_id' => $referenceId,
             'entry_date' => $entryDate,
             'description' => $description,
-            'status' => 'draft',
+            'status' => JournalEntryStatusEnum::DRAFT,
             'created_by' => auth()->id(),
             'lines' => $lines,
         ]);
+    }
+
+    protected function decimal(
+        string|int|float $value
+    ): string {
+        if ($value === null || $value === '') {
+            return '0.0000';
+        }
+
+        $value = (string) $value;
+
+        if (! is_numeric($value)) {
+            throw new BusinessException(
+                'Accounting amount must be numeric.'
+            );
+        }
+
+        return bcadd(
+            $value,
+            '0',
+            4
+        );
     }
 }

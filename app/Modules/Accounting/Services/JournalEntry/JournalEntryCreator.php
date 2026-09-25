@@ -15,16 +15,20 @@ class JournalEntryCreator
         protected JournalEntryValidator $validator,
     ) {}
 
-    public function create(array $data): JournalEntry
-    {
+    public function create(
+        array $data
+    ): JournalEntry {
         $lines = $data['lines'] ?? [];
 
-        $this->validator->validateLines($lines);
+        $this->validator->validateLines(
+            $lines
+        );
 
         unset($data['lines']);
 
         $journalEntry = $this->repository->create([
             ...$data,
+
             'voucher_no' => nextDocumentNumber(
                 'journal_entry',
                 'JV'
@@ -38,69 +42,80 @@ class JournalEntryCreator
             );
 
             JournalEntryLine::create([
-                'tenant_id' => $journalEntry->tenant_id,
-                'journal_entry_id' => $journalEntry->id,
-                'chart_of_account_id' => $account->id,
+                'tenant_id' =>
+                    $journalEntry->tenant_id,
+
+                'journal_entry_id' =>
+                    $journalEntry->id,
+
+                'chart_of_account_id' =>
+                    $account->id,
+
                 'debit' => $this->decimal(
                     $line['debit'] ?? '0'
                 ),
+
                 'credit' => $this->decimal(
                     $line['credit'] ?? '0'
                 ),
-                'description' => $line['description'] ?? null,
+
+                'description' =>
+                    $line['description'] ?? null,
             ]);
         }
 
         return $journalEntry
             ->fresh()
-            ->load(['lines.account']);
+            ->load([
+                'lines.account',
+            ]);
     }
 
     protected function resolveAccount(
         array $line,
         int $tenantId
     ): ChartOfAccount {
-        if (isset($line['chart_of_account_id'])) {
-            $account = ChartOfAccount::query()
-                ->where('tenant_id', $tenantId)
-                ->whereKey($line['chart_of_account_id'])
-                ->first();
-
-            if (! $account) {
-                throw new BusinessException(
-                    'Chart of account not found.'
-                );
-            }
-
-            return $account;
-        }
-
-        if (! isset($line['account_code'])) {
+        if (
+            ! isset(
+                $line['chart_of_account_uuid']
+            )
+        ) {
             throw new BusinessException(
-                'Account code is required.'
+                'Chart of account UUID is required.'
             );
         }
 
         $account = ChartOfAccount::query()
-            ->where('tenant_id', $tenantId)
             ->where(
-                'account_code',
-                $line['account_code']
+                'tenant_id',
+                $tenantId
+            )
+            ->where(
+                'uuid',
+                $line['chart_of_account_uuid']
+            )
+            ->where(
+                'is_active',
+                true
             )
             ->first();
 
         if (! $account) {
             throw new BusinessException(
-                'Chart of account not found.'
+                'Active chart of account not found.'
             );
         }
 
         return $account;
     }
 
-    protected function decimal(mixed $value): string
-    {
-        if ($value === null || $value === '') {
+    protected function decimal(
+        mixed $value
+    ): string {
+        if (
+            $value === null
+            || $value === ''
+        ) {
             return '0.0000';
         }
 
@@ -112,6 +127,10 @@ class JournalEntryCreator
             );
         }
 
-        return bcadd($value, '0', 4);
+        return bcadd(
+            $value,
+            '0',
+            4
+        );
     }
 }

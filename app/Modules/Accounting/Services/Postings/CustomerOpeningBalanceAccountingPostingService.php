@@ -11,33 +11,58 @@ use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
 
 use App\Modules\Customer\Models\Customer;
 
-class CustomerOpeningBalanceAccountingPostingService extends BasePostingService
+class CustomerOpeningBalanceAccountingPostingService
+    extends BasePostingService
 {
-    public function post(Customer $customer, Collection $openingBills): void
-    {
+    private const SCALE = 4;
+
+    public function post(
+        Customer $customer,
+        Collection $openingBills
+    ): void {
+
         if ($openingBills->isEmpty()) {
             return;
         }
 
-        $receivable = 0.0;
-        $customerAdvance = 0.0;
+        $receivable = '0.0000';
+        $customerAdvance = '0.0000';
 
         foreach ($openingBills as $openingBill) {
-            $amount = (float) $openingBill->balance_amount;
+            $amount = bcadd(
+                (string) $openingBill->balance_amount,
+                '0',
+                self::SCALE
+            );
 
-            if ($amount <= 0) {
+            if (bccomp($amount, '0', self::SCALE) <= 0) {
                 continue;
             }
 
-            if ($openingBill->balance_type === OpeningBalanceTypeEnum::DEBIT) {
-                $receivable += $amount;
+            if (
+                $openingBill->balance_type
+                === OpeningBalanceTypeEnum::DEBIT
+            ) {
+                $receivable = bcadd(
+                    $receivable,
+                    $amount,
+                    self::SCALE
+                );
+
                 continue;
             }
 
-            $customerAdvance += $amount;
+            $customerAdvance = bcadd(
+                $customerAdvance,
+                $amount,
+                self::SCALE
+            );
         }
 
-        if ($receivable <= 0 && $customerAdvance <= 0) {
+        if (
+            bccomp($receivable, '0', self::SCALE) === 0
+            && bccomp($customerAdvance, '0', self::SCALE) === 0
+        ) {
             return;
         }
 
@@ -46,7 +71,9 @@ class CustomerOpeningBalanceAccountingPostingService extends BasePostingService
         /*
          * Customer owes us.
          */
-        if ($receivable > 0) {
+        if (
+            bccomp($receivable, '0', self::SCALE) > 0
+        ) {
             $lines[] = $this->debit(
                 AccountingAccounts::ACCOUNTS_RECEIVABLE,
                 $receivable
@@ -56,7 +83,9 @@ class CustomerOpeningBalanceAccountingPostingService extends BasePostingService
         /*
          * Customer has an advance with us.
          */
-        if ($customerAdvance > 0) {
+        if (
+            bccomp($customerAdvance, '0', self::SCALE) > 0
+        ) {
             $lines[] = $this->credit(
                 AccountingAccounts::CUSTOMER_ADVANCES,
                 $customerAdvance
@@ -65,48 +94,49 @@ class CustomerOpeningBalanceAccountingPostingService extends BasePostingService
 
         /*
          * Opening Balance Equity is the balancing account.
-         *
-         * Examples:
-         *
-         * Receivable 5,000 + Advance 500:
-         *   Dr AR                    5,000
-         *   Cr Customer Advances       500
-         *   Cr Opening Balance Equity 4,500
-         *
-         * Receivable 500 + Advance 5,000:
-         *   Dr AR                      500
-         *   Dr Opening Balance Equity 4,500
-         *   Cr Customer Advances     5,000
          */
-        $equityDifference = $receivable - $customerAdvance;
+        $equityDifference = bcsub(
+            $receivable,
+            $customerAdvance,
+            self::SCALE
+        );
 
-        if ($equityDifference > 0) {
+        if (
+            bccomp($equityDifference, '0', self::SCALE) > 0
+        ) {
             $lines[] = $this->credit(
                 AccountingAccounts::OPENING_BALANCE_EQUITY,
                 $equityDifference
             );
-        } elseif ($equityDifference < 0) {
+        } elseif (
+            bccomp($equityDifference, '0', self::SCALE) < 0
+        ) {
             $lines[] = $this->debit(
                 AccountingAccounts::OPENING_BALANCE_EQUITY,
-                abs($equityDifference)
+                bcmul(
+                    $equityDifference,
+                    '-1',
+                    self::SCALE
+                )
             );
         }
 
         $this->createJournalEntry(
-            entryDate: 
-                $openingBills
-                    ->min('bill_date')
-                    ->toDateString(),
+            entryDate: $openingBills
+                ->min('bill_date')
+                ->toDateString(),
 
-            voucherType: 
-                JournalVoucherTypeEnum::CUSTOMER_OPENING_BALANCE->value,
+            voucherType:
+                JournalVoucherTypeEnum::CUSTOMER_OPENING_BALANCE
+                    ->value,
 
             referenceType: Customer::class,
 
             referenceId: $customer->id,
 
-            description: "Customer Opening Balance {$customer->name}",
-            
+            description:
+                "Customer Opening Balance {$customer->name}",
+
             lines: $lines
         );
     }

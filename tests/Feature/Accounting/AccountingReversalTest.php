@@ -4,21 +4,20 @@ namespace Tests\Feature\Accounting;
 
 use Tests\TestCase;
 use Tests\Support\CreatesTenant;
+
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 use App\Core\Exceptions\BusinessException;
 
 use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
+use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
 
 use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Accounting\Models\JournalEntry;
 
-use App\Modules\Accounting\Enums\AccountingAccounts;
-use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
-
 use App\Modules\Accounting\Services\AccountingSetupService;
-use App\Modules\Accounting\Services\JournalEntry\JournalEntryService;
 use App\Modules\Accounting\Services\AccountingReversalService;
+use App\Modules\Accounting\Services\JournalEntry\JournalEntryService;
 
 use App\Modules\OpeningStock\Models\OpeningStock;
 
@@ -34,21 +33,19 @@ class AccountingReversalTest extends TestCase
         app(AccountingSetupService::class)
             ->setup($tenant);
 
-        $inventoryAccount =
-            ChartOfAccount::query()
-                ->where(
-                    'account_code',
-                    AccountingAccounts::INVENTORY
-                )
-                ->firstOrFail();
+        $inventoryAccount = ChartOfAccount::query()
+            ->where(
+                'account_code',
+                '1200'
+            )
+            ->firstOrFail();
 
-        $equityAccount =
-            ChartOfAccount::query()
-                ->where(
-                    'account_code',
-                    AccountingAccounts::OPENING_BALANCE_EQUITY
-                )
-                ->firstOrFail();
+        $equityAccount = ChartOfAccount::query()
+            ->where(
+                'account_code',
+                '3010'
+            )
+            ->firstOrFail();
 
         $inventoryBalanceBefore =
             (float) $inventoryAccount->current_balance;
@@ -75,31 +72,31 @@ class AccountingReversalTest extends TestCase
                 'Test Opening Stock',
 
             'status' =>
-                'draft',
+                JournalEntryStatusEnum::DRAFT,
 
             'created_by' =>
                 auth()->id(),
 
             'lines' => [
                 [
-                    'account_code' =>
-                        AccountingAccounts::INVENTORY,
+                    'chart_of_account_uuid' =>
+                        $inventoryAccount->uuid,
 
                     'debit' =>
-                        1000,
+                        '1000',
 
                     'credit' =>
-                        0,
+                        '0',
                 ],
                 [
-                    'account_code' =>
-                        AccountingAccounts::OPENING_BALANCE_EQUITY,
+                    'chart_of_account_uuid' =>
+                        $equityAccount->uuid,
 
                     'debit' =>
-                        0,
+                        '0',
 
                     'credit' =>
-                        1000,
+                        '1000',
                 ],
             ],
         ]);
@@ -109,9 +106,9 @@ class AccountingReversalTest extends TestCase
             $journalEntry->status
         );
 
-        $reversal =
-            app(AccountingReversalService::class)
-                ->reverse($journalEntry);
+        $reversal = app(
+            AccountingReversalService::class
+        )->reverse($journalEntry);
 
         $this->assertEquals(
             JournalEntryStatusEnum::POSTED,
@@ -130,19 +127,17 @@ class AccountingReversalTest extends TestCase
             $reversal->lines
         );
 
-        $inventoryLine =
-            $reversal->lines
-                ->firstWhere(
-                    'chart_of_account_id',
-                    $inventoryAccount->id
-                );
+        $inventoryLine = $reversal->lines
+            ->firstWhere(
+                'chart_of_account_id',
+                $inventoryAccount->id
+            );
 
-        $equityLine =
-            $reversal->lines
-                ->firstWhere(
-                    'chart_of_account_id',
-                    $equityAccount->id
-                );
+        $equityLine = $reversal->lines
+            ->firstWhere(
+                'chart_of_account_id',
+                $equityAccount->id
+            );
 
         $this->assertNotNull(
             $inventoryLine
@@ -153,23 +148,23 @@ class AccountingReversalTest extends TestCase
         );
 
         $this->assertEquals(
-            0,
-            (float) $inventoryLine->debit
+            '0.0000',
+            (string) $inventoryLine->debit
         );
 
         $this->assertEquals(
-            1000,
-            (float) $inventoryLine->credit
+            '1000.0000',
+            (string) $inventoryLine->credit
         );
 
         $this->assertEquals(
-            1000,
-            (float) $equityLine->debit
+            '1000.0000',
+            (string) $equityLine->debit
         );
 
         $this->assertEquals(
-            0,
-            (float) $equityLine->credit
+            '0.0000',
+            (string) $equityLine->credit
         );
 
         $this->assertEquals(
@@ -207,6 +202,20 @@ class AccountingReversalTest extends TestCase
         app(AccountingSetupService::class)
             ->setup($tenant);
 
+        $inventoryAccount = ChartOfAccount::query()
+            ->where(
+                'account_code',
+                '1200'
+            )
+            ->firstOrFail();
+
+        $equityAccount = ChartOfAccount::query()
+            ->where(
+                'account_code',
+                '3010'
+            )
+            ->firstOrFail();
+
         $journalEntry = app(
             JournalEntryService::class
         )->createAndPost([
@@ -226,37 +235,38 @@ class AccountingReversalTest extends TestCase
                 'Test Opening Stock',
 
             'status' =>
-                'draft',
+                JournalEntryStatusEnum::DRAFT,
 
             'created_by' =>
                 auth()->id(),
 
             'lines' => [
                 [
-                    'account_code' =>
-                        AccountingAccounts::INVENTORY,
+                    'chart_of_account_uuid' =>
+                        $inventoryAccount->uuid,
 
                     'debit' =>
-                        1000,
+                        '1000',
 
                     'credit' =>
-                        0,
+                        '0',
                 ],
                 [
-                    'account_code' =>
-                        AccountingAccounts::OPENING_BALANCE_EQUITY,
+                    'chart_of_account_uuid' =>
+                        $equityAccount->uuid,
 
                     'debit' =>
-                        0,
+                        '0',
 
                     'credit' =>
-                        1000,
+                        '1000',
                 ],
             ],
         ]);
 
-        $service =
-            app(AccountingReversalService::class);
+        $service = app(
+            AccountingReversalService::class
+        );
 
         $service->reverse(
             $journalEntry

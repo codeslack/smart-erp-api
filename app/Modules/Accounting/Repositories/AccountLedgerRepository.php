@@ -2,6 +2,8 @@
 
 namespace App\Modules\Accounting\Repositories;
 
+use Illuminate\Support\Collection;
+
 use App\Core\Repositories\BaseRepository;
 
 use App\Modules\Accounting\Models\AccountLedger;
@@ -20,23 +22,31 @@ class AccountLedgerRepository
         );
     }
 
-    public function getLastRunningBalance(
+    public function getBalanceBeforeDate(
         int $tenantId,
-        int $accountId
+        int $accountId,
+        string $entryDate
     ): ?string {
-
         return $this->model
-            ->where(
-                'tenant_id',
-                $tenantId
-            )
-            ->where(
-                'chart_of_account_id',
-                $accountId
-            )
-            ->latest('id')
-            ->value(
-                'running_balance'
-            );
-    }    
+            ->where('tenant_id', $tenantId)
+            ->where('chart_of_account_id', $accountId)
+            ->where('entry_date', '<', $entryDate)
+            ->orderByDesc('entry_date')
+            ->orderByDesc('id')
+            ->value('running_balance');
+    }
+
+    public function getFromDate(
+        int $tenantId,
+        int $accountId,
+        string $entryDate
+    ): Collection {
+        return $this->model
+            ->where('tenant_id', $tenantId)
+            ->where('chart_of_account_id', $accountId)
+            ->where('entry_date', '>=', $entryDate)
+            ->orderBy('entry_date')
+            ->orderBy('id')
+            ->get();
+    }
 }

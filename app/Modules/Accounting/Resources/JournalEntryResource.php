@@ -13,17 +13,19 @@ class JournalEntryResource extends JsonResource
 
         return [
 
-            'id' => $this->uuid,
+            'uuid' => $this->uuid,
 
             'voucher_no' => $this->voucher_no,
 
-            'voucher_type' => $this->voucher_type,
+            'voucher_type'
+                => $this->voucher_type?->value,
 
             'entry_date' => $this->entry_date,
 
             'description' => $this->description,
 
-            'status' => $this->status,
+            'status'
+                => $this->status?->value,
 
             'reference_type'
                 => $this->reference_type,
@@ -36,11 +38,11 @@ class JournalEntryResource extends JsonResource
                 fn () => $this->lines->map(
                     fn ($line) => [
 
-                        'id'
+                        'uuid'
                             => $line->uuid,
 
-                        'chart_of_account_id'
-                            => $line->chart_of_account_id,
+                        'chart_of_account_uuid'
+                            => $line->account?->uuid,
 
                         'account_name'
                             => $line->account?->account_name,

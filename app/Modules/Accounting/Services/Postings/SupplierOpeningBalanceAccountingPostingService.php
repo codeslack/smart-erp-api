@@ -1,5 +1,4 @@
 <?php
-// app/Modules/Accounting/Services/Postings/SupplierOpeningBalanceAccountingPostingService.php
 
 namespace App\Modules\Accounting\Services\Postings;
 
@@ -15,6 +14,8 @@ use App\Modules\Supplier\Models\Supplier;
 class SupplierOpeningBalanceAccountingPostingService
     extends BasePostingService
 {
+    private const SCALE = 4;
+
     public function post(
         Supplier $supplier,
         Collection $openingBills
@@ -23,13 +24,19 @@ class SupplierOpeningBalanceAccountingPostingService
             return;
         }
 
-        $payable = 0.0;
-        $supplierAdvance = 0.0;
+        $payable = '0.0000';
+        $supplierAdvance = '0.0000';
 
         foreach ($openingBills as $openingBill) {
-            $amount = (float) $openingBill->balance_amount;
+            $amount = bcadd(
+                (string) $openingBill->balance_amount,
+                '0',
+                self::SCALE
+            );
 
-            if ($amount <= 0) {
+            if (
+                bccomp($amount, '0', self::SCALE) <= 0
+            ) {
                 continue;
             }
 
@@ -41,7 +48,11 @@ class SupplierOpeningBalanceAccountingPostingService
                 $openingBill->balance_type
                 === OpeningBalanceTypeEnum::CREDIT
             ) {
-                $payable += $amount;
+                $payable = bcadd(
+                    $payable,
+                    $amount,
+                    self::SCALE
+                );
 
                 continue;
             }
@@ -50,13 +61,17 @@ class SupplierOpeningBalanceAccountingPostingService
              * Supplier DEBIT balance:
              * Supplier owes us / supplier advance.
              */
-            $supplierAdvance += $amount;
+            $supplierAdvance = bcadd(
+                $supplierAdvance,
+                $amount,
+                self::SCALE
+            );
         }
 
         if (
-            $payable <= 0
+            bccomp($payable, '0', self::SCALE) === 0
             &&
-            $supplierAdvance <= 0
+            bccomp($supplierAdvance, '0', self::SCALE) === 0
         ) {
             return;
         }
@@ -66,7 +81,9 @@ class SupplierOpeningBalanceAccountingPostingService
         /*
          * We owe the supplier.
          */
-        if ($payable > 0) {
+        if (
+            bccomp($payable, '0', self::SCALE) > 0
+        ) {
             $lines[] = $this->credit(
                 AccountingAccounts::ACCOUNTS_PAYABLE,
                 $payable
@@ -76,7 +93,9 @@ class SupplierOpeningBalanceAccountingPostingService
         /*
          * Supplier has an advance with us.
          */
-        if ($supplierAdvance > 0) {
+        if (
+            bccomp($supplierAdvance, '0', self::SCALE) > 0
+        ) {
             $lines[] = $this->debit(
                 AccountingAccounts::SUPPLIER_ADVANCES,
                 $supplierAdvance
@@ -86,34 +105,30 @@ class SupplierOpeningBalanceAccountingPostingService
         /*
          * Opening Balance Equity is the
          * balancing account.
-         *
-         * Examples:
-         *
-         * Payable 5,000 + Advance 500:
-         *
-         *   Dr Supplier Advances          500
-         *   Dr Opening Balance Equity   4,500
-         *   Cr Accounts Payable         5,000
-         *
-         * Payable 500 + Advance 5,000:
-         *
-         *   Dr Supplier Advances        5,000
-         *   Cr Accounts Payable           500
-         *   Cr Opening Balance Equity   4,500
          */
-        $equityDifference =
-            $payable
-            - $supplierAdvance;
+        $equityDifference = bcsub(
+            $payable,
+            $supplierAdvance,
+            self::SCALE
+        );
 
-        if ($equityDifference > 0) {
+        if (
+            bccomp($equityDifference, '0', self::SCALE) > 0
+        ) {
             $lines[] = $this->debit(
                 AccountingAccounts::OPENING_BALANCE_EQUITY,
                 $equityDifference
             );
-        } elseif ($equityDifference < 0) {
+        } elseif (
+            bccomp($equityDifference, '0', self::SCALE) < 0
+        ) {
             $lines[] = $this->credit(
                 AccountingAccounts::OPENING_BALANCE_EQUITY,
-                abs($equityDifference)
+                bcmul(
+                    $equityDifference,
+                    '-1',
+                    self::SCALE
+                )
             );
         }
 
@@ -124,7 +139,8 @@ class SupplierOpeningBalanceAccountingPostingService
                     ->toDateString(),
 
             voucherType:
-                JournalVoucherTypeEnum::SUPPLIER_OPENING_BALANCE->value,
+                JournalVoucherTypeEnum::SUPPLIER_OPENING_BALANCE
+                    ->value,
 
             referenceType:
                 Supplier::class,

@@ -3,6 +3,7 @@
 namespace App\Modules\Accounting\Services\JournalEntry;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Repositories\Contracts\JournalEntryRepositoryInterface;
@@ -16,7 +17,7 @@ class JournalEntryService
         protected JournalEntryCanceller $canceller,
     ) {}
 
-    public function getAll()
+    public function getAll(): LengthAwarePaginator
     {
         return $this->repository->paginate();
     }
@@ -55,16 +56,20 @@ class JournalEntryService
     public function post(
         JournalEntry $journalEntry
     ): JournalEntry {
-        return $this->poster->post(
-            $journalEntry
+        return DB::transaction(
+            fn () => $this->poster->post(
+                $journalEntry
+            )
         );
     }
 
     public function cancel(
         JournalEntry $journalEntry
     ): JournalEntry {
-        return $this->canceller->cancel(
-            $journalEntry
+        return DB::transaction(
+            fn () => $this->canceller->cancel(
+                $journalEntry
+            )
         );
     }
 }

@@ -23,9 +23,6 @@ class JournalEntryController extends ApiController
     {
         $entries = $this->service->getAll();
 
-        $entries->getCollection()
-            ->load(['lines.account']);
-
         return $this->success(
             JournalEntryResource::collection($entries),
             'Journal Entries retrieved successfully'

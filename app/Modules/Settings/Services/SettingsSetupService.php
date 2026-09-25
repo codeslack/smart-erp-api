@@ -146,8 +146,71 @@ class SettingsSetupService
             [
                 'tenant_id' => $tenant->id,
                 'group' => SettingGroupEnum::COMPANY->value,
+                'key' => 'date_format',
+                'value' => 'd-m-Y',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+
+            [
+                'tenant_id' => $tenant->id,
+                'group' => SettingGroupEnum::COMPANY->value,
+                'key' => 'time_format',
+                'value' => '12h',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+
+            [
+                'tenant_id' => $tenant->id,
+                'group' => SettingGroupEnum::COMPANY->value,
+                'key' => 'week_start_day',
+                'value' => 'sunday',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+
+            [
+                'tenant_id' => $tenant->id,
+                'group' => SettingGroupEnum::COMPANY->value,
+                'key' => 'fiscal_year_start_month',
+                'value' => '4',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+
+            [
+                'tenant_id' => $tenant->id,
+                'group' => SettingGroupEnum::COMPANY->value,
+                'key' => 'fiscal_year_start_day',
+                'value' => '1',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+
+            [
+                'tenant_id' => $tenant->id,
+                'group' => SettingGroupEnum::COMPANY->value,
                 'key' => 'decimal_places',
                 'value' => 2,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+
+            [
+                'tenant_id' => $tenant->id,
+                'group' => SettingGroupEnum::COMPANY->value,
+                'key' => 'number_format',
+                'value' => 'indian',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+
+            [
+                'tenant_id' => $tenant->id,
+                'group' => SettingGroupEnum::COMPANY->value,
+                'key' => 'currency_symbol',
+                'value' => '₹',
                 'created_at' => $now,
                 'updated_at' => $now,
             ],

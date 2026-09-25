@@ -2,95 +2,82 @@
 
 namespace App\Modules\Accounting\Services;
 
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+
 use App\Modules\Tenant\Models\Tenant;
+
 use App\Modules\Accounting\Enums\AccountType;
+use App\Modules\Accounting\Enums\AccountingAccounts;
+
 use App\Modules\Accounting\Models\AccountGroup;
 use App\Modules\Accounting\Models\ChartOfAccount;
-use App\Modules\Accounting\Enums\AccountingAccounts;
 
 class AccountingSetupService
 {
     public function setup(
         Tenant $tenant
     ): void {
+        DB::transaction(function () use ($tenant): void {
 
-        if (
-            ChartOfAccount::query()
-                ->where('tenant_id', $tenant->id)
-                ->exists()
-        ) {
-            return;
-        }
-
-        DB::transaction(function () use (
-            $tenant
-        ) {
-
-            $groups = $this->createGroups(
+            $groups = $this->ensureGroups(
                 $tenant
             );
 
-            $this->createAccounts(
+            $this->ensureAccounts(
                 $tenant,
                 $groups
             );
         });
     }
 
-    protected function createGroups(
+    protected function ensureGroups(
         Tenant $tenant
     ): array {
-
         $groups = [];
 
-        foreach (
-            $this->defaultGroups()
-            as $group
-        ) {
+        foreach ($this->defaultGroups() as $group) {
 
-            $groups[$group['key']] =
-                AccountGroup::create([
+            $accountGroup = AccountGroup::query()
+                ->where('tenant_id', $tenant->id)
+                ->where('code', $group['code'])
+                ->first();
 
-                    'tenant_id' =>
-                        $tenant->id,
-
-                    'name' =>
-                        $group['name'],
-
-                    'code' =>
-                        $group['code'],
+            if (! $accountGroup) {
+                $accountGroup = AccountGroup::create([
+                    'tenant_id' => $tenant->id,
+                    'name' => $group['name'],
+                    'code' => $group['code'],
                 ]);
+            }
+
+            $groups[$group['key']] = $accountGroup;
         }
 
         return $groups;
     }
 
-    protected function createAccounts(
+    protected function ensureAccounts(
         Tenant $tenant,
         array $groups
     ): void {
+        foreach ($this->defaultAccounts() as $account) {
 
-        $accounts = [];
+            $existing = ChartOfAccount::query()
+                ->where('tenant_id', $tenant->id)
+                ->where('account_code', $account['code'])
+                ->first();
 
-        foreach (
-            $this->defaultAccounts()
-            as $account
-        ) {
+            if ($existing) {
+                continue;
+            }
 
-            $accounts[] = [
-
-                'uuid' => (string) Str::uuid(),
-
-                'tenant_id' =>
-                    $tenant->id,
+            ChartOfAccount::create([
+                'tenant_id' => $tenant->id,
 
                 'account_group_id' =>
                     $groups[$account['group']]->id,
 
-                'parent_id' =>
-                    null,
+                'parent_id' => null,
 
                 'account_code' =>
                     $account['code'],
@@ -102,60 +89,47 @@ class AccountingSetupService
                     $account['type'],
 
                 'opening_balance' =>
-                    0,
+                    '0.0000',
 
                 'current_balance' =>
-                    0,
+                    '0.0000',
 
-                'is_system' =>
-                    true,
+                'is_system' => true,
 
-                'is_active' =>
-                    true,
-
-                'created_at' =>
-                    now(),
-
-                'updated_at' =>
-                    now(),
-            ];
+                'is_active' => true,
+            ]);
         }
-
-        ChartOfAccount::insert(
-            $accounts
-        );
     }
 
     protected function defaultGroups(): array
     {
         return [
-
             [
-                'key'  => 'asset',
+                'key' => 'asset',
                 'name' => 'Assets',
                 'code' => 'AST',
             ],
 
             [
-                'key'  => 'liability',
+                'key' => 'liability',
                 'name' => 'Liabilities',
                 'code' => 'LIA',
             ],
 
             [
-                'key'  => 'equity',
+                'key' => 'equity',
                 'name' => 'Equity',
                 'code' => 'EQT',
             ],
 
             [
-                'key'  => 'income',
+                'key' => 'income',
                 'name' => 'Income',
                 'code' => 'INC',
             ],
 
             [
-                'key'  => 'expense',
+                'key' => 'expense',
                 'name' => 'Expense',
                 'code' => 'EXP',
             ],
@@ -165,147 +139,126 @@ class AccountingSetupService
     protected function defaultAccounts(): array
     {
         return [
-
-            /*
-            |--------------------------------------------------------------------------
-            | Assets
-            |--------------------------------------------------------------------------
-            */
+            // Assets
 
             [
                 'group' => 'asset',
-                'code'  => AccountingAccounts::CASH,
-                'name'  => 'Cash',
-                'type'  => AccountType::ASSET,
+                'code' => AccountingAccounts::CASH,
+                'name' => 'Cash',
+                'type' => AccountType::ASSET,
             ],
 
             [
                 'group' => 'asset',
-                'code'  => AccountingAccounts::BANK,
-                'name'  => 'Bank Accounts',
-                'type'  => AccountType::ASSET,
+                'code' => AccountingAccounts::BANK,
+                'name' => 'Bank Accounts',
+                'type' => AccountType::ASSET,
             ],
 
             [
                 'group' => 'asset',
-                'code'  => AccountingAccounts::ACCOUNTS_RECEIVABLE,
-                'name'  => 'Accounts Receivable',
-                'type'  => AccountType::ASSET,
+                'code' => AccountingAccounts::ACCOUNTS_RECEIVABLE,
+                'name' => 'Accounts Receivable',
+                'type' => AccountType::ASSET,
             ],
 
             [
                 'group' => 'asset',
-                'code'  => AccountingAccounts::SUPPLIER_ADVANCES,
-                'name'  => 'Supplier Advances',
-                'type'  => AccountType::ASSET,
+                'code' => AccountingAccounts::SUPPLIER_ADVANCES,
+                'name' => 'Supplier Advances',
+                'type' => AccountType::ASSET,
             ],
 
             [
                 'group' => 'asset',
-                'code'  => AccountingAccounts::INVENTORY,
-                'name'  => 'Inventory',
-                'type'  => AccountType::ASSET,
+                'code' => AccountingAccounts::INVENTORY,
+                'name' => 'Inventory',
+                'type' => AccountType::ASSET,
             ],
 
             [
                 'group' => 'asset',
-                'code'  => AccountingAccounts::INPUT_TAX_RECEIVABLE,
-                'name'  => 'Input Tax Receivable',
-                'type'  => AccountType::ASSET,
+                'code' => AccountingAccounts::INPUT_TAX_RECEIVABLE,
+                'name' => 'Input Tax Receivable',
+                'type' => AccountType::ASSET,
             ],
 
-            /*
-            |--------------------------------------------------------------------------
-            | Liabilities
-            |--------------------------------------------------------------------------
-            */
+            // Liabilities
 
             [
                 'group' => 'liability',
-                'code'  => AccountingAccounts::ACCOUNTS_PAYABLE,
-                'name'  => 'Accounts Payable',
-                'type'  => AccountType::LIABILITY,
+                'code' => AccountingAccounts::ACCOUNTS_PAYABLE,
+                'name' => 'Accounts Payable',
+                'type' => AccountType::LIABILITY,
             ],
 
             [
                 'group' => 'liability',
-                'code'  => AccountingAccounts::CUSTOMER_ADVANCES,
-                'name'  => 'Customer Advances',
-                'type'  => AccountType::LIABILITY,
+                'code' => AccountingAccounts::CUSTOMER_ADVANCES,
+                'name' => 'Customer Advances',
+                'type' => AccountType::LIABILITY,
             ],
 
             [
                 'group' => 'liability',
-                'code'  => AccountingAccounts::OUTPUT_TAX_PAYABLE,
-                'name'  => 'Output Tax Payable',
-                'type'  => AccountType::LIABILITY,
+                'code' => AccountingAccounts::OUTPUT_TAX_PAYABLE,
+                'name' => 'Output Tax Payable',
+                'type' => AccountType::LIABILITY,
             ],
 
-            /*
-            |--------------------------------------------------------------------------
-            | Equity
-            |--------------------------------------------------------------------------
-            */
+            // Equity
 
             [
                 'group' => 'equity',
-                'code'  => AccountingAccounts::OWNER_EQUITY,
-                'name'  => 'Owner Equity',
-                'type'  => AccountType::EQUITY,
+                'code' => AccountingAccounts::OWNER_EQUITY,
+                'name' => 'Owner Equity',
+                'type' => AccountType::EQUITY,
             ],
 
             [
                 'group' => 'equity',
-                'code'  => AccountingAccounts::OPENING_BALANCE_EQUITY,
-                'name'  => 'Opening Balance Equity',
-                'type'  => AccountType::EQUITY,
+                'code' => AccountingAccounts::OPENING_BALANCE_EQUITY,
+                'name' => 'Opening Balance Equity',
+                'type' => AccountType::EQUITY,
             ],
 
-            /*
-            |--------------------------------------------------------------------------
-            | Income
-            |--------------------------------------------------------------------------
-            */
+            // Income
 
             [
                 'group' => 'income',
-                'code'  => AccountingAccounts::SALES_REVENUE,
-                'name'  => 'Sales Revenue',
-                'type'  => AccountType::INCOME,
+                'code' => AccountingAccounts::SALES_REVENUE,
+                'name' => 'Sales Revenue',
+                'type' => AccountType::INCOME,
             ],
 
             [
                 'group' => 'income',
-                'code'  => AccountingAccounts::SALES_RETURN,
-                'name'  => 'Sales Return',
-                'type'  => AccountType::INCOME,
+                'code' => AccountingAccounts::SALES_RETURN,
+                'name' => 'Sales Return',
+                'type' => AccountType::INCOME,
             ],
 
-            /*
-            |--------------------------------------------------------------------------
-            | Expenses
-            |--------------------------------------------------------------------------
-            */
+            // Expenses
 
             [
                 'group' => 'expense',
-                'code'  => AccountingAccounts::COST_OF_GOODS_SOLD,
-                'name'  => 'Cost Of Goods Sold',
-                'type'  => AccountType::EXPENSE,
+                'code' => AccountingAccounts::COST_OF_GOODS_SOLD,
+                'name' => 'Cost Of Goods Sold',
+                'type' => AccountType::EXPENSE,
             ],
 
             [
                 'group' => 'expense',
-                'code'  => AccountingAccounts::PURCHASE_FREIGHT,
-                'name'  => 'Purchase Freight',
-                'type'  => AccountType::EXPENSE,
+                'code' => AccountingAccounts::PURCHASE_FREIGHT,
+                'name' => 'Purchase Freight',
+                'type' => AccountType::EXPENSE,
             ],
 
             [
                 'group' => 'expense',
-                'code'  => AccountingAccounts::PURCHASE_HANDLING,
-                'name'  => 'Purchase Handling Charges',
-                'type'  => AccountType::EXPENSE,
+                'code' => AccountingAccounts::PURCHASE_HANDLING,
+                'name' => 'Purchase Handling Charges',
+                'type' => AccountType::EXPENSE,
             ],
         ];
     }

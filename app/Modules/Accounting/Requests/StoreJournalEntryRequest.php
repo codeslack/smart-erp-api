@@ -2,23 +2,21 @@
 
 namespace App\Modules\Accounting\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rules\Enum;
+
+use App\Core\Requests\BaseRequest;
 use App\Core\Validation\TenantRule;
+use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
 
-class StoreJournalEntryRequest extends FormRequest
+class StoreJournalEntryRequest extends BaseRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     public function rules(): array
     {
         return [
 
             'voucher_type' => [
                 'required',
-                'string',
+                new Enum(JournalVoucherTypeEnum::class),
             ],
 
             'entry_date' => [
@@ -47,10 +45,11 @@ class StoreJournalEntryRequest extends FormRequest
                 'min:2',
             ],
 
-            'lines.*.chart_of_account_id' => [
+            'lines.*.chart_of_account_uuid' => [
                 'required',
                 TenantRule::exists(
-                    'chart_of_accounts'
+                    'chart_of_accounts',
+                    'uuid'
                 ),
             ],
 

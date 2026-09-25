@@ -59,7 +59,7 @@ class AccountingReversalService
             }
 
             $lines[] = [
-                'account_code' => $line->account->account_code,
+                'chart_of_account_uuid' => $line->account->uuid,
                 'debit' => (string) $line->credit,
                 'credit' => (string) $line->debit,
                 'description' => $line->description,
@@ -77,7 +77,7 @@ class AccountingReversalService
                 $journalEntry->entry_date,
             'description' =>
                 'Reversal of ' . $journalEntry->voucher_no,
-            'status' => 'draft',
+            'status' => JournalEntryStatusEnum::DRAFT,
             'created_by' => auth()->id(),
             'reversal_of_journal_entry_id' =>
                 $journalEntry->id,

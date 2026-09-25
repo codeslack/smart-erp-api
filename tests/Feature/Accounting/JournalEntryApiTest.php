@@ -91,7 +91,7 @@ class JournalEntryApiTest extends TestCase
                 'Test journal entry'
             );
 
-        $journalEntryUuid = $response->json('data.id');
+        $journalEntryUuid = $response->json('data.uuid');
 
         $this->assertTrue(
             Str::isUuid($journalEntryUuid)
@@ -186,7 +186,7 @@ class JournalEntryApiTest extends TestCase
 
         $this->assertTrue(
             Str::isUuid(
-                $response->json('data.0.id')
+                $response->json('data.0.uuid')
             )
         );
     }
@@ -201,7 +201,7 @@ class JournalEntryApiTest extends TestCase
         $createResponse->assertSuccessful();
 
         $journalEntryUuid = $createResponse->json(
-            'data.id'
+            'data.uuid'
         );
 
         $response = $this->getJson(
@@ -212,7 +212,7 @@ class JournalEntryApiTest extends TestCase
             ->assertSuccessful()
             ->assertJsonPath('success', true)
             ->assertJsonPath(
-                'data.id',
+                'data.uuid',
                 $journalEntryUuid
             );
 
@@ -255,7 +255,8 @@ class JournalEntryApiTest extends TestCase
     {
         $data = $this->validJournalData();
 
-        $data['lines'][0]['chart_of_account_id'] = 999999999;
+        $data['lines'][0]['chart_of_account_uuid'] =
+            '00000000-0000-0000-0000-000000000000';
 
         $response = $this->postJson(
             '/api/accounting/journal-entries',
@@ -265,7 +266,7 @@ class JournalEntryApiTest extends TestCase
         $response
             ->assertStatus(422)
             ->assertJsonValidationErrors([
-                'lines.0.chart_of_account_id',
+                'lines.0.chart_of_account_uuid',
             ]);
 
         $this->assertDatabaseCount(
@@ -284,7 +285,7 @@ class JournalEntryApiTest extends TestCase
         $createResponse->assertSuccessful();
 
         $journalEntryUuid = $createResponse->json(
-            'data.id'
+            'data.uuid'
         );
 
         $postResponse = $this->postJson(
@@ -295,7 +296,7 @@ class JournalEntryApiTest extends TestCase
             ->assertSuccessful()
             ->assertJsonPath('success', true)
             ->assertJsonPath(
-                'data.id',
+                'data.uuid',
                 $journalEntryUuid
             )
             ->assertJsonPath(
@@ -368,7 +369,7 @@ class JournalEntryApiTest extends TestCase
         $createResponse->assertSuccessful();
 
         $journalEntryUuid = $createResponse->json(
-            'data.id'
+            'data.uuid'
         );
 
         $this->postJson(
@@ -399,7 +400,7 @@ class JournalEntryApiTest extends TestCase
         $createResponse->assertSuccessful();
 
         $journalEntryUuid = $createResponse->json(
-            'data.id'
+            'data.uuid'
         );
 
         $response = $this->postJson(
@@ -410,7 +411,7 @@ class JournalEntryApiTest extends TestCase
             ->assertSuccessful()
             ->assertJsonPath('success', true)
             ->assertJsonPath(
-                'data.id',
+                'data.uuid',
                 $journalEntryUuid
             )
             ->assertJsonPath(
@@ -438,7 +439,7 @@ class JournalEntryApiTest extends TestCase
         $createResponse->assertSuccessful();
 
         $journalEntryUuid = $createResponse->json(
-            'data.id'
+            'data.uuid'
         );
 
         $this->postJson(
@@ -473,7 +474,7 @@ class JournalEntryApiTest extends TestCase
         $createResponse->assertSuccessful();
 
         $journalEntryUuid = $createResponse->json(
-            'data.id'
+            'data.uuid'
         );
 
         $this->postJson(
@@ -502,13 +503,13 @@ class JournalEntryApiTest extends TestCase
             'description' => 'Test journal entry',
             'lines' => [
                 [
-                    'chart_of_account_id' => $this->cashAccount->id,
+                    'chart_of_account_uuid' => $this->cashAccount->uuid,
                     'debit' => 1000,
                     'credit' => 0,
                     'description' => 'Cash debit',
                 ],
                 [
-                    'chart_of_account_id' => $this->salesAccount->id,
+                    'chart_of_account_uuid' => $this->salesAccount->uuid,
                     'debit' => 0,
                     'credit' => 1000,
                     'description' => 'Sales credit',

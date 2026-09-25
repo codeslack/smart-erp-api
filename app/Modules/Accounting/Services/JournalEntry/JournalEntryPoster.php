@@ -6,7 +6,10 @@ use App\Core\Exceptions\BusinessException;
 use Illuminate\Support\Facades\DB;
 
 use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
+
 use App\Modules\Accounting\Models\JournalEntry;
+use App\Modules\Accounting\Models\ChartOfAccount;
+
 use App\Modules\Accounting\Services\AccountLedgerService;
 use App\Modules\Accounting\Services\BalanceCalculatorService;
 
@@ -103,7 +106,17 @@ class JournalEntryPoster
         JournalEntry $journalEntry
     ): void {
         foreach ($journalEntry->lines as $line) {
-            $account = $line->account;
+            $account = ChartOfAccount::query()
+                ->where('tenant_id', $journalEntry->tenant_id)
+                ->whereKey($line->chart_of_account_id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $account) {
+                throw new BusinessException(
+                    'Journal entry account not found.'
+                );
+            }
 
             $account->update([
                 'current_balance' =>

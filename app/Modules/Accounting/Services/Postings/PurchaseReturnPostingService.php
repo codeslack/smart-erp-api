@@ -4,7 +4,10 @@ namespace App\Modules\Accounting\Services\Postings;
 
 use App\Modules\Inventory\Models\StockLedger;
 use App\Modules\PurchaseReturn\Models\PurchaseReturn;
+
 use App\Modules\Accounting\Enums\AccountingAccounts;
+use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
+
 use App\Modules\Inventory\Enums\StockTransactionType;
 
 class PurchaseReturnPostingService extends BasePostingService
@@ -12,52 +15,54 @@ class PurchaseReturnPostingService extends BasePostingService
     public function post(
         PurchaseReturn $purchaseReturn
     ): void {
+        /*
+         * Actual inventory cost returned.
+         */
+        $inventoryCost = StockLedger::query()
+            ->where(
+                'reference_type',
+                PurchaseReturn::class
+            )
+            ->where(
+                'reference_id',
+                $purchaseReturn->id
+            )
+            ->where(
+                'transaction_type',
+                StockTransactionType::PURCHASE_RETURN
+            )
+            ->sum('line_cost');
+
+        $inventoryCost = $this->decimal(
+            $inventoryCost
+        );
+
+        $grandTotal = $this->decimal(
+            $purchaseReturn->grand_total
+        );
+
+        $this->validateAmount(
+            $grandTotal
+        );
+
+        $this->validateAmount(
+            $inventoryCost
+        );
 
         /*
-        |--------------------------------------------------------------------------
-        | Actual Inventory Cost
-        |--------------------------------------------------------------------------
-        */
-
-        $inventoryCost =
-            StockLedger::query()
-
-                ->where(
-                    'reference_type',
-                    PurchaseReturn::class
-                )
-
-                ->where(
-                    'reference_id',
-                    $purchaseReturn->id
-                )
-
-                ->where(
-                    'transaction_type',
-                    StockTransactionType::PURCHASE_RETURN
-                )
-
-                ->sum(
-                    'line_cost'
-                );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Reverse Supplier Liability
-        |--------------------------------------------------------------------------
-        |
-        | Dr Accounts Payable
-        | Cr Inventory
-        |
-        */
-
+         * Reverse supplier liability
+         *
+         * Dr Accounts Payable
+         * Cr Inventory
+         */
         $this->createJournalEntry(
-
             entryDate:
                 $purchaseReturn->return_date,
 
             voucherType:
-                'purchase_return',
+                JournalVoucherTypeEnum
+                    ::PURCHASE_RETURN
+                    ->value,
 
             referenceType:
                 PurchaseReturn::class,
@@ -69,46 +74,38 @@ class PurchaseReturnPostingService extends BasePostingService
                 "Purchase Return {$purchaseReturn->return_no}",
 
             lines: [
+                $this->debit(
+                    AccountingAccounts::ACCOUNTS_PAYABLE,
+                    $grandTotal
+                ),
 
-                [
-                    'account_code' =>
-                        AccountingAccounts::ACCOUNTS_PAYABLE,
-
-                    'debit' =>
-                        $purchaseReturn->grand_total,
-
-                    'credit' => 0,
-                ],
-
-                [
-                    'account_code' =>
-                        AccountingAccounts::INVENTORY,
-
-                    'debit' => 0,
-
-                    'credit' =>
-                        $inventoryCost,
-                ],
+                $this->credit(
+                    AccountingAccounts::INVENTORY,
+                    $inventoryCost
+                ),
             ]
         );
 
         /*
-        |--------------------------------------------------------------------------
-        | Reverse Input Tax
-        |--------------------------------------------------------------------------
-        */
+         * Reverse input tax.
+         *
+         * Dr Accounts Payable
+         * Cr Input Tax Receivable
+         */
+        $tax = $this->decimal(
+            $purchaseReturn->tax
+        );
 
         if (
-            $purchaseReturn->tax > 0
+            bccomp($tax, '0.0000', 4) > 0
         ) {
-
             $this->createJournalEntry(
-
                 entryDate:
                     $purchaseReturn->return_date,
 
                 voucherType:
-                    'purchase_return',
+                    JournalVoucherTypeEnum::PURCHASE_RETURN
+                        ->value,
 
                 referenceType:
                     PurchaseReturn::class,
@@ -120,26 +117,15 @@ class PurchaseReturnPostingService extends BasePostingService
                     "Purchase Return Tax {$purchaseReturn->return_no}",
 
                 lines: [
+                    $this->debit(
+                        AccountingAccounts::ACCOUNTS_PAYABLE,
+                        $tax
+                    ),
 
-                    [
-                        'account_code' =>
-                            AccountingAccounts::ACCOUNTS_PAYABLE,
-
-                        'debit' =>
-                            $purchaseReturn->tax,
-
-                        'credit' => 0,
-                    ],
-
-                    [
-                        'account_code' =>
-                            AccountingAccounts::INPUT_TAX_RECEIVABLE,
-
-                        'debit' => 0,
-
-                        'credit' =>
-                            $purchaseReturn->tax,
-                    ],
+                    $this->credit(
+                        AccountingAccounts::INPUT_TAX_RECEIVABLE,
+                        $tax
+                    ),
                 ]
             );
         }
