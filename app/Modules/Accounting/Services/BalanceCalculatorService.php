@@ -6,76 +6,66 @@ use App\Modules\Accounting\Enums\AccountType;
 
 class BalanceCalculatorService
 {
+    private const SCALE = 4;
+
     public function calculate(
         string $accountType,
-        float $currentBalance,
-        float $debit,
-        float $credit
-    ): float {
-
+        string $currentBalance,
+        string $debit,
+        string $credit
+    ): string {
         return match ($accountType) {
-
             AccountType::ASSET,
-            AccountType::EXPENSE =>
-
-                $currentBalance
-                + $debit
-                - $credit,
+            AccountType::EXPENSE => bcadd(
+                bcsub(
+                    $currentBalance,
+                    $credit,
+                    self::SCALE
+                ),
+                $debit,
+                self::SCALE
+            ),
 
             AccountType::LIABILITY,
             AccountType::EQUITY,
-            AccountType::INCOME =>
+            AccountType::INCOME => bcadd(
+                bcsub(
+                    $currentBalance,
+                    $debit,
+                    self::SCALE
+                ),
+                $credit,
+                self::SCALE
+            ),
 
-                $currentBalance
-                - $debit
-                + $credit,
-
-            default =>
-                $currentBalance,
-        };
-    }
-
-    public function openingBalance(
-        string $accountType
-    ): float {
-
-        return match ($accountType) {
-
-            AccountType::ASSET,
-            AccountType::EXPENSE => 0,
-
-            AccountType::LIABILITY,
-            AccountType::EQUITY,
-            AccountType::INCOME => 0,
-
-            default => 0,
+            default => $currentBalance,
         };
     }
 
     public function isDebitNormalBalance(
         string $accountType
     ): bool {
-
         return in_array(
             $accountType,
             [
                 AccountType::ASSET,
                 AccountType::EXPENSE,
-            ]
+            ],
+            true
         );
     }
 
     public function isCreditNormalBalance(
         string $accountType
     ): bool {
-
         return in_array(
             $accountType,
             [
                 AccountType::LIABILITY,
                 AccountType::EQUITY,
                 AccountType::INCOME,
-            ]
+            ],
+            true
         );
     }
 }

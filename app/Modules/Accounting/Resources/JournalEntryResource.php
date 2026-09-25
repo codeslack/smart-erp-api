@@ -13,7 +13,7 @@ class JournalEntryResource extends JsonResource
 
         return [
 
-            'id' => $this->id,
+            'id' => $this->uuid,
 
             'voucher_no' => $this->voucher_no,
 
@@ -37,7 +37,7 @@ class JournalEntryResource extends JsonResource
                     fn ($line) => [
 
                         'id'
-                            => $line->id,
+                            => $line->uuid,
 
                         'chart_of_account_id'
                             => $line->chart_of_account_id,

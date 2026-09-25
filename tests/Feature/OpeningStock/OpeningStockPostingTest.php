@@ -29,6 +29,7 @@ use App\Modules\Accounting\Services\AccountingSetupService;
 use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Enums\AccountingAccounts;
+use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
 use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
 
 class OpeningStockPostingTest extends TestCase
@@ -145,7 +146,7 @@ class OpeningStockPostingTest extends TestCase
         $this->assertNotNull($journalEntry);
 
         $this->assertEquals(
-            JournalVoucherTypeEnum::OPENING_STOCK->value,
+            JournalVoucherTypeEnum::OPENING_STOCK,
             $journalEntry->voucher_type
         );
 
@@ -265,7 +266,7 @@ class OpeningStockPostingTest extends TestCase
         $this->assertNotNull($reversal);
 
         $this->assertEquals(
-            'posted',
+            JournalEntryStatusEnum::POSTED,
             $reversal->status
         );
 

@@ -9,6 +9,4 @@ enum JournalEntryStatusEnum: string
     case POSTED = 'posted';
 
     case CANCELLED = 'cancelled';
-
-    case REVERSED = 'reversed';
 }

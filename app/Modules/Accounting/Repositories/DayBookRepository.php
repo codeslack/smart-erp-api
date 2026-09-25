@@ -6,7 +6,7 @@ use Illuminate\Support\Collection;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Purchase\Models\Purchase;
 use App\Modules\Accounting\Models\JournalEntry;
-use App\Modules\Accounting\Enums\JournalEntryStatus;
+use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
 use App\Modules\CustomerReceipt\Models\CustomerReceipt;
 use App\Modules\SupplierPayment\Models\SupplierPayment;
 use App\Modules\Accounting\Repositories\Contracts\DayBookRepositoryInterface;
@@ -315,7 +315,7 @@ implements DayBookRepositoryInterface
 
             ->where(
                 'status',
-                JournalEntryStatus::POSTED
+                JournalEntryStatusEnum::POSTED
             )
 
             ->when(

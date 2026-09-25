@@ -3,7 +3,9 @@
 namespace App\Modules\Accounting\Repositories;
 
 use App\Core\Repositories\BaseRepository;
+
 use App\Modules\Accounting\Models\AccountLedger;
+
 use App\Modules\Accounting\Repositories\Contracts\AccountLedgerRepositoryInterface;
 
 class AccountLedgerRepository

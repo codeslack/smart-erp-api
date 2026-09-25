@@ -2,18 +2,18 @@
 
 namespace App\Modules\Accounting\Controllers;
 
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\ApiController;
+
 use App\Modules\Accounting\Models\JournalEntry;
-use App\Modules\Accounting\Services\JournalEntryService;
 use App\Modules\Accounting\Resources\JournalEntryResource;
 use App\Modules\Accounting\Requests\StoreJournalEntryRequest;
 use App\Modules\Accounting\Requests\UpdateJournalEntryRequest;
+use App\Modules\Accounting\Services\JournalEntry\JournalEntryService;
 
 /**
  * @tag Accounting.Journal Entries
  */
-class JournalEntryController
-extends Controller
+class JournalEntryController extends ApiController
 {
     public function __construct(
         protected JournalEntryService $service
@@ -21,15 +21,15 @@ extends Controller
 
     public function index()
     {
-        // return JournalEntryResource::collection(
-        //     $this->service->getAll()
-        // );
-
         $entries = $this->service->getAll();
 
-        $entries->getCollection()->load(['lines.account']);
+        $entries->getCollection()
+            ->load(['lines.account']);
 
-        return JournalEntryResource::collection($entries);
+        return $this->success(
+            JournalEntryResource::collection($entries),
+            'Journal Entries retrieved successfully'
+        );
     }
 
     public function store(
@@ -39,27 +39,21 @@ extends Controller
             $request->validated()
         );
 
-        return response()->json([
-
-            'success' => true,
-
-            'message'
-            => 'Journal Entry created successfully',
-
-            'data'
-            => new JournalEntryResource(
-                $journalEntry
-            ),
-        ]);
+        return $this->success(
+            new JournalEntryResource($journalEntry),
+            'Journal Entry created successfully',
+            201
+        );
     }
 
     public function show(
         JournalEntry $journalEntry
     ) {
-        return new JournalEntryResource(
-            $journalEntry->load(
-                'lines.account'
-            )
+        return $this->success(
+            new JournalEntryResource(
+                $journalEntry->load('lines.account')
+            ),
+            'Journal Entry retrieved successfully'
         );
     }
 
@@ -67,13 +61,15 @@ extends Controller
         UpdateJournalEntryRequest $request,
         JournalEntry $journalEntry
     ) {
-        //
+        // Journal entry update will be implemented
+        // after the V4 lifecycle rules are finalized.
     }
 
     public function destroy(
         JournalEntry $journalEntry
     ) {
-        //
+        // Journal entry deletion will be implemented
+        // after the V4 lifecycle rules are finalized.
     }
 
     public function post(
@@ -83,18 +79,10 @@ extends Controller
             $journalEntry
         );
 
-        return response()->json([
-
-            'success' => true,
-
-            'message'
-            => 'Journal Entry posted successfully',
-
-            'data'
-            => new JournalEntryResource(
-                $journalEntry
-            ),
-        ]);
+        return $this->success(
+            new JournalEntryResource($journalEntry),
+            'Journal Entry posted successfully'
+        );
     }
 
     public function cancel(
@@ -104,17 +92,9 @@ extends Controller
             $journalEntry
         );
 
-        return response()->json([
-
-            'success' => true,
-
-            'message'
-            => 'Journal Entry cancelled successfully',
-
-            'data'
-            => new JournalEntryResource(
-                $journalEntry
-            ),
-        ]);
+        return $this->success(
+            new JournalEntryResource($journalEntry),
+            'Journal Entry cancelled successfully'
+        );
     }
 }

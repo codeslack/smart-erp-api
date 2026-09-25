@@ -19,7 +19,9 @@ use App\Modules\CustomerOpeningBill\Models\CustomerOpeningBill;
 use App\Modules\Accounting\Services\AccountingSetupService;
 use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Accounting\Models\JournalEntry;
+
 use App\Modules\Accounting\Enums\AccountingAccounts;
+use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
 use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
 
 class CustomerOpeningBillAccountingTest extends TestCase
@@ -109,12 +111,12 @@ class CustomerOpeningBillAccountingTest extends TestCase
         );
 
         $this->assertEquals(
-            JournalVoucherTypeEnum::CUSTOMER_OPENING_BALANCE->value,
+            JournalVoucherTypeEnum::CUSTOMER_OPENING_BALANCE,
             $journalEntry->voucher_type
         );
 
         $this->assertEquals(
-            'posted',
+            JournalEntryStatusEnum::POSTED,
             $journalEntry->status
         );
     }
@@ -392,7 +394,7 @@ class CustomerOpeningBillAccountingTest extends TestCase
         );
 
         $this->assertEquals(
-            'posted',
+            JournalEntryStatusEnum::POSTED,
             $oldJournal->reversal->status
         );
 

@@ -4,6 +4,8 @@ namespace App\Modules\Accounting\Repositories;
 
 use App\Core\Repositories\BaseRepository;
 
+use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
+
 use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Repositories\Contracts\JournalEntryRepositoryInterface;
 
@@ -36,7 +38,10 @@ class JournalEntryRepository
             ->where('reference_type', $referenceType)
             ->where('reference_id', $referenceId)
             ->where('voucher_type', $voucherType)
-            ->where('status', 'posted')
+            ->where(
+                'status',
+                JournalEntryStatusEnum::POSTED->value
+            )
 
             // Only the original journal can be the active journal.
             ->whereNull('reversal_of_journal_entry_id')

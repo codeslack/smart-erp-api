@@ -4,7 +4,11 @@ namespace App\Modules\Accounting\Services;
 
 use App\Core\Exceptions\BusinessException;
 
+use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
+
 use App\Modules\Accounting\Models\JournalEntry;
+
+use App\Modules\Accounting\Services\JournalEntry\JournalEntryService;
 
 use App\Modules\Accounting\Repositories\Contracts\JournalEntryRepositoryInterface;
 
@@ -20,7 +24,8 @@ class AccountingReversalService
     ): JournalEntry {
 
         if (
-            $journalEntry->status !== 'posted'
+            $journalEntry->status
+            !== JournalEntryStatusEnum::POSTED
         ) {
             throw new BusinessException(
                 'Only posted journal entries can be reversed.'
@@ -38,9 +43,7 @@ class AccountingReversalService
             );
         }
 
-        if (
-            $journalEntry->lines->isEmpty()
-        ) {
+        if ($journalEntry->lines->isEmpty()) {
             throw new BusinessException(
                 'Journal entry has no lines.'
             );
@@ -48,61 +51,38 @@ class AccountingReversalService
 
         $lines = [];
 
-        foreach (
-            $journalEntry->lines as $line
-        ) {
-
-            if (!$line->account) {
+        foreach ($journalEntry->lines as $line) {
+            if (! $line->account) {
                 throw new BusinessException(
                     'Journal entry account not found.'
                 );
             }
 
             $lines[] = [
-                'account_code' =>
-                    $line->account->account_code,
-
-                'debit' =>
-                    (float) $line->credit,
-
-                'credit' =>
-                    (float) $line->debit,
-
-                'description' =>
-                    $line->description,
+                'account_code' => $line->account->account_code,
+                'debit' => (string) $line->credit,
+                'credit' => (string) $line->debit,
+                'description' => $line->description,
             ];
         }
 
-        return $this->journalEntryService
-            ->createAndPost([
-                'voucher_type' =>
-                    $journalEntry->voucher_type,
-
-                'reference_type' =>
-                    $journalEntry->reference_type,
-
-                'reference_id' =>
-                    $journalEntry->reference_id,
-
-                'entry_date' =>
-                    $journalEntry->entry_date,
-
-                'description' =>
-                    'Reversal of '
-                    . $journalEntry->voucher_no,
-
-                'status' =>
-                    'draft',
-
-                'created_by' =>
-                    auth()->id(),
-
-                'reversal_of_journal_entry_id' =>
-                    $journalEntry->id,
-
-                'lines' =>
-                    $lines,
-            ]);
+        return $this->journalEntryService->createAndPost([
+            'voucher_type' =>
+                $journalEntry->voucher_type,
+            'reference_type' =>
+                $journalEntry->reference_type,
+            'reference_id' =>
+                $journalEntry->reference_id,
+            'entry_date' =>
+                $journalEntry->entry_date,
+            'description' =>
+                'Reversal of ' . $journalEntry->voucher_no,
+            'status' => 'draft',
+            'created_by' => auth()->id(),
+            'reversal_of_journal_entry_id' =>
+                $journalEntry->id,
+            'lines' => $lines,
+        ]);
     }
 
     public function reverseByReference(
@@ -110,28 +90,19 @@ class AccountingReversalService
         int $referenceId,
         string $voucherType
     ): JournalEntry {
-
         $journalEntry =
-            $this->repository
-                ->findPostedByReference(
-                    referenceType:
-                        $referenceType,
+            $this->repository->findPostedByReference(
+                referenceType: $referenceType,
+                referenceId: $referenceId,
+                voucherType: $voucherType,
+            );
 
-                    referenceId:
-                        $referenceId,
-
-                    voucherType:
-                        $voucherType,
-                );
-
-        if (!$journalEntry) {
+        if (! $journalEntry) {
             throw new BusinessException(
                 'Original journal entry not found.'
             );
         }
 
-        return $this->reverse(
-            $journalEntry
-        );
+        return $this->reverse($journalEntry);
     }
 }

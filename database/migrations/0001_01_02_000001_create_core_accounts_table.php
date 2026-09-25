@@ -276,6 +276,11 @@ return new class extends Migration
 
                 $table->timestamps();
 
+                $table->unique([
+                    'tenant_id',
+                    'journal_entry_line_id',
+                ]);
+
                 $table->index([
                     'tenant_id',
                     'chart_of_account_id',

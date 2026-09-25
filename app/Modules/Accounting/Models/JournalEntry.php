@@ -7,6 +7,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
+use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
+
 use App\Core\Models\TenantModel;
 
 use App\Modules\User\Models\User;
@@ -42,6 +45,8 @@ class JournalEntry extends TenantModel
         return array_merge(
             parent::casts(),
             [
+                'voucher_type' => JournalVoucherTypeEnum::class,
+                'status' => JournalEntryStatusEnum::class,
                 'entry_date' => 'date',
             ]
         );

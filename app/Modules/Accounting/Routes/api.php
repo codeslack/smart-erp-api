@@ -131,7 +131,7 @@ Route::middleware([
             Route::apiResource(
                 'journal-entries',
                 JournalEntryController::class
-            );
+            )->parameters([ 'journal-entries' => 'journalEntry', ]);
 
             Route::apiResource(
                 'account-groups',
