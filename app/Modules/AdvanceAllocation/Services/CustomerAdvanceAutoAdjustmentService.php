@@ -4,10 +4,10 @@ namespace App\Modules\AdvanceAllocation\Services;
 
 use App\Modules\Sales\Models\Sale;
 
-use App\Modules\CustomerReceipt\Models\CustomerReceipt;
+use App\Modules\Receipt\Models\Receipt;
 
-use App\Modules\CustomerReceipt\Enums\CustomerReceiptStatus;
-use App\Modules\CustomerReceipt\Enums\CustomerReceiptType;
+use App\Modules\Receipt\Enums\ReceiptStatusEnum;
+use App\Modules\Receipt\Enums\ReceiptTypeEnum;
 
 class CustomerAdvanceAutoAdjustmentService
 {
@@ -34,39 +34,39 @@ class CustomerAdvanceAutoAdjustmentService
         }
 
         $advances =
-            CustomerReceipt::query()
+            Receipt::query()
 
-                ->where(
-                    'tenant_id',
-                    tenantId()
-                )
+            ->where(
+                'tenant_id',
+                tenantId()
+            )
 
-                ->where(
-                    'customer_id',
-                    $sale->customer_id
-                )
+            ->where(
+                'customer_id',
+                $sale->customer_id
+            )
 
-                ->where(
-                    'status',
-                    CustomerReceiptStatus::CONFIRMED
-                )
+            ->where(
+                'status',
+                ReceiptStatusEnum::CONFIRMED
+            )
 
-                ->where(
-                    'receipt_type',
-                    CustomerReceiptType::ADVANCE
-                )
+            ->where(
+                'receipt_type',
+                ReceiptTypeEnum::ADVANCE
+            )
 
-                ->orderBy(
-                    'receipt_date'
-                )
+            ->orderBy(
+                'receipt_date'
+            )
 
-                ->orderBy(
-                    'id'
-                )
+            ->orderBy(
+                'id'
+            )
 
-                ->lockForUpdate()
+            ->lockForUpdate()
 
-                ->get();
+            ->get();
 
         foreach (
             $advances as $advance
@@ -74,9 +74,9 @@ class CustomerAdvanceAutoAdjustmentService
 
             $availableAmount =
                 $this->allocationService
-                    ->getAvailableCustomerAdvance(
-                        $advance
-                    );
+                ->getAvailableCustomerAdvance(
+                    $advance
+                );
 
             if (
                 $availableAmount <= 0
@@ -99,14 +99,11 @@ class CustomerAdvanceAutoAdjustmentService
             $this->allocationService
                 ->allocateCustomerAdvance(
 
-                    receipt:
-                        $advance,
+                    receipt: $advance,
 
-                    sale:
-                        $sale,
+                    sale: $sale,
 
-                    amount:
-                        $allocationAmount
+                    amount: $allocationAmount
                 );
 
             $sale->increment(

@@ -2,43 +2,50 @@
 
 namespace App\Modules\Accounting\Services\Contracts;
 
+use Illuminate\Database\Eloquent\Collection;
+
+use App\Modules\Sales\Models\Sale;
+use App\Modules\Payment\Models\Payment;
+use App\Modules\Customer\Models\Customer;
+use App\Modules\Supplier\Models\Supplier;
+use App\Modules\Purchase\Models\Purchase;
+use App\Modules\SalesReturn\Models\SalesReturn;
+use App\Modules\OpeningStock\Models\OpeningStock;
+use App\Modules\PurchaseReturn\Models\PurchaseReturn;
+
 interface AccountingPostingServiceInterface
 {
     public function postOpeningStock(
-        mixed $openingStock
+        OpeningStock $openingStock
     ): void;
 
     public function postCustomerOpeningBalance(
-        mixed $customer,
-        mixed $openingBills
+        Customer $customer,
+        Collection $openingBills
     ): void;
 
     public function postSupplierOpeningBalance(
-        mixed $supplier,
-        mixed $openingBills
+        Supplier $supplier,
+        Collection $openingBills
     ): void;
 
     public function postSale(
-        mixed $sale
+        Sale $sale
     ): void;
 
     public function postPurchase(
-        mixed $purchase
-    ): void;
-
-    public function postCustomerReceipt(
-        mixed $receipt
-    ): void;
-
-    public function postSupplierPayment(
-        mixed $payment
+        Purchase $purchase
     ): void;
 
     public function postPurchaseReturn(
-        mixed $purchaseReturn
+        PurchaseReturn $purchaseReturn
     ): void;
 
     public function postSalesReturn(
-        mixed $salesReturn
+        SalesReturn $salesReturn
+    ): void;
+
+    public function postPayment(
+        Payment $payment
     ): void;
 }

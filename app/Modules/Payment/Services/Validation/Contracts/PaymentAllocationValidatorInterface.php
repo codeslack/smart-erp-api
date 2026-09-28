@@ -1,0 +1,14 @@
+<?php
+
+namespace App\Modules\Payment\Services\Validation\Contracts;
+
+use App\Modules\Payment\Models\Payment;
+use App\Modules\Payment\Models\PaymentAllocation;
+
+interface PaymentAllocationValidatorInterface
+{
+    public function validate(
+        Payment $payment,
+        PaymentAllocation $allocation
+    ): void;
+}

@@ -76,6 +76,9 @@ return [
 
     App\Modules\Accounting\AccountingModule::class,
 
+    App\Modules\Payment\PaymentModule::class,
+    // App\Modules\Receipt\ReceiptModule::class,
+
     /*
     |--------------------------------------------------------------------------
     | Inventory

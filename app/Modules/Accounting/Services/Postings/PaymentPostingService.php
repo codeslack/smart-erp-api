@@ -4,13 +4,13 @@ namespace App\Modules\Accounting\Services\Postings;
 
 use App\Modules\Accounting\Enums\AccountingAccounts;
 
-use App\Modules\SupplierPayment\Models\SupplierPayment;
-use App\Modules\SupplierPayment\Enums\SupplierPaymentType;
+use App\Modules\Payment\Models\Payment;
+use App\Modules\Payment\Enums\PaymentTypeEnum;
 
 class PaymentPostingService extends BasePostingService
 {
     public function post(
-        SupplierPayment $payment
+        Payment $payment
     ): void {
 
         $payment->loadMissing(
@@ -26,57 +26,43 @@ class PaymentPostingService extends BasePostingService
                 $payment->paymentAccount
             );
 
-        $lines = match (
-            $payment->payment_type
-        ) {
+        $lines = match ($payment->payment_type) {
 
-            SupplierPaymentType::INVOICE =>
-                $this->buildInvoicePaymentLines(
-                    paymentAccountCode:
-                        $paymentAccountCode,
+            PaymentTypeEnum::INVOICE =>
+            $this->buildInvoicePaymentLines(
+                paymentAccountCode: $paymentAccountCode,
 
-                    amount:
-                        $payment->amount
-                ),
+                amount: $payment->amount
+            ),
 
-            SupplierPaymentType::ADVANCE =>
-                $this->buildAdvancePaymentLines(
-                    paymentAccountCode:
-                        $paymentAccountCode,
+            PaymentTypeEnum::ADVANCE =>
+            $this->buildAdvancePaymentLines(
+                paymentAccountCode: $paymentAccountCode,
 
-                    amount:
-                        $payment->amount
-                ),
+                amount: $payment->amount
+            ),
 
-            SupplierPaymentType::REFUND =>
-                $this->buildRefundPaymentLines(
-                    paymentAccountCode:
-                        $paymentAccountCode,
+            PaymentTypeEnum::REFUND =>
+            $this->buildRefundPaymentLines(
+                paymentAccountCode: $paymentAccountCode,
 
-                    amount:
-                        $payment->amount
-                ),
+                amount: $payment->amount
+            ),
         };
 
         $this->createJournalEntry(
 
-            entryDate:
-                $payment->payment_date,
+            entryDate: $payment->payment_date,
 
-            voucherType:
-                'supplier_payment',
+            voucherType: 'payment',
 
-            referenceType:
-                SupplierPayment::class,
+            referenceType: Payment::class,
 
-            referenceId:
-                $payment->id,
+            referenceId: $payment->id,
 
-            description:
-                "Supplier Payment {$payment->payment_no}",
+            description: "Payment {$payment->payment_no}",
 
-            lines:
-                $lines
+            lines: $lines
         );
     }
 

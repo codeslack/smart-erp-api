@@ -7,7 +7,7 @@ use App\Modules\Customer\Models\Customer;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Modules\AdvanceAllocation\Models\AdvanceAllocation;
-use App\Modules\CustomerReceipt\Models\CustomerReceiptAllocation;
+use App\Modules\Receipt\Models\ReceiptAllocation;
 
 class Sale extends TenantModel
 {
@@ -54,7 +54,7 @@ class Sale extends TenantModel
     public function receiptAllocations(): HasMany
     {
         return $this->hasMany(
-            CustomerReceiptAllocation::class
+            ReceiptAllocation::class
         );
     }
 
@@ -64,9 +64,9 @@ class Sale extends TenantModel
             AdvanceAllocation::class,
             'target_id'
         )
-        ->where(
-            'target_type',
-            self::class
-        );
-    }    
+            ->where(
+                'target_type',
+                self::class
+            );
+    }
 }

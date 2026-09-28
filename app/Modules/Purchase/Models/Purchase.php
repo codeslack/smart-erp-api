@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Modules\PurchaseReturn\Models\PurchaseReturn;
 use App\Modules\PurchaseReturn\Enums\PurchaseReturnStatus;
 use App\Modules\AdvanceAllocation\Models\AdvanceAllocation;
-use App\Modules\SupplierPayment\Models\SupplierPaymentAllocation;
+use App\Modules\Payment\Models\PaymentAllocation;
 
 class Purchase extends TenantModel
 {
@@ -61,12 +61,12 @@ class Purchase extends TenantModel
         return $this->hasMany(
             PurchaseReturn::class
         );
-    }    
+    }
 
     public function paymentAllocations(): HasMany
     {
         return $this->hasMany(
-            SupplierPaymentAllocation::class
+            PaymentAllocation::class
         );
     }
 
@@ -76,10 +76,10 @@ class Purchase extends TenantModel
             AdvanceAllocation::class,
             'target_id'
         )
-        ->where(
-            'target_type',
-            self::class
-        );
+            ->where(
+                'target_type',
+                self::class
+            );
     }
 
     public function getReturnedAmountAttribute(): float
@@ -97,7 +97,7 @@ class Purchase extends TenantModel
         return max(
             0,
             (float) $this->grand_total -
-            (float) $this->returned_amount
+                (float) $this->returned_amount
         );
-    }    
+    }
 }

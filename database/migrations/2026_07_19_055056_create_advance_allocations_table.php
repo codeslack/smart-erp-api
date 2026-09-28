@@ -14,6 +14,9 @@ return new class extends Migration
 
             $table->id();
 
+            $table->uuid('uuid')
+                ->unique();
+
             $table->foreignId('tenant_id')
                 ->constrained()
                 ->cascadeOnDelete();

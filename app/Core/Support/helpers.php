@@ -75,13 +75,13 @@ if (! function_exists('nextDocumentNumber')) {
      * - Financial Year
      *
      * Example:
-     * nextDocumentNumber('customer_receipt', 'REC');
+     * nextDocumentNumber('receipt', 'REC');
      * // REC-2026-000001
      *
-     * nextDocumentNumber('supplier_payment', 'PAY');
+     * nextDocumentNumber('payment', 'PAY');
      * // PAY-2026-000001
      *
-     * @param string $documentType e.g., 'customer_receipt'
+     * @param string $documentType e.g., 'receipt'
      * @param string $prefix       e.g., 'REC'
      * @return string              e.g., 'REC-2026-000001'
      */

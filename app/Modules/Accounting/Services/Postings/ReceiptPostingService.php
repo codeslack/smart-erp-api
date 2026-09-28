@@ -4,13 +4,13 @@ namespace App\Modules\Accounting\Services\Postings;
 
 use App\Modules\Accounting\Enums\AccountingAccounts;
 
-use App\Modules\CustomerReceipt\Models\CustomerReceipt;
-use App\Modules\CustomerReceipt\Enums\CustomerReceiptType;
+use App\Modules\Receipt\Models\Receipt;
+use App\Modules\Receipt\Enums\ReceiptTypeEnum;
 
 class ReceiptPostingService extends BasePostingService
 {
     public function post(
-        CustomerReceipt $receipt
+        Receipt $receipt
     ): void {
 
         $receipt->loadMissing([
@@ -38,67 +38,51 @@ class ReceiptPostingService extends BasePostingService
             max(
                 0,
                 $receipt->amount
-                -
-                $allocatedAmount
+                    -
+                    $allocatedAmount
             );
 
-        $lines = match (
-            $receipt->receipt_type
-        ) {
+        $lines = match ($receipt->receipt_type) {
 
-            CustomerReceiptType::INVOICE =>
-                $this->buildInvoiceReceiptLines(
-                    paymentAccountCode:
-                        $paymentAccountCode,
+            ReceiptTypeEnum::INVOICE =>
+            $this->buildInvoiceReceiptLines(
+                paymentAccountCode: $paymentAccountCode,
 
-                    receiptAmount:
-                        $receipt->amount,
+                receiptAmount: $receipt->amount,
 
-                    allocatedAmount:
-                        $allocatedAmount,
+                allocatedAmount: $allocatedAmount,
 
-                    advanceAmount:
-                        $advanceAmount
-                ),
+                advanceAmount: $advanceAmount
+            ),
 
-            CustomerReceiptType::ADVANCE =>
-                $this->buildAdvanceReceiptLines(
-                    paymentAccountCode:
-                        $paymentAccountCode,
+            ReceiptTypeEnum::ADVANCE =>
+            $this->buildAdvanceReceiptLines(
+                paymentAccountCode: $paymentAccountCode,
 
-                    amount:
-                        $receipt->amount
-                ),
+                amount: $receipt->amount
+            ),
 
-            CustomerReceiptType::REFUND =>
-                $this->buildRefundReceiptLines(
-                    paymentAccountCode:
-                        $paymentAccountCode,
+            ReceiptTypeEnum::REFUND =>
+            $this->buildRefundReceiptLines(
+                paymentAccountCode: $paymentAccountCode,
 
-                    amount:
-                        $receipt->amount
-                ),
+                amount: $receipt->amount
+            ),
         };
 
         $this->createJournalEntry(
 
-            entryDate:
-                $receipt->receipt_date,
+            entryDate: $receipt->receipt_date,
 
-            voucherType:
-                'customer_receipt',
+            voucherType: 'receipt',
 
-            referenceType:
-                CustomerReceipt::class,
+            referenceType: Receipt::class,
 
-            referenceId:
-                $receipt->id,
+            referenceId: $receipt->id,
 
-            description:
-                "Customer Receipt {$receipt->receipt_no}",
+            description: "Receipt {$receipt->receipt_no}",
 
-            lines:
-                $lines
+            lines: $lines
         );
     }
 

@@ -8,9 +8,9 @@ class VoucherType
 
     public const PURCHASE = 'purchase';
 
-    public const CUSTOMER_RECEIPT = 'customer_receipt';
+    public const RECEIPT = 'receipt';
 
-    public const SUPPLIER_PAYMENT = 'supplier_payment';
+    public const PAYMENT = 'payment';
 
     public const SALES_RETURN = 'sales_return';
 

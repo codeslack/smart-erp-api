@@ -6,10 +6,10 @@ use Illuminate\Support\Facades\DB;
 
 use App\Modules\Purchase\Models\Purchase;
 
-use App\Modules\SupplierPayment\Models\SupplierPayment;
+use App\Modules\Payment\Models\Payment;
 
-use App\Modules\SupplierPayment\Enums\SupplierPaymentStatus;
-use App\Modules\SupplierPayment\Enums\SupplierPaymentType;
+use App\Modules\Payment\Enums\PaymentStatusEnum;
+use App\Modules\Payment\Enums\PaymentTypeEnum;
 
 class SupplierAdvanceAutoAdjustmentService
 {
@@ -43,47 +43,47 @@ class SupplierAdvanceAutoAdjustmentService
             }
 
             $advances =
-                SupplierPayment::query()
+                Payment::query()
 
-                    ->where(
-                        'tenant_id',
-                        tenantId()
-                    )
+                ->where(
+                    'tenant_id',
+                    tenantId()
+                )
 
-                    ->where(
-                        'supplier_id',
-                        $purchase->supplier_id
-                    )
+                ->where(
+                    'supplier_id',
+                    $purchase->supplier_id
+                )
 
-                    ->where(
-                        'status',
-                        SupplierPaymentStatus::CONFIRMED
-                    )
+                ->where(
+                    'status',
+                    PaymentStatusEnum::CONFIRMED
+                )
 
-                    ->where(
-                        'payment_type',
-                        SupplierPaymentType::ADVANCE
-                    )
+                ->where(
+                    'payment_type',
+                    PaymentTypeEnum::ADVANCE
+                )
 
-                    ->orderBy(
-                        'payment_date'
-                    )
+                ->orderBy(
+                    'payment_date'
+                )
 
-                    ->orderBy(
-                        'id'
-                    )
+                ->orderBy(
+                    'id'
+                )
 
-                    ->lockForUpdate()
+                ->lockForUpdate()
 
-                    ->get();
+                ->get();
 
             foreach ($advances as $advance) {
 
                 $availableAmount =
                     $this->allocationService
-                        ->getAvailableSupplierAdvance(
-                            $advance
-                        );
+                    ->getAvailableSupplierAdvance(
+                        $advance
+                    );
 
                 if (
                     $availableAmount <= 0
@@ -106,14 +106,11 @@ class SupplierAdvanceAutoAdjustmentService
                 $this->allocationService
                     ->allocateSupplierAdvance(
 
-                        payment:
-                            $advance,
+                        payment: $advance,
 
-                        purchase:
-                            $purchase,
+                        purchase: $purchase,
 
-                        amount:
-                            $allocationAmount
+                        amount: $allocationAmount
                     );
 
                 $purchase->increment(

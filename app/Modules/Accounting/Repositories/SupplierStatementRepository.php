@@ -5,8 +5,8 @@ namespace App\Modules\Accounting\Repositories;
 use Illuminate\Support\Collection;
 use App\Modules\Purchase\Models\Purchase;
 use App\Modules\Supplier\Models\Supplier;
-use App\Modules\SupplierPayment\Models\SupplierPayment;
-use App\Modules\SupplierPayment\Enums\SupplierPaymentStatus;
+use App\Modules\Payment\Models\Payment;
+use App\Modules\Payment\Enums\PaymentStatusEnum;
 use App\Modules\Accounting\Repositories\Contracts\SupplierStatementRepositoryInterface;
 
 class SupplierStatementRepository
@@ -49,16 +49,16 @@ implements SupplierStatementRepositoryInterface
         return [
 
             'supplier' =>
-                $supplier,
+            $supplier,
 
             'opening_balance' =>
-                0,
+            0,
 
             'transactions' =>
-                $transactions,
+            $transactions,
 
             'outstanding_balance' =>
-                $runningBalance,
+            $runningBalance,
         ];
     }
 
@@ -78,22 +78,22 @@ implements SupplierStatementRepositoryInterface
 
             ->when(
                 $fromDate,
-                fn ($q) =>
-                    $q->whereDate(
-                        'purchase_date',
-                        '>=',
-                        $fromDate
-                    )
+                fn($q) =>
+                $q->whereDate(
+                    'purchase_date',
+                    '>=',
+                    $fromDate
+                )
             )
 
             ->when(
                 $toDate,
-                fn ($q) =>
-                    $q->whereDate(
-                        'purchase_date',
-                        '<=',
-                        $toDate
-                    )
+                fn($q) =>
+                $q->whereDate(
+                    'purchase_date',
+                    '<=',
+                    $toDate
+                )
             )
 
             ->get()
@@ -107,22 +107,22 @@ implements SupplierStatementRepositoryInterface
                 $transactions->push([
 
                     'date' =>
-                        $purchase->purchase_date,
+                    $purchase->purchase_date,
 
                     'reference' =>
-                        $purchase->purchase_no,
+                    $purchase->purchase_no,
 
                     'type' =>
-                        'purchase',
+                    'purchase',
 
                     'description' =>
-                        "Purchase {$purchase->purchase_no}",
+                    "Purchase {$purchase->purchase_no}",
 
                     'debit' =>
-                        0,
+                    0,
 
                     'credit' =>
-                        (float) $purchase->grand_total,
+                    (float) $purchase->grand_total,
                 ]);
             });
     }
@@ -134,7 +134,7 @@ implements SupplierStatementRepositoryInterface
         ?string $toDate
     ): void {
 
-        SupplierPayment::query()
+        Payment::query()
 
             ->where(
                 'supplier_id',
@@ -143,33 +143,33 @@ implements SupplierStatementRepositoryInterface
 
             ->where(
                 'status',
-                SupplierPaymentStatus::CONFIRMED
+                PaymentStatusEnum::CONFIRMED
             )
 
             ->when(
                 $fromDate,
-                fn ($q) =>
-                    $q->whereDate(
-                        'payment_date',
-                        '>=',
-                        $fromDate
-                    )
+                fn($q) =>
+                $q->whereDate(
+                    'payment_date',
+                    '>=',
+                    $fromDate
+                )
             )
 
             ->when(
                 $toDate,
-                fn ($q) =>
-                    $q->whereDate(
-                        'payment_date',
-                        '<=',
-                        $toDate
-                    )
+                fn($q) =>
+                $q->whereDate(
+                    'payment_date',
+                    '<=',
+                    $toDate
+                )
             )
 
             ->get()
 
             ->each(function (
-                SupplierPayment $payment
+                Payment $payment
             ) use (
                 $transactions
             ) {
@@ -177,22 +177,22 @@ implements SupplierStatementRepositoryInterface
                 $transactions->push([
 
                     'date' =>
-                        $payment->payment_date,
+                    $payment->payment_date,
 
                     'reference' =>
-                        $payment->payment_no,
+                    $payment->payment_no,
 
                     'type' =>
-                        'payment',
+                    'payment',
 
                     'description' =>
-                        "Supplier Payment {$payment->payment_no}",
+                    "Payment {$payment->payment_no}",
 
                     'debit' =>
-                        (float) $payment->amount,
+                    (float) $payment->amount,
 
                     'credit' =>
-                        0,
+                    0,
                 ]);
             });
     }

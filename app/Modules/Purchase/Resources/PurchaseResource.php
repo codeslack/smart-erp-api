@@ -35,26 +35,26 @@ class PurchaseResource extends JsonResource
             'notes' => $this->notes,
 
             'advance_allocations' =>
-                $this->whenLoaded(
-                    'advanceAllocations',
-                    fn () =>
-                        $this->advanceAllocations->map(
-                            fn ($allocation) => [
+            $this->whenLoaded(
+                'advanceAllocations',
+                fn() =>
+                $this->advanceAllocations->map(
+                    fn($allocation) => [
 
-                                'id' =>
-                                    $allocation->id,
+                        'id' =>
+                        $allocation->id,
 
-                                'allocated_amount' =>
-                                    (float) $allocation->allocated_amount,
+                        'allocated_amount' =>
+                        (float) $allocation->allocated_amount,
 
-                                'supplier_payment_id' =>
-                                    $allocation->source_id,
+                        'payment_id' =>
+                        $allocation->source_id,
 
-                                'payment_no' =>
-                                    $allocation->source?->payment_no,
-                            ]
-                        )
-                ),
+                        'payment_no' =>
+                        $allocation->source?->payment_no,
+                    ]
+                )
+            ),
 
             'items' => PurchaseItemResource::collection(
                 $this->whenLoaded('items')

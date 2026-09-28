@@ -7,8 +7,8 @@ use App\Modules\Sales\Models\Sale;
 use App\Modules\Purchase\Models\Purchase;
 use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
-use App\Modules\CustomerReceipt\Models\CustomerReceipt;
-use App\Modules\SupplierPayment\Models\SupplierPayment;
+use App\Modules\Receipt\Models\Receipt;
+use App\Modules\Payment\Models\Payment;
 use App\Modules\Accounting\Repositories\Contracts\DayBookRepositoryInterface;
 
 class DayBookRepository
@@ -103,23 +103,23 @@ implements DayBookRepositoryInterface
                 $transactions->push([
 
                     'date'
-                        => $sale->sale_date,
+                    => $sale->sale_date,
 
                     'voucher_no'
-                        => $sale->sale_no,
+                    => $sale->sale_no,
 
                     'party'
-                        => $sale->customer?->name,
+                    => $sale->customer?->name,
 
                     'type'
-                        => 'sale',
+                    => 'sale',
 
                     'description'
-                        => 'Sales Invoice',
+                    => 'Sales Invoice',
 
                     'amount'
-                        => (float)
-                        $sale->grand_total,
+                    => (float)
+                    $sale->grand_total,
                 ]);
             });
     }
@@ -163,23 +163,23 @@ implements DayBookRepositoryInterface
                 $transactions->push([
 
                     'date'
-                        => $purchase->purchase_date,
+                    => $purchase->purchase_date,
 
                     'voucher_no'
-                        => $purchase->purchase_no,
+                    => $purchase->purchase_no,
 
                     'party'
-                        => $purchase->supplier?->name,
+                    => $purchase->supplier?->name,
 
                     'type'
-                        => 'purchase',
+                    => 'purchase',
 
                     'description'
-                        => 'Purchase Invoice',
+                    => 'Purchase Invoice',
 
                     'amount'
-                        => (float)
-                        $purchase->grand_total,
+                    => (float)
+                    $purchase->grand_total,
                 ]);
             });
     }
@@ -190,7 +190,7 @@ implements DayBookRepositoryInterface
         ?string $toDate
     ): void {
 
-        CustomerReceipt::query()
+        Receipt::query()
 
             ->with('customer')
 
@@ -223,23 +223,23 @@ implements DayBookRepositoryInterface
                 $transactions->push([
 
                     'date'
-                        => $receipt->receipt_date,
+                    => $receipt->receipt_date,
 
                     'voucher_no'
-                        => $receipt->receipt_no,
+                    => $receipt->receipt_no,
 
                     'party'
-                        => $receipt->customer?->name,
+                    => $receipt->customer?->name,
 
                     'type'
-                        => 'receipt',
+                    => 'receipt',
 
                     'description'
-                        => 'Customer Receipt',
+                    => 'Receipt',
 
                     'amount'
-                        => (float)
-                        $receipt->amount,
+                    => (float)
+                    $receipt->amount,
                 ]);
             });
     }
@@ -250,7 +250,7 @@ implements DayBookRepositoryInterface
         ?string $toDate
     ): void {
 
-        SupplierPayment::query()
+        Payment::query()
 
             ->with('supplier')
 
@@ -283,33 +283,33 @@ implements DayBookRepositoryInterface
                 $transactions->push([
 
                     'date'
-                        => $payment->payment_date,
+                    => $payment->payment_date,
 
                     'voucher_no'
-                        => $payment->payment_no,
+                    => $payment->payment_no,
 
                     'party'
-                        => $payment->supplier?->name,
+                    => $payment->supplier?->name,
 
                     'type'
-                        => 'payment',
+                    => 'payment',
 
                     'description'
-                        => 'Supplier Payment',
+                    => 'Payment',
 
                     'amount'
-                        => (float)
-                        $payment->amount,
+                    => (float)
+                    $payment->amount,
                 ]);
             });
     }
 
     // this is a disabled now
     protected function loadJournalEntries(
-            Collection &$transactions,
-            ?string $fromDate,
-            ?string $toDate
-        ): void {
+        Collection &$transactions,
+        ?string $fromDate,
+        ?string $toDate
+    ): void {
 
         JournalEntry::query()
 
@@ -347,24 +347,22 @@ implements DayBookRepositoryInterface
                 $transactions->push([
 
                     'date'
-                        => $journal->entry_date,
+                    => $journal->entry_date,
 
                     'voucher_no'
-                        => $journal->voucher_no,
+                    => $journal->voucher_no,
 
                     'type'
-                        => 'journal',
+                    => 'journal',
 
                     'description'
-                        => $journal->description,
+                    => $journal->description,
 
                     'amount'
-                        => (float) $journal
-                            ->lines()
-                            ->sum('debit'),
+                    => (float) $journal
+                        ->lines()
+                        ->sum('debit'),
                 ]);
             });
     }
-
-
 }

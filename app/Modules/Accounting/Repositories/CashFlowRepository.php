@@ -7,7 +7,7 @@ use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Accounting\Repositories\Contracts\CashFlowRepositoryInterface;
 
 class CashFlowRepository
-    implements CashFlowRepositoryInterface
+implements CashFlowRepositoryInterface
 {
     public function getCashFlow(
         ?string $fromDate = null,
@@ -124,9 +124,9 @@ class CashFlowRepository
         |--------------------------------------------------------------------------
         */
 
-        $customerReceipts = 0;
+        $receipts = 0;
 
-        $supplierPayments = 0;
+        $payments = 0;
 
         /*
         |--------------------------------------------------------------------------
@@ -148,29 +148,29 @@ class CashFlowRepository
 
             /*
             |--------------------------------------------------------------------------
-            | Customer Receipt
+            | Receipt
             |--------------------------------------------------------------------------
             */
 
             if (
-                $ledger->voucher_type === 'customer_receipt'
+                $ledger->voucher_type === 'receipt'
             ) {
 
-                $customerReceipts +=
+                $receipts +=
                     (float) $ledger->debit;
             }
 
             /*
             |--------------------------------------------------------------------------
-            | Supplier Payment
+            | Payment
             |--------------------------------------------------------------------------
             */
 
             if (
-                $ledger->voucher_type === 'supplier_payment'
+                $ledger->voucher_type === 'payment'
             ) {
 
-                $supplierPayments +=
+                $payments +=
                     (float) $ledger->credit;
             }
 
@@ -204,11 +204,11 @@ class CashFlowRepository
 
         $operatingNet =
 
-            $customerReceipts
+            $receipts
 
             -
 
-            $supplierPayments;
+            $payments;
 
         $investingNet =
 
@@ -243,13 +243,13 @@ class CashFlowRepository
             'operating_activities' => [
 
                 [
-                    'name'   => 'Customer Receipts',
-                    'amount' => $customerReceipts,
+                    'name'   => 'Receipts',
+                    'amount' => $receipts,
                 ],
 
                 [
-                    'name'   => 'Supplier Payments',
-                    'amount' => -$supplierPayments,
+                    'name'   => 'Payments',
+                    'amount' => -$payments,
                 ],
             ],
 
@@ -270,13 +270,13 @@ class CashFlowRepository
             ],
 
             'opening_cash'
-                => $openingCash,
+            => $openingCash,
 
             'net_cash_flow'
-                => $netCashFlow,
+            => $netCashFlow,
 
             'closing_cash'
-                => $closingCash,
+            => $closingCash,
         ];
     }
 }

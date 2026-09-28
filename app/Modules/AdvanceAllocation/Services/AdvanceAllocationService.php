@@ -7,8 +7,8 @@ use Illuminate\Support\Facades\DB;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Purchase\Models\Purchase;
 
-use App\Modules\CustomerReceipt\Models\CustomerReceipt;
-use App\Modules\SupplierPayment\Models\SupplierPayment;
+use App\Modules\Receipt\Models\Receipt;
+use App\Modules\Payment\Models\Payment;
 
 use App\Modules\AdvanceAllocation\Models\AdvanceAllocation;
 
@@ -27,15 +27,15 @@ class AdvanceAllocationService
     */
 
     public function getAvailableCustomerAdvance(
-        CustomerReceipt $receipt
+        Receipt $receipt
     ): float {
 
         $allocated =
             $this->repository
-                ->totalAllocatedFromSource(
-                    CustomerReceipt::class,
-                    $receipt->id
-                );
+            ->totalAllocatedFromSource(
+                Receipt::class,
+                $receipt->id
+            );
 
         return max(
             0,
@@ -50,15 +50,15 @@ class AdvanceAllocationService
     */
 
     public function getAvailableSupplierAdvance(
-        SupplierPayment $payment
+        Payment $payment
     ): float {
 
         $allocated =
             $this->repository
-                ->totalAllocatedFromSource(
-                    SupplierPayment::class,
-                    $payment->id
-                );
+            ->totalAllocatedFromSource(
+                Payment::class,
+                $payment->id
+            );
 
         return max(
             0,
@@ -73,7 +73,7 @@ class AdvanceAllocationService
     */
 
     public function allocateCustomerAdvance(
-        CustomerReceipt $receipt,
+        Receipt $receipt,
         Sale $sale,
         float $amount
     ): AdvanceAllocation {
@@ -113,31 +113,31 @@ class AdvanceAllocationService
                 return AdvanceAllocation::create([
 
                     'tenant_id' =>
-                        tenantId(),
+                    tenantId(),
 
                     'allocation_type' =>
-                        'customer',
+                    'customer',
 
                     'source_type' =>
-                        CustomerReceipt::class,
+                    Receipt::class,
 
                     'source_id' =>
-                        $receipt->id,
+                    $receipt->id,
 
                     'target_type' =>
-                        Sale::class,
+                    Sale::class,
 
                     'target_id' =>
-                        $sale->id,
+                    $sale->id,
 
                     'allocated_amount' =>
-                        $amount,
+                    $amount,
 
                     'allocated_at' =>
-                        now(),
+                    now(),
 
                     'created_by' =>
-                        auth()->id(),
+                    auth()->id(),
                 ]);
             }
         );
@@ -150,7 +150,7 @@ class AdvanceAllocationService
     */
 
     public function allocateSupplierAdvance(
-        SupplierPayment $payment,
+        Payment $payment,
         Purchase $purchase,
         float $amount
     ): AdvanceAllocation {
@@ -185,36 +185,36 @@ class AdvanceAllocationService
                         422,
                         'Allocation exceeds purchase due amount.'
                     );
-                }            
+                }
 
                 return AdvanceAllocation::create([
 
                     'tenant_id' =>
-                        tenantId(),
+                    tenantId(),
 
                     'allocation_type' =>
-                        'supplier',
+                    'supplier',
 
                     'source_type' =>
-                        SupplierPayment::class,
+                    Payment::class,
 
                     'source_id' =>
-                        $payment->id,
+                    $payment->id,
 
                     'target_type' =>
-                        Purchase::class,
+                    Purchase::class,
 
                     'target_id' =>
-                        $purchase->id,
+                    $purchase->id,
 
                     'allocated_amount' =>
-                        $amount,
+                    $amount,
 
                     'allocated_at' =>
-                        now(),
+                    now(),
 
                     'created_by' =>
-                        auth()->id(),
+                    auth()->id(),
                 ]);
             }
         );

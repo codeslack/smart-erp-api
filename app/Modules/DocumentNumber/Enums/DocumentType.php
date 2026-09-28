@@ -4,9 +4,9 @@ namespace App\Modules\DocumentNumber\Enums;
 
 enum DocumentType: string
 {
-    case CUSTOMER_RECEIPT = 'customer_receipt';
+    case RECEIPT = 'receipt';
 
-    case SUPPLIER_PAYMENT = 'supplier_payment';
+    case PAYMENT = 'payment';
 
     case SALE_INVOICE = 'sale_invoice';
 

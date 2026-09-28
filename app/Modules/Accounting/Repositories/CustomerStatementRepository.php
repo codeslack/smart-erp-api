@@ -5,8 +5,8 @@ namespace App\Modules\Accounting\Repositories;
 use Illuminate\Support\Collection;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Customer\Models\Customer;
-use App\Modules\CustomerReceipt\Models\CustomerReceipt;
-use App\Modules\CustomerReceipt\Enums\CustomerReceiptStatus;
+use App\Modules\Receipt\Models\Receipt;
+use App\Modules\Receipt\Enums\ReceiptStatusEnum;
 use App\Modules\Accounting\Repositories\Contracts\CustomerStatementRepositoryInterface;
 
 class CustomerStatementRepository
@@ -49,16 +49,16 @@ implements CustomerStatementRepositoryInterface
         return [
 
             'customer' =>
-                $customer,
+            $customer,
 
             'opening_balance' =>
-                0,
+            0,
 
             'transactions' =>
-                $transactions,
+            $transactions,
 
             'outstanding_balance' =>
-                $runningBalance,
+            $runningBalance,
         ];
     }
 
@@ -78,22 +78,22 @@ implements CustomerStatementRepositoryInterface
 
             ->when(
                 $fromDate,
-                fn ($q) =>
-                    $q->whereDate(
-                        'sale_date',
-                        '>=',
-                        $fromDate
-                    )
+                fn($q) =>
+                $q->whereDate(
+                    'sale_date',
+                    '>=',
+                    $fromDate
+                )
             )
 
             ->when(
                 $toDate,
-                fn ($q) =>
-                    $q->whereDate(
-                        'sale_date',
-                        '<=',
-                        $toDate
-                    )
+                fn($q) =>
+                $q->whereDate(
+                    'sale_date',
+                    '<=',
+                    $toDate
+                )
             )
 
             ->get()
@@ -107,22 +107,22 @@ implements CustomerStatementRepositoryInterface
                 $transactions->push([
 
                     'date' =>
-                        $sale->sale_date,
+                    $sale->sale_date,
 
                     'reference' =>
-                        $sale->sale_no,
+                    $sale->sale_no,
 
                     'type' =>
-                        'invoice',
+                    'invoice',
 
                     'description' =>
-                        "Sale Invoice {$sale->sale_no}",
+                    "Sale Invoice {$sale->sale_no}",
 
                     'debit' =>
-                        (float) $sale->grand_total,
+                    (float) $sale->grand_total,
 
                     'credit' =>
-                        0,
+                    0,
                 ]);
             });
     }
@@ -134,7 +134,7 @@ implements CustomerStatementRepositoryInterface
         ?string $toDate
     ): void {
 
-        CustomerReceipt::query()
+        Receipt::query()
 
             ->where(
                 'customer_id',
@@ -143,33 +143,33 @@ implements CustomerStatementRepositoryInterface
 
             ->where(
                 'status',
-                CustomerReceiptStatus::CONFIRMED
+                ReceiptStatusEnum::CONFIRMED
             )
 
             ->when(
                 $fromDate,
-                fn ($q) =>
-                    $q->whereDate(
-                        'receipt_date',
-                        '>=',
-                        $fromDate
-                    )
+                fn($q) =>
+                $q->whereDate(
+                    'receipt_date',
+                    '>=',
+                    $fromDate
+                )
             )
 
             ->when(
                 $toDate,
-                fn ($q) =>
-                    $q->whereDate(
-                        'receipt_date',
-                        '<=',
-                        $toDate
-                    )
+                fn($q) =>
+                $q->whereDate(
+                    'receipt_date',
+                    '<=',
+                    $toDate
+                )
             )
 
             ->get()
 
             ->each(function (
-                CustomerReceipt $receipt
+                Receipt $receipt
             ) use (
                 $transactions
             ) {
@@ -177,22 +177,22 @@ implements CustomerStatementRepositoryInterface
                 $transactions->push([
 
                     'date' =>
-                        $receipt->receipt_date,
+                    $receipt->receipt_date,
 
                     'reference' =>
-                        $receipt->receipt_no,
+                    $receipt->receipt_no,
 
                     'type' =>
-                        $receipt->receipt_type->value,
+                    $receipt->receipt_type->value,
 
                     'description' =>
-                        "Customer Receipt {$receipt->receipt_no}",
+                    "Receipt {$receipt->receipt_no}",
 
                     'debit' =>
-                        0,
+                    0,
 
                     'credit' =>
-                        (float) $receipt->amount,
+                    (float) $receipt->amount,
                 ]);
             });
     }
