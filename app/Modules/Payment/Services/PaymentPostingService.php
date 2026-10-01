@@ -12,12 +12,14 @@ use App\Modules\Payment\Models\Payment;
 use App\Modules\Accounting\Services\Contracts\AccountingPostingServiceInterface;
 
 use App\Modules\Payment\Services\Contracts\PaymentPostingServiceInterface;
+use App\Modules\Payment\Services\Contracts\PaymentAllocationPostingServiceInterface;
 
 class PaymentPostingService
     implements PaymentPostingServiceInterface
 {
     public function __construct(
         protected AccountingPostingServiceInterface $accountingPostingService,
+        protected PaymentAllocationPostingServiceInterface $allocationPostingService,
     ) {}
 
     public function confirm(
@@ -50,8 +52,27 @@ class PaymentPostingService
                     'allocations',
                 ]);
 
+                /*
+                 * Post the accounting entry first.
+                 *
+                 * Allocation validation is also performed during
+                 * accounting posting while the opening-bill balance
+                 * is still unchanged.
+                 */
                 $this->accountingPostingService
                     ->postPayment($payment);
+
+                /*
+                 * Update opening-bill balances after accounting
+                 * posting succeeds.
+                 *
+                 * Everything is inside the same transaction, so if
+                 * balance updating fails, the accounting posting
+                 * is rolled back as well.
+                 */
+                $this->allocationPostingService->post(
+                    $payment
+                );
 
                 $payment->update([
                     'status' => DocumentStatusEnum::CONFIRMED->value,

@@ -25,4 +25,16 @@ interface PaymentServiceInterface
     public function delete(
         Payment $payment
     ): bool;
+
+    public function confirm(
+        Payment $payment
+    ): Payment;
+
+    public function cancel(
+        Payment $payment
+    ): Payment;
+
+    public function reverse(
+        Payment $payment
+    ): Payment;
 }

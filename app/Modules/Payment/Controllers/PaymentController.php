@@ -89,4 +89,51 @@ class PaymentController extends ApiController
             'Payment deleted successfully.'
         );
     }
+
+    public function confirm(
+        string $payment
+    ): JsonResponse {
+        $model = $this->payments->findByUuid(
+            $payment
+        );
+
+        $model = $this->payments->confirm(
+            $model
+        );
+
+        return $this->success(
+            new PaymentResource($model),
+            'Payment confirmed successfully.'
+        );
+    }
+
+    public function cancel(
+        string $payment
+    ): JsonResponse {
+        $model = $this->payments->findByUuid(
+            $payment
+        );
+
+        $model = $this->payments->cancel(
+            $model
+        );
+
+        return $this->success(
+            new PaymentResource($model),
+            'Payment cancelled successfully.'
+        );
+    }
+
+    public function reverse(
+        string $payment
+    ): JsonResponse {
+        $model = $this->payments->findByUuid($payment);
+
+        $model = $this->payments->reverse($model);
+
+        return $this->success(
+            new PaymentResource($model),
+            'Payment reversed successfully.'
+        );
+    }
 }

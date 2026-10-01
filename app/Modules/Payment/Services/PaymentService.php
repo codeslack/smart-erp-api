@@ -5,14 +5,19 @@ namespace App\Modules\Payment\Services;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
-use App\Core\Enums\DocumentStatusEnum;
 use App\Core\Services\BaseService;
+use App\Core\Exceptions\BusinessException;
+
+use App\Core\Enums\DocumentStatusEnum;
 
 use App\Modules\Payment\Models\Payment;
 
+use App\Modules\Payment\Repositories\Contracts\PaymentRepositoryInterface;
+
 use App\Modules\Payment\Services\Contracts\PaymentServiceInterface;
 use App\Modules\Payment\Services\Contracts\PaymentAllocationServiceInterface;
-use App\Modules\Payment\Repositories\Contracts\PaymentRepositoryInterface;
+use App\Modules\Payment\Services\Contracts\PaymentPostingServiceInterface;
+use App\Modules\Payment\Services\Contracts\PaymentReversalServiceInterface;
 
 class PaymentService
     extends BaseService
@@ -20,7 +25,9 @@ class PaymentService
 {
     public function __construct(
         protected PaymentRepositoryInterface $payments,
-        protected PaymentAllocationServiceInterface $allocationService
+        protected PaymentAllocationServiceInterface $allocationService,
+        protected PaymentPostingServiceInterface $postingService,
+        protected PaymentReversalServiceInterface $reversalService
     ) {}
 
     public function create(array $data): Payment
@@ -108,5 +115,41 @@ class PaymentService
         Payment $payment
     ): bool {
         return $this->payments->delete($payment);
+    }
+
+    public function confirm(
+        Payment $payment
+    ): Payment {
+        return $this->postingService->confirm($payment);
+    }
+
+    public function cancel(
+        Payment $payment
+    ): Payment {
+        if (
+            $payment->status !==
+            DocumentStatusEnum::DRAFT->value
+        ) {
+            throw new BusinessException(
+                'Only draft payments can be cancelled.'
+            );
+        }
+
+        $this->payments->update(
+            $payment,
+            [
+                'status' => DocumentStatusEnum::CANCELLED->value,
+            ]
+        );
+
+        return $payment->fresh([
+            'allocations',
+        ]);
+    }
+
+    public function reverse(
+        Payment $payment
+    ): Payment {
+        return $this->reversalService->reverse($payment);
     }
 }

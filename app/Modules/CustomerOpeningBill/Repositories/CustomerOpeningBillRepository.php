@@ -17,6 +17,8 @@ class CustomerOpeningBillRepository
     extends BaseRepository
     implements CustomerOpeningBillRepositoryInterface
 {
+    private const SCALE = 4;
+
     public function __construct(
         CustomerOpeningBill $model
     ) {
@@ -96,5 +98,57 @@ class CustomerOpeningBillRepository
             )
             ->orderBy('id')
             ->get();
+    }
+
+    public function decrementBalance(
+        CustomerOpeningBill $openingBill,
+        string $amount
+    ): CustomerOpeningBill {
+
+        $openingBill = $this->model
+            ->newQuery()
+            ->whereKey($openingBill->id)
+            ->lockForUpdate()
+            ->firstOrFail();
+
+        $currentBalance = (string) $openingBill->balance_amount;
+
+        $newBalance = bcsub(
+            $currentBalance,
+            $amount,
+            self::SCALE
+        );
+
+        $openingBill->update([
+            'balance_amount' => $newBalance,
+        ]);
+
+        return $openingBill->fresh();
+    }
+
+    public function incrementBalance(
+        CustomerOpeningBill $openingBill,
+        string $amount
+    ): CustomerOpeningBill {
+
+        $openingBill = $this->model
+            ->newQuery()
+            ->whereKey($openingBill->id)
+            ->lockForUpdate()
+            ->firstOrFail();
+
+        $currentBalance = (string) $openingBill->balance_amount;
+
+        $newBalance = bcadd(
+            $currentBalance,
+            $amount,
+            self::SCALE
+        );
+
+        $openingBill->update([
+            'balance_amount' => $newBalance,
+        ]);
+
+        return $openingBill->fresh();
     }
 }

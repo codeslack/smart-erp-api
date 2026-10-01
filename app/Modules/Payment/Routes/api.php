@@ -18,6 +18,11 @@ Route::middleware([
         [PaymentController::class, 'cancel']
     )->name('payments.cancel');
 
+    Route::post(
+        'payments/{payment}/reverse',
+        [PaymentController::class, 'reverse']
+    )->name('payments.reverse');
+
     Route::apiResource(
         'payments',
         PaymentController::class

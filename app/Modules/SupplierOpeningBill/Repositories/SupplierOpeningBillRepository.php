@@ -17,6 +17,8 @@ class SupplierOpeningBillRepository
     extends BaseRepository
     implements SupplierOpeningBillRepositoryInterface
 {
+    private const SCALE = 4;
+
     public function __construct(
         SupplierOpeningBill $model
     ) {
@@ -45,8 +47,14 @@ class SupplierOpeningBillRepository
 
         return $this->model
             ->newQuery()
-            ->where('supplier_id', $supplierId)
-            ->where('bill_no', $billNo)
+            ->where(
+                'supplier_id',
+                $supplierId
+            )
+            ->where(
+                'bill_no',
+                $billNo
+            )
             ->first();
     }
 
@@ -90,5 +98,57 @@ class SupplierOpeningBillRepository
             )
             ->orderBy('id')
             ->get();
+    }
+
+    public function decrementBalance(
+        SupplierOpeningBill $openingBill,
+        string $amount
+    ): SupplierOpeningBill {
+
+        $openingBill = $this->model
+            ->newQuery()
+            ->whereKey($openingBill->id)
+            ->lockForUpdate()
+            ->firstOrFail();
+
+        $currentBalance = (string) $openingBill->balance_amount;
+
+        $newBalance = bcsub(
+            $currentBalance,
+            $amount,
+            self::SCALE
+        );
+
+        $openingBill->update([
+            'balance_amount' => $newBalance,
+        ]);
+
+        return $openingBill->fresh();
+    }
+
+    public function incrementBalance(
+        SupplierOpeningBill $openingBill,
+        string $amount
+    ): SupplierOpeningBill {
+
+        $openingBill = $this->model
+            ->newQuery()
+            ->whereKey($openingBill->id)
+            ->lockForUpdate()
+            ->firstOrFail();
+
+        $currentBalance = (string) $openingBill->balance_amount;
+
+        $newBalance = bcadd(
+            $currentBalance,
+            $amount,
+            self::SCALE
+        );
+
+        $openingBill->update([
+            'balance_amount' => $newBalance,
+        ]);
+
+        return $openingBill->fresh();
     }
 }

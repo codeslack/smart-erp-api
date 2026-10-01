@@ -19,11 +19,17 @@ use App\Modules\Payment\Services\Validation\SupplierOpeningBillAllocationValidat
 
 use App\Modules\Payment\Services\PaymentService;
 use App\Modules\Payment\Services\PaymentAllocationService;
+use App\Modules\Payment\Services\PaymentAllocationPostingService;
+use App\Modules\Payment\Services\PaymentAllocationReversalService;
 use App\Modules\Payment\Services\PaymentPostingService;
+use App\Modules\Payment\Services\PaymentReversalService;
 
 use App\Modules\Payment\Services\Contracts\PaymentServiceInterface;
 use App\Modules\Payment\Services\Contracts\PaymentAllocationServiceInterface;
+use App\Modules\Payment\Services\Contracts\PaymentAllocationPostingServiceInterface;
+use App\Modules\Payment\Services\Contracts\PaymentAllocationReversalServiceInterface;
 use App\Modules\Payment\Services\Contracts\PaymentPostingServiceInterface;
+use App\Modules\Payment\Services\Contracts\PaymentReversalServiceInterface;
 
 class PaymentServiceProvider extends ServiceProvider
 {
@@ -50,6 +56,16 @@ class PaymentServiceProvider extends ServiceProvider
         );
 
         $this->app->bind(
+            PaymentAllocationPostingServiceInterface::class,
+            PaymentAllocationPostingService::class
+        );
+
+        $this->app->bind(
+            PaymentAllocationReversalServiceInterface::class,
+            PaymentAllocationReversalService::class
+        );
+
+        $this->app->bind(
             PaymentAllocationValidatorInterface::class,
             PaymentAllocationValidator::class
         );
@@ -62,6 +78,11 @@ class PaymentServiceProvider extends ServiceProvider
         $this->app->bind(
             PaymentPostingServiceInterface::class,
             PaymentPostingService::class
+        );
+
+        $this->app->bind(
+            PaymentReversalServiceInterface::class,
+            PaymentReversalService::class
         );
     }
 

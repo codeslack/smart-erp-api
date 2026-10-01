@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature\Payment;
+namespace Tests\Feature\Payment\Confirmation;
 
 use Tests\TestCase;
 use Illuminate\Support\Str;

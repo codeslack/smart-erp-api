@@ -40,4 +40,16 @@ enum DocumentStatusEnum: string
     */
 
     case CANCELLED = 'CANCELLED';
+
+    /*
+    |--------------------------------------------------------------------------
+    | Reversed
+    |--------------------------------------------------------------------------
+    |
+    | Accounting and/or inventory posting has been reversed.
+    | Document remains for audit history.
+    |
+    */
+
+    case REVERSED = 'REVERSED';
 }

@@ -27,4 +27,14 @@ interface SupplierOpeningBillRepositoryInterface
     public function outstandingBills(
         int $supplierId
     ): Collection;
+
+    public function decrementBalance(
+        SupplierOpeningBill $openingBill,
+        string $amount
+    ): SupplierOpeningBill;
+
+    public function incrementBalance(
+        SupplierOpeningBill $openingBill,
+        string $amount
+    ): SupplierOpeningBill;
 }
