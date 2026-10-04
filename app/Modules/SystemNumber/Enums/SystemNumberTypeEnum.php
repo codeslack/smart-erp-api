@@ -28,6 +28,12 @@ enum SystemNumberTypeEnum: string
 
     case CATEGORY = 'category';
 
+    case TAX = 'tax';
+
+    case TAX_COMPONENT = 'tax_component';
+
+    case TAX_GROUP = 'tax_group';
+
     public function prefix(): string
     {
         return match ($this) {
@@ -55,6 +61,12 @@ enum SystemNumberTypeEnum: string
             self::BRAND => 'BRD',
 
             self::CATEGORY => 'CAT',
+
+            self::TAX => 'TAX',
+
+            self::TAX_COMPONENT => 'TCM',
+
+            self::TAX_GROUP => 'TGR',
         };
     }
 

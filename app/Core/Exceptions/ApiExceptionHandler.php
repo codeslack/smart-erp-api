@@ -6,7 +6,6 @@ use Throwable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Auth\AuthenticationException;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 use App\Core\Traits\ApiResponse;
@@ -50,8 +49,7 @@ class ApiExceptionHandler
         }
 
         if (
-            $exception instanceof NotFoundHttpException &&
-            $exception->getPrevious() instanceof ModelNotFoundException
+            $exception instanceof NotFoundHttpException
         ) {
 
             return response()->json([

@@ -76,8 +76,9 @@ return [
 
     App\Modules\Accounting\AccountingModule::class,
 
+    App\Modules\Tax\TaxModule::class,
+
     App\Modules\Payment\PaymentModule::class,
-    // App\Modules\Receipt\ReceiptModule::class,
 
     /*
     |--------------------------------------------------------------------------

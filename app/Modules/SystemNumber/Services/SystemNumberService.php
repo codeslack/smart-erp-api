@@ -21,14 +21,6 @@ class SystemNumberService
                     ? null
                     : ($tenantId ?? tenantId());
 
-                logger()->info(
-                    'System Number',
-                    [
-                        'type' => $type->value,
-                        'tenant_id' => $tenantId,
-                    ]
-                );
-
                 $sequence = SystemNumber::query()
 
                     ->lockForUpdate()

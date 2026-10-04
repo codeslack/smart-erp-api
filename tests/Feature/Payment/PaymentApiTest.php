@@ -4,9 +4,9 @@ namespace Tests\Feature\Payment;
 
 use Tests\TestCase;
 use Tests\Support\CreatesTenant;
+use Tests\Support\CreatesUser;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Str;
 
 use Laravel\Sanctum\Sanctum;
 
@@ -29,6 +29,7 @@ class PaymentApiTest extends TestCase
 {
     use RefreshDatabase;
     use CreatesTenant;
+    use CreatesUser;
 
     protected Tenant $tenant;
     protected User $user;
@@ -54,15 +55,7 @@ class PaymentApiTest extends TestCase
             )
             ->firstOrFail();
 
-        $this->user = User::query()->create([
-            'uuid' => (string) Str::uuid(),
-            'code' => 'TEST-USER',
-            'tenant_id' => $this->tenant->id,
-            'name' => 'Test User',
-            'email' => 'test-' . uniqid() . '@example.com',
-            'password' => 'password',
-            'is_active' => true,
-        ]);
+        $this->user = $this->createTestUser();
 
         Sanctum::actingAs($this->user);
     }
