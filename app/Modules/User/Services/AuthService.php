@@ -2,11 +2,15 @@
 
 namespace App\Modules\User\Services;
 
-use App\Modules\User\Models\User;
 use Illuminate\Support\Facades\Hash;
-use App\Modules\Tenant\Models\Tenant;
-use Laravel\Sanctum\PersonalAccessToken;
 use Illuminate\Validation\ValidationException;
+
+use Laravel\Sanctum\PersonalAccessToken;
+
+use App\Core\Scopes\TenantScope;
+
+use App\Modules\User\Models\User;
+use App\Modules\Tenant\Models\Tenant;
 
 class AuthService
 {
@@ -14,10 +18,10 @@ class AuthService
         array $credentials
     ): array {
 
-        $tenant = Tenant::where(
-            'slug',
-            $credentials['tenant']
-        )->first();
+        $tenant = Tenant::query()
+            ->where('slug', $credentials['tenant'])
+            ->where('is_active', true)
+            ->first();
 
         if (! $tenant) {
             throw ValidationException::withMessages([
@@ -27,9 +31,12 @@ class AuthService
             ]);
         }
 
-        $user = User::withoutGlobalScopes()
+        // Tenant context is not established until after login. Bypass only the
+        // tenant scope, while retaining SoftDeletes and any other model scopes.
+        $user = User::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenant->id)
             ->where('email', $credentials['email'])
+            ->where('is_active', true)
             ->first();
 
         if (

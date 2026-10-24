@@ -76,7 +76,7 @@ class JournalEntryPoster
 
                 $this->validator->validateLines(
                     $journalEntry->lines
-                        ->map(fn ($line) => [
+                        ->map(fn($line) => [
                             'debit' => (string) $line->debit,
                             'credit' => (string) $line->credit,
                         ])
@@ -120,13 +120,13 @@ class JournalEntryPoster
 
             $account->update([
                 'current_balance' =>
-                    $this->balanceCalculator->calculate(
-                        accountType: $account->account_type,
-                        currentBalance: (string)
-                            $account->current_balance,
-                        debit: (string) $line->debit,
-                        credit: (string) $line->credit,
-                    ),
+                $this->balanceCalculator->calculate(
+                    accountType: $account->account_type,
+                    currentBalance: (string)
+                    $account->current_balance,
+                    debit: (string) $line->debit,
+                    credit: (string) $line->credit,
+                ),
             ]);
         }
     }

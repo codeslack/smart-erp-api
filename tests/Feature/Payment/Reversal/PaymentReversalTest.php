@@ -123,6 +123,9 @@ class PaymentReversalTest extends TestCase
 
         $createResponse->assertCreated();
 
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
+
         $payment = Payment::query()
             ->where(
                 'payment_no',
@@ -227,6 +230,9 @@ class PaymentReversalTest extends TestCase
         );
 
         $createResponse->assertCreated();
+
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
 
         $payment = Payment::query()
             ->where(

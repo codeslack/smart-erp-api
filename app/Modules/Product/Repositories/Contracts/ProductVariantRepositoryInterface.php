@@ -3,6 +3,7 @@
 namespace App\Modules\Product\Repositories\Contracts;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 use App\Core\Repositories\Contracts\BaseRepositoryInterface;
@@ -25,6 +26,10 @@ interface ProductVariantRepositoryInterface
     public function findByBarcode(
         string $barcode
     ): ?ProductVariant;
+
+    public function findByProductId(
+        int $productId
+    ): Collection;
 
     public function existsByCode(
         string $code,

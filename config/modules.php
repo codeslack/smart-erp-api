@@ -45,6 +45,7 @@ return [
     App\Modules\Brand\BrandModule::class,
     App\Modules\Category\CategoryModule::class,
     App\Modules\Unit\UnitModule::class,
+    App\Modules\ProductUnit\ProductUnitModule::class,
 
     App\Modules\PaymentTerm\PaymentTermModule::class,
     App\Modules\Warehouse\WarehouseModule::class,
@@ -79,6 +80,15 @@ return [
     App\Modules\Tax\TaxModule::class,
 
     App\Modules\Payment\PaymentModule::class,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Purchasing
+    |--------------------------------------------------------------------------
+    */
+
+    App\Modules\PurchaseOrder\PurchaseOrderModule::class,
+    App\Modules\GoodsReceiptNote\GoodsReceiptNoteModule::class,
 
     /*
     |--------------------------------------------------------------------------

@@ -4,16 +4,25 @@ namespace App\Modules\PurchaseOrder\Providers;
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+
 use App\Modules\PurchaseOrder\Repositories\PurchaseOrderRepository;
+use App\Modules\PurchaseOrder\Repositories\PurchaseOrderItemRepository;
+
 use App\Modules\PurchaseOrder\Repositories\Contracts\PurchaseOrderRepositoryInterface;
+use App\Modules\PurchaseOrder\Repositories\Contracts\PurchaseOrderItemRepositoryInterface;
 
 class PurchaseOrderServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->app->bind(
-            PurchaseOrderRepositoryInterface::class, 
+            PurchaseOrderRepositoryInterface::class,
             PurchaseOrderRepository::class
+        );
+
+        $this->app->bind(
+            PurchaseOrderItemRepositoryInterface::class,
+            PurchaseOrderItemRepository::class
         );
     }
 

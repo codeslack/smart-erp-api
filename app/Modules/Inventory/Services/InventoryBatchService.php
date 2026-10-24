@@ -3,6 +3,7 @@
 namespace App\Modules\Inventory\Services;
 
 use Illuminate\Support\Collection;
+use Illuminate\Database\QueryException;
 
 use App\Core\Exceptions\BusinessException;
 
@@ -35,19 +36,141 @@ class InventoryBatchService
         int $warehouseId,
         ?int $productVariantId = null
     ): ?ProductBatch {
-        return $this->batches->findByBatchNumber(
+        $batch = $this->batches->findByBatchNumber(
             $batchNumber,
             $productId,
             $warehouseId,
             $productVariantId
         );
+
+        if ($batch === null) {
+            return null;
+        }
+
+        $existingVariantId = $batch->product_variant_id !== null
+            ? (int) $batch->product_variant_id
+            : null;
+
+        $requestedVariantId = $productVariantId !== null
+            ? (int) $productVariantId
+            : null;
+
+        if ($existingVariantId !== $requestedVariantId) {
+            throw new BusinessException(
+                'Batch number already exists for this product and warehouse with a different variant.'
+            );
+        }
+
+        return $batch;
+    }
+
+    /**
+     * Find and lock a batch by its business identity.
+     *
+     * Intended for concurrency recovery when another transaction
+     * has already created the same batch.
+     */
+    public function findByBatchNumberForUpdate(
+        string $batchNumber,
+        int $productId,
+        int $warehouseId,
+        ?int $productVariantId = null,
+    ): ?ProductBatch {
+        $batch = $this->batches->findByBatchNumberForUpdate(
+            $batchNumber,
+            $productId,
+            $warehouseId,
+        );
+
+        $existingVariantId = $batch?->product_variant_id !== null
+            ? (int) $batch->product_variant_id
+            : null;
+
+        $requestedVariantId = $productVariantId !== null
+            ? (int) $productVariantId
+            : null;
+
+        if (
+            $batch !== null
+            && $existingVariantId !== $requestedVariantId
+        ) {
+            throw new BusinessException(
+                'Batch number already exists for this product and warehouse with a different variant.'
+            );
+        }
+
+        return $batch;
+    }
+
+    /**
+     * Determine whether an insert failed because another request
+     * created the same batch under the database unique constraint.
+     *
+     * Do not classify unrelated database errors as duplicate batches.
+     */
+    public function isDuplicateBatchException(
+        QueryException $exception
+    ): bool {
+        $errorInfo = $exception->errorInfo
+            ?? $exception->getPrevious()?->errorInfo
+            ?? [];
+
+        $errorCode = (int) (
+            $errorInfo[1]
+            ?? $exception->getPrevious()?->getCode()
+            ?? 0
+        );
+
+        $message = strtolower(
+            $exception->getMessage()
+                . ' '
+                . $exception->getPrevious()?->getMessage()
+        );
+
+        return $errorCode === 1062
+            && str_contains(
+                $message,
+                'product_batches_unique_batch'
+            );
     }
 
     public function lock(
         int $batchId
     ): ProductBatch {
-        return $this->batches->findForUpdate(
-            $batchId
+        return $this->batches->findForUpdate($batchId);
+    }
+
+    /**
+     * Ensure a batch belongs to the requested inventory movement.
+     */
+    public function validateOwnership(
+        ProductBatch $batch,
+        int $productId,
+        int $warehouseId,
+        ?int $productVariantId = null,
+    ): void {
+        $batchVariantId = $batch->product_variant_id !== null
+            ? (int) $batch->product_variant_id
+            : null;
+
+        if (
+            (int) $batch->product_id !== $productId
+            || (int) $batch->warehouse_id !== $warehouseId
+            || $batchVariantId !== $productVariantId
+        ) {
+            throw new BusinessException(
+                'Batch does not belong to the specified product, warehouse, and variant.'
+            );
+        }
+    }
+
+    public function findBySourceForUpdate(
+        string $sourceableType,
+        int $sourceableId,
+    ): Collection {
+        return $this->batches->findBySourceForUpdate(
+            $sourceableType,
+            $sourceableId,
         );
     }
 
@@ -64,11 +187,20 @@ class InventoryBatchService
             );
         }
 
-        $productId = (int) $data['product_id'];
-        $warehouseId = (int) $data['warehouse_id'];
+        $productId = (int) ($data['product_id'] ?? 0);
+        $warehouseId = (int) ($data['warehouse_id'] ?? 0);
 
-        $productVariantId =
-            $data['product_variant_id'] ?? null;
+        $productVariantId = isset($data['product_variant_id'])
+            ? (int) $data['product_variant_id']
+            : null;
+
+        $unitCost = (float) ($data['unit_cost'] ?? 0);
+
+        if ($unitCost < 0) {
+            throw new BusinessException(
+                'Batch unit cost cannot be negative.'
+            );
+        }
 
         if (
             $this->findByBatchNumber(
@@ -79,17 +211,7 @@ class InventoryBatchService
             ) !== null
         ) {
             throw new BusinessException(
-                'Batch number already exists.'
-            );
-        }
-
-        $unitCost = (float) (
-            $data['unit_cost'] ?? 0
-        );
-
-        if ($unitCost < 0) {
-            throw new BusinessException(
-                'Batch unit cost cannot be negative.'
+                'Batch number already exists for this product and warehouse.'
             );
         }
 
@@ -99,22 +221,21 @@ class InventoryBatchService
             'warehouse_id' => $warehouseId,
             'batch_no' => $batchNumber,
             'manufacturing_date' =>
-                $data['manufacturing_date'] ?? null,
+            $data['manufacturing_date'] ?? null,
             'expiry_date' =>
-                $data['expiry_date'] ?? null,
+            $data['expiry_date'] ?? null,
             'received_at' =>
-                $data['received_at'] ?? null,
+            $data['received_at'] ?? null,
             'unit_cost' => $unitCost,
             'original_quantity' => 0,
             'remaining_quantity' => 0,
-            'status' =>
-                ProductBatchStatusEnum::DRAFT,
+            'status' => ProductBatchStatusEnum::DRAFT,
             'sourceable_type' =>
-                $data['sourceable_type'] ?? null,
+            $data['sourceable_type'] ?? null,
             'sourceable_id' =>
-                $data['sourceable_id'] ?? null,
+            $data['sourceable_id'] ?? null,
             'remarks' =>
-                $data['remarks'] ?? null,
+            $data['remarks'] ?? null,
         ]);
     }
 
@@ -139,9 +260,7 @@ class InventoryBatchService
         return $this->batches->update(
             $batch,
             [
-                'status' =>
-                    ProductBatchStatusEnum::DRAFT,
-                
+                'status' => ProductBatchStatusEnum::DRAFT,
                 'original_quantity' => 0,
                 'remaining_quantity' => 0,
             ]
@@ -163,8 +282,7 @@ class InventoryBatchService
         return $this->batches->update(
             $batch,
             [
-                'status' =>
-                    ProductBatchStatusEnum::ACTIVE,
+                'status' => ProductBatchStatusEnum::ACTIVE,
             ]
         );
     }
@@ -181,9 +299,7 @@ class InventoryBatchService
             );
         }
 
-        return $this->batches->delete(
-            $batch
-        );
+        return $this->batches->delete($batch);
     }
 
     public function initializeOriginalQuantity(
@@ -222,10 +338,7 @@ class InventoryBatchService
     ): void {
         $this->validateQuantity($quantity);
 
-        if (
-            $batch->remaining_quantity
-            < $quantity
-        ) {
+        if ((float) $batch->remaining_quantity < $quantity) {
             throw new BusinessException(
                 'Insufficient batch quantity.'
             );

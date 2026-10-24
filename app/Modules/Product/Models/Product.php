@@ -12,6 +12,7 @@ use App\Core\Models\TenantModel;
 use App\Modules\Unit\Models\Unit;
 use App\Modules\Brand\Models\Brand;
 use App\Modules\Category\Models\Category;
+use App\Modules\ProductUnit\Models\ProductUnit;
 
 use App\Modules\Inventory\Models\ProductBatch;
 use App\Modules\Inventory\Models\ProductSerial;
@@ -44,7 +45,7 @@ class Product extends TenantModel
 
         'purchase_price',
         'selling_price',
-        
+
         'warranty_days',
 
         'minimum_stock',
@@ -65,7 +66,6 @@ class Product extends TenantModel
         'slug',
         'code',
         'barcode',
-
     ];
 
     protected function casts(): array
@@ -118,6 +118,20 @@ class Product extends TenantModel
     public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Product Units
+    |--------------------------------------------------------------------------
+    */
+
+    public function productUnits(): HasMany
+    {
+        return $this->hasMany(
+            ProductUnit::class,
+            'product_id'
+        );
     }
 
     /*
@@ -258,6 +272,12 @@ class Product extends TenantModel
     {
         return $this->stockLedgers()->exists();
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Model Events
+    |--------------------------------------------------------------------------
+    */
 
     protected static function booted(): void
     {

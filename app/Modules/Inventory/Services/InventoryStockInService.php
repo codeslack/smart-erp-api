@@ -170,6 +170,13 @@ class InventoryStockInService
                 $movement->batchId
             );
 
+        $this->batchService->validateOwnership(
+            batch: $batch,
+            productId: $movement->productId,
+            warehouseId: $movement->warehouseId,
+            productVariantId: $movement->productVariantId,
+        );
+
         $this->batchService->increase(
             $batch,
             $movement->quantity

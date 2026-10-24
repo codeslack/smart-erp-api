@@ -2,6 +2,7 @@
 
 namespace App\Modules\Inventory\Repositories\Contracts;
 
+use Illuminate\Database\Eloquent\Collection;
 use App\Modules\Inventory\Models\InventoryCostLayer;
 
 interface InventoryCostLayerRepositoryInterface
@@ -22,7 +23,7 @@ interface InventoryCostLayerRepositoryInterface
         int $productId,
         ?int $productVariantId,
         int $warehouseId
-    );
+    ): Collection;
 
     /**
      * Get a specific cost layer.
@@ -33,6 +34,15 @@ interface InventoryCostLayerRepositoryInterface
 
     public function findByStockLedgerId(
         int $stockLedgerId
+    ): ?InventoryCostLayer;
+
+    /**
+     * Get a specific cost layer and lock it for update.
+     *
+     * Must be called inside a database transaction.
+     */
+    public function findForUpdate(
+        int $id
     ): ?InventoryCostLayer;
 
     /**

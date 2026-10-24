@@ -30,11 +30,13 @@ class ProductBatchRepository
             ->where('warehouse_id', $warehouseId)
             ->when(
                 $productVariantId !== null,
-                fn ($query) =>
-                    $query->where(
-                        'product_variant_id',
-                        $productVariantId
-                    )
+                fn($query) => $query->where(
+                    'product_variant_id',
+                    $productVariantId
+                ),
+                fn($query) => $query->whereNull(
+                    'product_variant_id'
+                )
             )
             ->where('remaining_quantity', '>', 0)
             ->get();
@@ -51,14 +53,24 @@ class ProductBatchRepository
             ->where('batch_no', $batchNumber)
             ->where('product_id', $productId)
             ->where('warehouse_id', $warehouseId)
-            ->when(
-                $productVariantId !== null,
-                fn ($query) =>
-                    $query->where(
-                        'product_variant_id',
-                        $productVariantId
-                    )
-            )
+            ->first();
+    }
+
+    /**
+     * Find a batch by its unique business identity using a
+     * locking read for concurrent batch-creation recovery.
+     */
+    public function findByBatchNumberForUpdate(
+        string $batchNumber,
+        int $productId,
+        int $warehouseId,
+    ): ?ProductBatch {
+        return $this->model
+            ->newQuery()
+            ->where('batch_no', $batchNumber)
+            ->where('product_id', $productId)
+            ->where('warehouse_id', $warehouseId)
+            ->lockForUpdate()
             ->first();
     }
 
@@ -69,6 +81,18 @@ class ProductBatchRepository
             ->newQuery()
             ->lockForUpdate()
             ->findOrFail($id);
+    }
+
+    public function findBySourceForUpdate(
+        string $sourceableType,
+        int $sourceableId,
+    ): Collection {
+        return $this->model
+            ->newQuery()
+            ->where('sourceable_type', $sourceableType)
+            ->where('sourceable_id', $sourceableId)
+            ->lockForUpdate()
+            ->get();
     }
 
     public function initializeOriginalQuantity(

@@ -2,15 +2,12 @@
 
 namespace App\Core\Models;
 
+use RuntimeException;
 use App\Core\Scopes\TenantScope;
 use App\Core\Traits\HasUuidPrimaryKey;
 
 abstract class TenantModel extends BaseModel
 {
-    /**
-     * Traits UUID Primary Key
-     * @see https://laravel.com/docs/10.x/eloquent#custom-primary-keys
-     */
     use HasUuidPrimaryKey;
 
     protected function casts(): array
@@ -20,30 +17,20 @@ abstract class TenantModel extends BaseModel
         ];
     }
 
-    /**
-     * Tenant Scope
-     */
     protected static function booted(): void
     {
-        static::addGlobalScope(
-            new TenantScope()
-        );
+        static::addGlobalScope(new TenantScope());
 
-        static::creating(function ($model) {
+        static::creating(function ($model): void {
+            $tenantId = tenantId();
 
-            if (! tenantId()) {
-
-                throw new \RuntimeException(
-                    'No active tenant found.'
+            if (! empty($model->tenant_id) && (int) $model->tenant_id !== $tenantId) {
+                throw new RuntimeException(
+                    'Cannot create a tenant-owned record for a different tenant.'
                 );
             }
 
-            if (
-                empty($model->tenant_id)
-                && tenant()
-            ) {
-                $model->tenant_id = tenantId();
-            }
+            $model->tenant_id = $tenantId;
         });
     }
 }

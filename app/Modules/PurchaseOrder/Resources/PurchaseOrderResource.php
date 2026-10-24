@@ -7,36 +7,99 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class PurchaseOrderResource extends JsonResource
 {
-    public function toArray(
-        Request $request
-    ): array {
+    public function toArray(Request $request): array
+    {
         return [
+            'uuid' => $this->uuid,
 
-            'id' => $this->id,
+            'order_number' => $this->order_number,
 
-            'po_no' => $this->po_no,
+            'order_date' =>
+                $this->order_date?->toDateString(),
 
-            'supplier_id' => $this->supplier_id,
+            'expected_delivery_date' =>
+                $this->expected_delivery_date?->toDateString(),
 
-            'order_date' => $this->order_date,
+            'supplier' => $this->whenLoaded(
+                'supplier',
+                function () {
+                    return [
+                        'uuid' => $this->supplier->uuid,
+                        'name' => $this->supplier->name,
+                        'code' => $this->supplier->code,
+                    ];
+                }
+            ),
 
-            'subtotal' => $this->subtotal,
+            'warehouse' => $this->whenLoaded(
+                'warehouse',
+                function () {
+                    return [
+                        'uuid' => $this->warehouse->uuid,
+                        'name' => $this->warehouse->name,
+                    ];
+                }
+            ),
 
-            'discount_amount' => $this->discount_amount,
-
-            'tax_amount' => $this->tax_amount,
-
-            'grand_total' => $this->grand_total,
+            'payment_term' => $this->whenLoaded(
+                'paymentTerm',
+                function () {
+                    return [
+                        'uuid' => $this->paymentTerm->uuid,
+                        'name' => $this->paymentTerm->name,
+                    ];
+                }
+            ),
 
             'status' => $this->status,
 
-            'notes' => $this->notes,
+            'currency_code' => $this->currency_code,
+
+            'exchange_rate' => $this->exchange_rate,
+
+            'amounts' => [
+                'subtotal' =>
+                    $this->subtotal_amount,
+
+                'discount' =>
+                    $this->discount_amount,
+
+                'additional_charge' =>
+                    $this->additional_charge_amount,
+
+                'tax_total' =>
+                    $this->tax_total_amount,
+
+                'rounding_adjustment' =>
+                    $this->rounding_adjustment,
+
+                'grand_total' =>
+                    $this->grand_total_amount,
+            ],
 
             'items' => PurchaseOrderItemResource::collection(
-                $this->whenLoaded(
-                    'items'
-                )
+                $this->whenLoaded('items')
             ),
+
+            'notes' => $this->notes,
+
+            'terms_and_conditions' =>
+                $this->terms_and_conditions,
+
+            'confirmed_at' =>
+                $this->confirmed_at?->toISOString(),
+
+            'cancelled_at' =>
+                $this->cancelled_at?->toISOString(),
+
+            'cancellation_reason' =>
+                $this->cancellation_reason,
+
+            'created_at' =>
+                $this->created_at?->toISOString(),
+
+            'updated_at' =>
+                $this->updated_at?->toISOString(),
         ];
     }
 }

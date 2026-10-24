@@ -68,6 +68,9 @@ class TaxApiTest extends TestCase
             'effective_from' => $payload['effective_from'],
         ]);
 
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
+
         $this->assertNotNull(
             Tax::query()
                 ->where('tenant_id', $this->tenant->id)

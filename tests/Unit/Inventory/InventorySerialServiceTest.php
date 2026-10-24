@@ -2,12 +2,13 @@
 
 namespace Tests\Unit\Inventory;
 
-use App\Core\Exceptions\BusinessException;
-
 use App\Modules\Inventory\Enums\ProductSerialStatusEnum;
 use App\Modules\Inventory\Models\ProductSerial;
 use App\Modules\Inventory\Repositories\Contracts\ProductSerialRepositoryInterface;
 use App\Modules\Inventory\Services\InventorySerialService;
+use App\Modules\Inventory\Services\Serial\InventorySerialLifecycleService;
+use App\Modules\Inventory\Services\Serial\InventorySerialMovementService;
+use App\Modules\Inventory\Services\Serial\InventorySerialRegistrationService;
 
 use Illuminate\Support\Collection;
 
@@ -24,11 +25,41 @@ class InventorySerialServiceTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_it_finds_serial_by_serial_number(): void
-    {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::AVAILABLE
+    private function makeService(
+        ?ProductSerialRepositoryInterface $repository = null,
+        ?InventorySerialRegistrationService $registration = null,
+        ?InventorySerialMovementService $movement = null,
+        ?InventorySerialLifecycleService $lifecycle = null,
+    ): InventorySerialService {
+        return new InventorySerialService(
+            $repository ?? Mockery::mock(
+                ProductSerialRepositoryInterface::class
+            ),
+            $registration ?? Mockery::mock(
+                InventorySerialRegistrationService::class
+            ),
+            $movement ?? Mockery::mock(
+                InventorySerialMovementService::class
+            ),
+            $lifecycle ?? Mockery::mock(
+                InventorySerialLifecycleService::class
+            ),
         );
+    }
+
+    private function serial(): ProductSerial
+    {
+        $serial = new ProductSerial();
+
+        $serial->status = ProductSerialStatusEnum::AVAILABLE;
+        $serial->serial_number = 'SN-001';
+
+        return $serial;
+    }
+
+    public function test_it_finds_serial_by_trimmed_serial_number(): void
+    {
+        $serial = $this->serial();
 
         $repository = Mockery::mock(
             ProductSerialRepositoryInterface::class
@@ -40,19 +71,41 @@ class InventorySerialServiceTest extends TestCase
             ->with('SN-001')
             ->andReturn($serial);
 
-        $service = new InventorySerialService($repository);
+        $service = $this->makeService(
+            repository: $repository,
+        );
 
-        $result = $service->findBySerialNumber(' SN-001 ');
+        $this->assertSame(
+            $serial,
+            $service->findBySerialNumber(' SN-001 ')
+        );
+    }
 
-        $this->assertSame($serial, $result);
+    public function test_it_returns_null_when_serial_is_not_found(): void
+    {
+        $repository = Mockery::mock(
+            ProductSerialRepositoryInterface::class
+        );
+
+        $repository
+            ->shouldReceive('findBySerialNumber')
+            ->once()
+            ->with('MISSING')
+            ->andReturnNull();
+
+        $service = $this->makeService(
+            repository: $repository,
+        );
+
+        $this->assertNull(
+            $service->findBySerialNumber('MISSING')
+        );
     }
 
     public function test_it_finds_available_serials(): void
     {
         $serials = new Collection([
-            $this->serial(
-                ProductSerialStatusEnum::AVAILABLE
-            ),
+            $this->serial(),
         ]);
 
         $repository = Mockery::mock(
@@ -62,818 +115,321 @@ class InventorySerialServiceTest extends TestCase
         $repository
             ->shouldReceive('findAvailable')
             ->once()
-            ->with(
-                10,
-                20,
-                30,
-            )
+            ->with(10, 20, 30)
             ->andReturn($serials);
 
-        $service = new InventorySerialService($repository);
+        $service = $this->makeService(
+            repository: $repository,
+        );
 
         $result = $service->findAvailable(
-            productId: 10,
-            warehouseId: 20,
-            productVariantId: 30,
+            10,
+            20,
+            30,
         );
 
         $this->assertSame($serials, $result);
     }
 
-    public function test_it_locks_serial(): void
+    public function test_it_delegates_lock_to_movement_service(): void
     {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::AVAILABLE
+        $serial = $this->serial();
+
+        $movement = Mockery::mock(
+            InventorySerialMovementService::class
         );
 
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository
-            ->shouldReceive('findForUpdate')
+        $movement
+            ->shouldReceive('lock')
             ->once()
             ->with(100)
             ->andReturn($serial);
 
-        $service = new InventorySerialService($repository);
+        $service = $this->makeService(
+            movement: $movement,
+        );
 
-        $result = $service->lock(100);
+        $this->assertSame(
+            $serial,
+            $service->lock(100)
+        );
+    }
+
+    public function test_it_delegates_stock_in_locking(): void
+    {
+        $serial = $this->serial();
+
+        $movement = Mockery::mock(
+            InventorySerialMovementService::class
+        );
+
+        $movement
+            ->shouldReceive('lockForStockIn')
+            ->once()
+            ->with(100, 10, 20, 30, 40)
+            ->andReturn($serial);
+
+        $service = $this->makeService(
+            movement: $movement,
+        );
+
+        $result = $service->lockForStockIn(
+            100,
+            10,
+            20,
+            30,
+            40,
+        );
 
         $this->assertSame($serial, $result);
     }
 
-    public function test_draft_serial_can_be_activated(): void
+    public function test_it_delegates_stock_out_locking(): void
     {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::DRAFT
+        $serial = $this->serial();
+
+        $movement = Mockery::mock(
+            InventorySerialMovementService::class
         );
 
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
+        $movement
+            ->shouldReceive('lockForStockOut')
+            ->once()
+            ->with(100, 10, 20, 30, 40)
+            ->andReturn($serial);
+
+        $service = $this->makeService(
+            movement: $movement,
         );
 
-        $repository
-            ->shouldReceive('update')
+        $result = $service->lockForStockOut(
+            100,
+            10,
+            20,
+            30,
+            40,
+        );
+
+        $this->assertSame($serial, $result);
+    }
+
+    public function test_it_delegates_serial_registration(): void
+    {
+        $serial = $this->serial();
+
+        $registration = Mockery::mock(
+            InventorySerialRegistrationService::class
+        );
+
+        $registration
+            ->shouldReceive('register')
             ->once()
             ->with(
-                $serial,
-                [
-                    'status' =>
-                        ProductSerialStatusEnum::AVAILABLE,
-                ]
+                10,
+                20,
+                'SN-002',
+                1250.50,
+                30,
+                40,
+                'IMEI-002',
+                null,
+                null,
+                null,
+                null,
             )
             ->andReturn($serial);
 
-        $service = new InventorySerialService($repository);
+        $service = $this->makeService(
+            registration: $registration,
+        );
 
-        $result = $service->activate($serial);
+        $result = $service->register(
+            10,
+            20,
+            'SN-002',
+            1250.50,
+            30,
+            40,
+            'IMEI-002',
+        );
 
         $this->assertSame($serial, $result);
     }
 
-    public function test_non_draft_serial_cannot_be_activated(): void
+    public function test_it_delegates_draft_serial_registration(): void
     {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::AVAILABLE
+        $serial = $this->serial();
+
+        $registration = Mockery::mock(
+            InventorySerialRegistrationService::class
         );
 
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
+        $registration
+            ->shouldReceive('registerDraft')
+            ->once()
+            ->with(
+                10,
+                20,
+                'SN-DRAFT',
+                500.0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+            )
+            ->andReturn($serial);
+
+        $service = $this->makeService(
+            registration: $registration,
         );
 
-        $repository->shouldNotReceive('update');
+        $result = $service->registerDraft(
+            10,
+            20,
+            'SN-DRAFT',
+            500,
+        );
 
-        $service = new InventorySerialService($repository);
-
-        $this->expectException(BusinessException::class);
-
-        $service->activate($serial);
+        $this->assertSame($serial, $result);
     }
 
-    public function test_draft_serial_can_be_deleted(): void
+    public function test_it_delegates_activation_to_lifecycle_service(): void
     {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::DRAFT
+        $serial = $this->serial();
+
+        $lifecycle = Mockery::mock(
+            InventorySerialLifecycleService::class
         );
 
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
+        $lifecycle
+            ->shouldReceive('activate')
+            ->once()
+            ->with($serial)
+            ->andReturn($serial);
+
+        $service = $this->makeService(
+            lifecycle: $lifecycle,
         );
 
-        $repository
-            ->shouldReceive('delete')
+        $this->assertSame(
+            $serial,
+            $service->activate($serial)
+        );
+    }
+
+    public function test_it_delegates_draft_deletion(): void
+    {
+        $serial = $this->serial();
+
+        $lifecycle = Mockery::mock(
+            InventorySerialLifecycleService::class
+        );
+
+        $lifecycle
+            ->shouldReceive('deleteDraft')
             ->once()
             ->with($serial)
             ->andReturn(true);
 
-        $service = new InventorySerialService($repository);
+        $service = $this->makeService(
+            lifecycle: $lifecycle,
+        );
 
-        $result = $service->deleteDraft($serial);
-
-        $this->assertTrue($result);
+        $this->assertTrue(
+            $service->deleteDraft($serial)
+        );
     }
 
-    public function test_non_draft_serial_cannot_be_deleted(): void
+    public function test_it_delegates_draft_restoration(): void
     {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::AVAILABLE
+        $serial = $this->serial();
+
+        $lifecycle = Mockery::mock(
+            InventorySerialLifecycleService::class
         );
 
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository->shouldNotReceive('delete');
-
-        $service = new InventorySerialService($repository);
-
-        $this->expectException(BusinessException::class);
-
-        $service->deleteDraft($serial);
-    }
-
-    public function test_available_serial_can_be_locked_for_stock_in(): void
-    {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::AVAILABLE
-        );
-
-        $serial->product_id = 10;
-        $serial->warehouse_id = 20;
-        $serial->product_variant_id = 30;
-        $serial->product_batch_id = 40;
-
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository
-            ->shouldReceive('findForUpdate')
+        $lifecycle
+            ->shouldReceive('restoreDraft')
             ->once()
-            ->with(100)
+            ->with($serial)
             ->andReturn($serial);
 
-        $service = new InventorySerialService($repository);
-
-        $result = $service->lockForStockIn(
-            serialId: 100,
-            productId: 10,
-            warehouseId: 20,
-            productVariantId: 30,
-            productBatchId: 40,
+        $service = $this->makeService(
+            lifecycle: $lifecycle,
         );
 
-        $this->assertSame($serial, $result);
-    }
-
-    public function test_unavailable_serial_cannot_be_locked_for_stock_in(): void
-    {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::SOLD
-        );
-
-        $serial->product_id = 10;
-        $serial->warehouse_id = 20;
-        $serial->product_variant_id = null;
-        $serial->product_batch_id = null;
-
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository
-            ->shouldReceive('findForUpdate')
-            ->once()
-            ->with(100)
-            ->andReturn($serial);
-
-        $service = new InventorySerialService($repository);
-
-        $this->expectException(BusinessException::class);
-
-        $service->lockForStockIn(
-            serialId: 100,
-            productId: 10,
-            warehouseId: 20,
+        $this->assertSame(
+            $serial,
+            $service->restoreDraft($serial)
         );
     }
 
-    public function test_available_serial_can_be_locked_for_stock_out(): void
+    public function test_it_delegates_mark_sold(): void
     {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::AVAILABLE
+        $serial = $this->serial();
+
+        $movement = Mockery::mock(
+            InventorySerialMovementService::class
         );
 
-        $serial->product_id = 10;
-        $serial->warehouse_id = 20;
-        $serial->product_variant_id = null;
-        $serial->product_batch_id = null;
-
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository
-            ->shouldReceive('findForUpdate')
-            ->once()
-            ->with(100)
-            ->andReturn($serial);
-
-        $service = new InventorySerialService($repository);
-
-        $result = $service->lockForStockOut(
-            serialId: 100,
-            productId: 10,
-            warehouseId: 20,
-        );
-
-        $this->assertSame($serial, $result);
-    }
-
-    public function test_unavailable_serial_cannot_be_locked_for_stock_out(): void
-    {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::SOLD
-        );
-
-        $serial->product_id = 10;
-        $serial->warehouse_id = 20;
-        $serial->product_variant_id = null;
-        $serial->product_batch_id = null;
-
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository
-            ->shouldReceive('findForUpdate')
-            ->once()
-            ->with(100)
-            ->andReturn($serial);
-
-        $service = new InventorySerialService($repository);
-
-        $this->expectException(BusinessException::class);
-
-        $service->lockForStockOut(
-            serialId: 100,
-            productId: 10,
-            warehouseId: 20,
-        );
-    }
-
-    public function test_invalid_product_cannot_lock_serial_for_stock_in(): void
-    {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::AVAILABLE
-        );
-
-        $serial->product_id = 10;
-        $serial->warehouse_id = 20;
-        $serial->product_variant_id = null;
-        $serial->product_batch_id = null;
-
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository
-            ->shouldReceive('findForUpdate')
-            ->once()
-            ->with(100)
-            ->andReturn($serial);
-
-        $service = new InventorySerialService($repository);
-
-        $this->expectException(BusinessException::class);
-
-        $service->lockForStockIn(
-            serialId: 100,
-            productId: 999,
-            warehouseId: 20,
-        );
-    }
-
-    public function test_invalid_warehouse_cannot_lock_serial_for_stock_in(): void
-    {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::AVAILABLE
-        );
-
-        $serial->product_id = 10;
-        $serial->warehouse_id = 20;
-        $serial->product_variant_id = null;
-        $serial->product_batch_id = null;
-
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository
-            ->shouldReceive('findForUpdate')
-            ->once()
-            ->with(100)
-            ->andReturn($serial);
-
-        $service = new InventorySerialService($repository);
-
-        $this->expectException(BusinessException::class);
-
-        $service->lockForStockIn(
-            serialId: 100,
-            productId: 10,
-            warehouseId: 999,
-        );
-    }
-
-    public function test_invalid_variant_cannot_lock_serial_for_stock_in(): void
-    {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::AVAILABLE
-        );
-
-        $serial->product_id = 10;
-        $serial->warehouse_id = 20;
-        $serial->product_variant_id = 30;
-        $serial->product_batch_id = null;
-
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository
-            ->shouldReceive('findForUpdate')
-            ->once()
-            ->with(100)
-            ->andReturn($serial);
-
-        $service = new InventorySerialService($repository);
-
-        $this->expectException(BusinessException::class);
-
-        $service->lockForStockIn(
-            serialId: 100,
-            productId: 10,
-            warehouseId: 20,
-            productVariantId: 999,
-        );
-    }
-
-    public function test_invalid_batch_cannot_lock_serial_for_stock_in(): void
-    {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::AVAILABLE
-        );
-
-        $serial->product_id = 10;
-        $serial->warehouse_id = 20;
-        $serial->product_variant_id = null;
-        $serial->product_batch_id = 40;
-
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository
-            ->shouldReceive('findForUpdate')
-            ->once()
-            ->with(100)
-            ->andReturn($serial);
-
-        $service = new InventorySerialService($repository);
-
-        $this->expectException(BusinessException::class);
-
-        $service->lockForStockIn(
-            serialId: 100,
-            productId: 10,
-            warehouseId: 20,
-            productBatchId: 999,
-        );
-    }
-
-    public function test_it_registers_available_serial(): void
-    {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::AVAILABLE
-        );
-
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository
-            ->shouldReceive('findBySerialNumber')
-            ->once()
-            ->with('SN-002')
-            ->andReturnNull();
-
-        $repository
-            ->shouldReceive('register')
-            ->once()
-            ->with(Mockery::on(
-                function (array $data): bool {
-                    return $data['product_id'] === 10
-                        && $data['warehouse_id'] === 20
-                        && $data['product_variant_id'] === 30
-                        && $data['product_batch_id'] === 40
-                        && $data['serial_number'] === 'SN-002'
-                        && $data['imei_number'] === 'IMEI-002'
-                        && $data['purchase_cost'] === 1250.50
-                        && $data['status']
-                            === ProductSerialStatusEnum::AVAILABLE;
-                }
-            ))
-            ->andReturn($serial);
-
-        $service = new InventorySerialService($repository);
-
-        $result = $service->register(
-            productId: 10,
-            warehouseId: 20,
-            serialNumber: ' SN-002 ',
-            purchaseCost: 1250.50,
-            productVariantId: 30,
-            productBatchId: 40,
-            imeiNumber: 'IMEI-002',
-        );
-
-        $this->assertSame($serial, $result);
-    }
-
-    public function test_it_registers_draft_serial(): void
-    {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::DRAFT
-        );
-
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository
-            ->shouldReceive('findBySerialNumber')
-            ->once()
-            ->with('SN-DRAFT')
-            ->andReturnNull();
-
-        $repository
-            ->shouldReceive('register')
-            ->once()
-            ->with(Mockery::on(
-                function (array $data): bool {
-                    $this->assertSame(
-                        10,
-                        $data['product_id']
-                    );
-
-                    $this->assertNull(
-                        $data['product_variant_id']
-                    );
-
-                    $this->assertSame(
-                        20,
-                        $data['warehouse_id']
-                    );
-
-                    $this->assertNull(
-                        $data['product_batch_id']
-                    );
-
-                    $this->assertSame(
-                        'SN-DRAFT',
-                        $data['serial_number']
-                    );
-
-                    $this->assertNull(
-                        $data['imei_number']
-                    );
-
-                    $this->assertSame(
-                        500.0,
-                        $data['purchase_cost']
-                    );
-
-                    $this->assertNull(
-                        $data['warranty_expiry']
-                    );
-
-                    $this->assertSame(
-                        ProductSerialStatusEnum::DRAFT,
-                        $data['status']
-                    );
-
-                    $this->assertNull(
-                        $data['sourceable_type']
-                    );
-
-                    $this->assertNull(
-                        $data['sourceable_id']
-                    );
-
-                    $this->assertNull(
-                        $data['remarks']
-                    );
-
-                    return true;
-                }
-            ))
-            ->andReturn($serial);
-
-        $service = new InventorySerialService($repository);
-
-        $result = $service->registerDraft(
-            productId: 10,
-            warehouseId: 20,
-            serialNumber: ' SN-DRAFT ',
-            purchaseCost: 500,
-        );
-
-        $this->assertSame($serial, $result);
-    }
-
-    public function test_empty_serial_number_cannot_be_registered(): void
-    {
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository
-            ->shouldNotReceive('findBySerialNumber');
-
-        $repository
-            ->shouldNotReceive('register');
-
-        $service = new InventorySerialService($repository);
-
-        $this->expectException(BusinessException::class);
-
-        $service->register(
-            productId: 10,
-            warehouseId: 20,
-            serialNumber: '   ',
-            purchaseCost: 1000,
-        );
-    }
-
-    public function test_negative_purchase_cost_cannot_be_registered(): void
-    {
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository
-            ->shouldNotReceive('findBySerialNumber');
-
-        $repository
-            ->shouldNotReceive('register');
-
-        $service = new InventorySerialService($repository);
-
-        $this->expectException(BusinessException::class);
-
-        $service->register(
-            productId: 10,
-            warehouseId: 20,
-            serialNumber: 'SN-003',
-            purchaseCost: -1,
-        );
-    }
-
-    public function test_duplicate_serial_number_cannot_be_registered(): void
-    {
-        $existing = $this->serial(
-            ProductSerialStatusEnum::AVAILABLE
-        );
-
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository
-            ->shouldReceive('findBySerialNumber')
-            ->once()
-            ->with('SN-001')
-            ->andReturn($existing);
-
-        $repository
-            ->shouldNotReceive('register');
-
-        $service = new InventorySerialService($repository);
-
-        $this->expectException(BusinessException::class);
-
-        $service->register(
-            productId: 10,
-            warehouseId: 20,
-            serialNumber: 'SN-001',
-            purchaseCost: 1000,
-        );
-    }
-
-    public function test_available_serial_can_be_restored_to_draft(): void
-    {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::AVAILABLE
-        );
-
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository
-            ->shouldReceive('update')
-            ->once()
-            ->with(
-                $serial,
-                [
-                    'status' =>
-                        ProductSerialStatusEnum::DRAFT,
-                    'sold_at' => null,
-                ]
-            )
-            ->andReturn($serial);
-
-        $service = new InventorySerialService($repository);
-
-        $result = $service->restoreDraft($serial);
-
-        $this->assertSame($serial, $result);
-    }
-
-    public function test_non_available_serial_cannot_be_restored_to_draft(): void
-    {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::SOLD
-        );
-
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository->shouldNotReceive('update');
-
-        $service = new InventorySerialService($repository);
-
-        $this->expectException(BusinessException::class);
-
-        $service->restoreDraft($serial);
-    }
-
-    public function test_available_serial_can_be_marked_sold(): void
-    {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::AVAILABLE
-        );
-
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository
+        $movement
             ->shouldReceive('markSold')
             ->once()
             ->with($serial);
 
-        $service = new InventorySerialService($repository);
+        $service = $this->makeService(
+            movement: $movement,
+        );
 
         $service->markSold($serial);
 
         $this->addToAssertionCount(1);
     }
 
-    public function test_non_available_serial_cannot_be_marked_sold(): void
+    public function test_it_delegates_mark_available(): void
     {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::SOLD
+        $serial = $this->serial();
+
+        $movement = Mockery::mock(
+            InventorySerialMovementService::class
         );
 
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository->shouldNotReceive('markSold');
-
-        $service = new InventorySerialService($repository);
-
-        $this->expectException(BusinessException::class);
-
-        $service->markSold($serial);
-    }
-
-    public function test_sold_serial_can_be_made_available(): void
-    {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::SOLD
-        );
-
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository
+        $movement
             ->shouldReceive('markAvailable')
             ->once()
             ->with($serial);
 
-        $service = new InventorySerialService($repository);
+        $service = $this->makeService(
+            movement: $movement,
+        );
 
         $service->markAvailable($serial);
 
         $this->addToAssertionCount(1);
     }
 
-    public function test_non_sold_serial_cannot_be_made_available(): void
+    public function test_it_delegates_mark_returned(): void
     {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::AVAILABLE
+        $serial = $this->serial();
+
+        $movement = Mockery::mock(
+            InventorySerialMovementService::class
         );
 
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository->shouldNotReceive('markAvailable');
-
-        $service = new InventorySerialService($repository);
-
-        $this->expectException(BusinessException::class);
-
-        $service->markAvailable($serial);
-    }
-
-    public function test_sold_serial_can_be_returned(): void
-    {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::SOLD
-        );
-
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository
+        $movement
             ->shouldReceive('markReturned')
             ->once()
             ->with($serial);
 
-        $service = new InventorySerialService($repository);
+        $service = $this->makeService(
+            movement: $movement,
+        );
 
         $service->markReturned($serial);
 
         $this->addToAssertionCount(1);
-    }
-
-    public function test_damaged_serial_can_be_returned(): void
-    {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::DAMAGED
-        );
-
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository
-            ->shouldReceive('markReturned')
-            ->once()
-            ->with($serial);
-
-        $service = new InventorySerialService($repository);
-
-        $service->markReturned($serial);
-
-        $this->addToAssertionCount(1);
-    }
-
-    public function test_available_serial_cannot_be_returned(): void
-    {
-        $serial = $this->serial(
-            ProductSerialStatusEnum::AVAILABLE
-        );
-
-        $repository = Mockery::mock(
-            ProductSerialRepositoryInterface::class
-        );
-
-        $repository->shouldNotReceive('markReturned');
-
-        $service = new InventorySerialService($repository);
-
-        $this->expectException(BusinessException::class);
-
-        $service->markReturned($serial);
-    }
-
-    private function serial(
-        ProductSerialStatusEnum $status
-    ): ProductSerial {
-        $serial = new ProductSerial();
-
-        $serial->status = $status;
-        $serial->serial_number = 'SN-001';
-
-        return $serial;
     }
 }

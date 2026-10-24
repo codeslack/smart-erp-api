@@ -2,26 +2,42 @@
 
 namespace App\Modules\GoodsReceiptNote\Repositories\Contracts;
 
+use Illuminate\Database\Eloquent\Collection;
+
+use App\Core\Repositories\Contracts\BaseRepositoryInterface;
+
+use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNote;
+
 interface GoodsReceiptNoteRepositoryInterface
+    extends BaseRepositoryInterface
 {
-    public function paginate(
-        int $perPage = 15
-    );
+    public function getByStatus(string $status): Collection;
 
-    public function find(
+    public function getByPurchaseOrderId(
+        int $purchaseOrderId
+    ): Collection;
+
+    public function getBySupplierId(
+        int $supplierId
+    ): Collection;
+
+    public function getByWarehouseId(
+        int $warehouseId
+    ): Collection;
+
+    public function findByGrnNumber(
+        string $grnNumber
+    ): ?GoodsReceiptNote;
+
+    public function findWithItems(
         int $id
-    );
+    ): ?GoodsReceiptNote;
 
-    public function create(
-        array $data
-    );
+    public function findWithItemsByUuid(
+        string $uuid
+    ): ?GoodsReceiptNote;
 
-    public function update(
-        int $id,
-        array $data
-    );
-
-    public function delete(
-        int $id
-    );
+    public function findWithItemsByUuidForUpdate(
+        string $uuid
+    ): ?GoodsReceiptNote;
 }

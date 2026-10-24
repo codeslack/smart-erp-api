@@ -7,27 +7,72 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class GoodsReceiptNoteItemResource extends JsonResource
 {
-    public function toArray(
-        Request $request
-    ): array {
+    public function toArray(Request $request): array
+    {
         return [
+            'uuid' => $this->uuid,
 
-            'id' => $this->id,
+            'purchase_order_item_uuid' => $this->whenLoaded(
+                'purchaseOrderItem',
+                fn () => $this->purchaseOrderItem?->uuid
+            ),
 
-            'product_id' => $this->product_id,
+            'product' => $this->whenLoaded(
+                'product',
+                fn () => $this->product ? [
+                    'uuid' => $this->product->uuid,
+                    'name' => $this->product->name,
+                ] : null
+            ),
 
-            'warehouse_id' => $this->warehouse_id,
+            'product_variant' => $this->whenLoaded(
+                'productVariant',
+                fn () => $this->productVariant ? [
+                    'uuid' => $this->productVariant->uuid,
+                    'name' => $this->productVariant->name,
+                ] : null
+            ),
 
-            'ordered_quantity' => $this->ordered_quantity,
+            'warehouse' => $this->whenLoaded(
+                'warehouse',
+                fn () => $this->warehouse ? [
+                    'uuid' => $this->warehouse->uuid,
+                    'name' => $this->warehouse->name,
+                ] : null
+            ),
 
-            'received_quantity' => $this->received_quantity,
+            'unit' => $this->whenLoaded(
+                'unit',
+                fn () => $this->unit ? [
+                    'uuid' => $this->unit->uuid,
+                    'name' => $this->unit->name,
+                ] : null
+            ),
 
-            'pending_quantity' => $this->pending_quantity,
-
+            'quantity_received' => $this->quantity_received,
+            'base_quantity' => $this->base_quantity,
             'unit_cost' => $this->unit_cost,
 
-            'line_total' => $this->line_total,
+            'tax_group' => $this->whenLoaded(
+                'taxGroup',
+                fn () => $this->taxGroup ? [
+                    'uuid' => $this->taxGroup->uuid,
+                    'name' => $this->taxGroup->name,
+                ] : null
+            ),
 
+            'tax_rate' => $this->tax_rate,
+            'tax_amount' => $this->tax_amount,
+            'line_total' => $this->line_total,
+            'remarks' => $this->remarks,
+
+            'batches' => GoodsReceiptNoteItemBatchResource::collection(
+                $this->whenLoaded('batches')
+            ),
+
+            'serials' => GoodsReceiptNoteItemSerialResource::collection(
+                $this->whenLoaded('serials')
+            ),
         ];
     }
 }

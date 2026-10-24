@@ -107,6 +107,9 @@ class AccountLedgerBackdatedTest extends TestCase
             0
         );
 
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
+
         $ledgers = AccountLedger::query()
             ->where('tenant_id', $this->tenant->id)
             ->where(
@@ -181,13 +184,13 @@ class AccountLedgerBackdatedTest extends TestCase
                 'lines' => [
                     [
                         'chart_of_account_uuid'
-                            => $this->cashAccount->uuid,
+                        => $this->cashAccount->uuid,
                         'debit' => $debit,
                         'credit' => $credit,
                     ],
                     [
                         'chart_of_account_uuid'
-                            => $this->salesAccount->uuid,
+                        => $this->salesAccount->uuid,
                         'debit' => $credit,
                         'credit' => $debit,
                     ],
@@ -205,6 +208,9 @@ class AccountLedgerBackdatedTest extends TestCase
         $this->assertTrue(
             Str::isUuid($uuid)
         );
+
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
 
         $this->postJson(
             "/api/accounting/journal-entries/{$uuid}/post"

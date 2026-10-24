@@ -281,10 +281,154 @@ return new class extends Migration
                 'is_active',
             ]);
         });
+
+        Schema::create('product_units', function (Blueprint $table) {
+
+            /*
+            |--------------------------------------------------------------------------
+            | Identity
+            |--------------------------------------------------------------------------
+            */
+
+            $table->id();
+
+            $table->uuid('uuid')
+                ->unique();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Tenant
+            |--------------------------------------------------------------------------
+            */
+
+            $table->foreignId('tenant_id')
+                ->constrained('tenants')
+                ->cascadeOnDelete();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Product / Unit
+            |--------------------------------------------------------------------------
+            */
+
+            $table->foreignId('product_id')
+                ->constrained('products')
+                ->cascadeOnDelete();
+
+            $table->foreignId('unit_id')
+                ->constrained('units')
+                ->restrictOnDelete();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Conversion
+            |--------------------------------------------------------------------------
+            |
+            | Example:
+            |
+            | Product base unit = PCS
+            |
+            | BOX  = 10 PCS
+            | CARTON = 100 PCS
+            |
+            | Therefore:
+            |
+            | BOX     conversion_factor = 10
+            | CARTON  conversion_factor = 100
+            |
+            */
+
+            $table->decimal(
+                'conversion_factor',
+                18,
+                8
+            )->default(1);
+
+            /*
+            |--------------------------------------------------------------------------
+            | Usage
+            |--------------------------------------------------------------------------
+            */
+
+            $table->boolean('is_purchase_unit')
+                ->default(false);
+
+            $table->boolean('is_sales_unit')
+                ->default(false);
+
+            $table->boolean('is_active')
+                ->default(true);
+
+            /*
+            |--------------------------------------------------------------------------
+            | Audit
+            |--------------------------------------------------------------------------
+            */
+
+            $table->foreignId('created_by')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
+
+            $table->foreignId('updated_by')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
+
+            $table->timestamps();
+
+            $table->softDeletes();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Constraints
+            |--------------------------------------------------------------------------
+            */
+
+            $table->unique(
+                ['tenant_id', 'product_id', 'unit_id'],
+                'product_units_tenant_product_unit_unique'
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Indexes
+            |--------------------------------------------------------------------------
+            */
+
+            $table->index([
+                'tenant_id',
+                'product_id',
+            ]);
+
+            $table->index([
+                'tenant_id',
+                'unit_id',
+            ]);
+
+            $table->index([
+                'tenant_id',
+                'product_id',
+                'is_active',
+            ]);
+
+            $table->index([
+                'tenant_id',
+                'product_id',
+                'is_purchase_unit',
+            ]);
+
+            $table->index([
+                'tenant_id',
+                'product_id',
+                'is_sales_unit',
+            ]);
+        });
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('product_units');
         Schema::dropIfExists('products');
     }
 };

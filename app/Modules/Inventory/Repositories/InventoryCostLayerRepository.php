@@ -38,15 +38,15 @@ class InventoryCostLayerRepository
 
             ->when(
                 $productVariantId !== null,
-                fn ($query) =>
-                    $query->where(
-                        'product_variant_id',
-                        $productVariantId
-                    ),
-                fn ($query) =>
-                    $query->whereNull(
-                        'product_variant_id'
-                    )
+                fn($query) =>
+                $query->where(
+                    'product_variant_id',
+                    $productVariantId
+                ),
+                fn($query) =>
+                $query->whereNull(
+                    'product_variant_id'
+                )
             )
 
             ->where(
@@ -83,6 +83,18 @@ class InventoryCostLayerRepository
             ->find($id);
     }
 
+    public function findForUpdate(
+        int $id
+    ): ?InventoryCostLayer {
+
+        return $this->model
+            ->newQuery()
+            ->where('tenant_id', tenantId())
+            ->whereKey($id)
+            ->lockForUpdate()
+            ->first();
+    }
+
     public function findByStockLedgerId(
         int $stockLedgerId
     ): ?InventoryCostLayer {
@@ -95,7 +107,7 @@ class InventoryCostLayerRepository
             )
             ->lockForUpdate()
             ->first();
-    }    
+    }
 
     public function update(
         InventoryCostLayer $layer,

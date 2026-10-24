@@ -108,6 +108,9 @@ class JournalEntryApiTest extends TestCase
             ]
         );
 
+        app(TenantManager::class)
+            ->setTenant($this->tenant);
+
         $journalEntry = JournalEntry::query()
             ->where('uuid', $journalEntryUuid)
             ->firstOrFail();
@@ -204,9 +207,20 @@ class JournalEntryApiTest extends TestCase
             'data.uuid'
         );
 
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
+
         $response = $this->getJson(
             "/api/accounting/journal-entries/{$journalEntryUuid}"
         );
+
+        if ($response->status() === 404) {
+            dump([
+                'created_uuid' => $journalEntryUuid,
+                'show_status' => $response->status(),
+                'show_body' => $response->json(),
+            ]);
+        }
 
         $response
             ->assertSuccessful()
@@ -288,9 +302,16 @@ class JournalEntryApiTest extends TestCase
             'data.uuid'
         );
 
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
+
         $postResponse = $this->postJson(
             "/api/accounting/journal-entries/{$journalEntryUuid}/post"
         );
+
+        if ($postResponse->status() === 404) {
+            dump($postResponse->json());
+        }
 
         $postResponse
             ->assertSuccessful()
@@ -312,6 +333,9 @@ class JournalEntryApiTest extends TestCase
                 'status' => 'posted',
             ]
         );
+
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
 
         $journalEntry = JournalEntry::query()
             ->where('uuid', $journalEntryUuid)
@@ -372,6 +396,9 @@ class JournalEntryApiTest extends TestCase
             'data.uuid'
         );
 
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
+
         $this->postJson(
             "/api/accounting/journal-entries/{$journalEntryUuid}/post"
         )->assertSuccessful();
@@ -402,6 +429,9 @@ class JournalEntryApiTest extends TestCase
         $journalEntryUuid = $createResponse->json(
             'data.uuid'
         );
+
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
 
         $response = $this->postJson(
             "/api/accounting/journal-entries/{$journalEntryUuid}/cancel"
@@ -442,9 +472,15 @@ class JournalEntryApiTest extends TestCase
             'data.uuid'
         );
 
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
+
         $this->postJson(
             "/api/accounting/journal-entries/{$journalEntryUuid}/post"
         )->assertSuccessful();
+
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
 
         $response = $this->postJson(
             "/api/accounting/journal-entries/{$journalEntryUuid}/cancel"
@@ -477,9 +513,15 @@ class JournalEntryApiTest extends TestCase
             'data.uuid'
         );
 
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
+
         $this->postJson(
             "/api/accounting/journal-entries/{$journalEntryUuid}/post"
         )->assertSuccessful();
+
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
 
         $response = $this->postJson(
             "/api/accounting/journal-entries/{$journalEntryUuid}/post"

@@ -65,7 +65,7 @@ class InventoryBatchPostingTest extends TestCase
 
         $this->product = $this->createProduct([
             'inventory_tracking_type' =>
-                InventoryTrackingTypeEnum::BATCH,
+            InventoryTrackingTypeEnum::BATCH,
         ]);
 
         $this->openingStockService = app(
@@ -96,8 +96,7 @@ class InventoryBatchPostingTest extends TestCase
             warehouseId: $this->warehouse->id,
             quantity: 5,
             unitCost: 100,
-            transactionType:
-                InventoryTransactionTypeEnum::OPENING_STOCK->value,
+            transactionType: InventoryTransactionTypeEnum::OPENING_STOCK->value,
             transactionDate: now(),
             batchId: $batch->id,
         );
@@ -142,8 +141,7 @@ class InventoryBatchPostingTest extends TestCase
             warehouseId: $this->warehouse->id,
             quantity: 5,
             unitCost: 100,
-            transactionType:
-                InventoryTransactionTypeEnum::OPENING_STOCK->value,
+            transactionType: InventoryTransactionTypeEnum::OPENING_STOCK->value,
             transactionDate: now(),
             batchId: $batch->id,
         );
@@ -309,7 +307,7 @@ class InventoryBatchPostingTest extends TestCase
                 'product_batch_id' => $batch->id,
                 'quantity_in' => 5,
                 'transaction_type' =>
-                    InventoryTransactionTypeEnum::OPENING_STOCK->value,
+                InventoryTransactionTypeEnum::OPENING_STOCK->value,
             ]
         );
     }
@@ -378,7 +376,7 @@ class InventoryBatchPostingTest extends TestCase
 
         $this->assertTrue(
             $stock === null
-            || (float) $stock->quantity === 0.0
+                || (float) $stock->quantity === 0.0
         );
     }
 
@@ -534,9 +532,77 @@ class InventoryBatchPostingTest extends TestCase
                 'product_id' => $this->product->id,
                 'warehouse_id' => $this->warehouse->id,
                 'transaction_type' =>
-                    InventoryTransactionTypeEnum::OPENING_STOCK->value,
+                InventoryTransactionTypeEnum::OPENING_STOCK->value,
             ]
         );
+    }
+
+    public function test_stock_in_rejects_batch_belonging_to_another_product(): void
+    {
+        $batch = ProductBatch::create([
+            'tenant_id' => $this->tenant->id,
+            'product_id' => $this->product->id,
+            'warehouse_id' => $this->warehouse->id,
+            'batch_no' => 'BATCH-WRONG-PRODUCT',
+            'unit_cost' => 100,
+            'original_quantity' => 10,
+            'remaining_quantity' => 10,
+            'status' => ProductBatchStatusEnum::ACTIVE,
+        ]);
+
+        $otherProduct = $this->createProduct([
+            'tenant_id' => $this->tenant->id,
+            'inventory_tracking_type' =>
+            InventoryTrackingTypeEnum::BATCH,
+        ]);
+
+        $movement = new InventoryMovementData(
+            productId: $otherProduct->id,
+            productVariantId: null,
+            warehouseId: $this->warehouse->id,
+            quantity: 2,
+            unitCost: 100,
+            transactionType: InventoryTransactionTypeEnum::OPENING_STOCK->value,
+            transactionDate: now(),
+            referenceType: null,
+            referenceId: null,
+            referenceNo: 'WRONG-BATCH-PRODUCT',
+            batchId: $batch->id,
+            serialId: null,
+            remarks: null,
+        );
+
+        try {
+            app(InventoryStockInService::class)->post($movement);
+
+            $this->fail(
+                'Expected stock-in to reject the mismatched batch.'
+            );
+        } catch (\App\Core\Exceptions\BusinessException $exception) {
+            $this->assertStringContainsString(
+                'does not belong',
+                strtolower($exception->getMessage())
+            );
+        }
+
+        $batch->refresh();
+
+        $this->assertEquals(
+            10,
+            (float) $batch->remaining_quantity
+        );
+
+        $this->assertDatabaseMissing('product_stocks', [
+            'tenant_id' => $this->tenant->id,
+            'product_id' => $otherProduct->id,
+            'warehouse_id' => $this->warehouse->id,
+        ]);
+
+        $this->assertDatabaseMissing('stock_ledgers', [
+            'tenant_id' => $this->tenant->id,
+            'product_id' => $otherProduct->id,
+            'product_batch_id' => $batch->id,
+        ]);
     }
 
     protected function createOpeningStock(): OpeningStock

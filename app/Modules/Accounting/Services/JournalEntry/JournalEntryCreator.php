@@ -3,9 +3,13 @@
 namespace App\Modules\Accounting\Services\JournalEntry;
 
 use App\Core\Exceptions\BusinessException;
+
+use App\Modules\DocumentNumber\Enums\DocumentType;
+
 use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Models\JournalEntryLine;
+
 use App\Modules\Accounting\Repositories\Contracts\JournalEntryRepositoryInterface;
 
 class JournalEntryCreator
@@ -30,8 +34,7 @@ class JournalEntryCreator
             ...$data,
 
             'voucher_no' => nextDocumentNumber(
-                'journal_entry',
-                'JV'
+                DocumentType::JOURNAL_ENTRY
             ),
         ]);
 
@@ -43,13 +46,13 @@ class JournalEntryCreator
 
             JournalEntryLine::create([
                 'tenant_id' =>
-                    $journalEntry->tenant_id,
+                $journalEntry->tenant_id,
 
                 'journal_entry_id' =>
-                    $journalEntry->id,
+                $journalEntry->id,
 
                 'chart_of_account_id' =>
-                    $account->id,
+                $account->id,
 
                 'debit' => $this->decimal(
                     $line['debit'] ?? '0'
@@ -60,7 +63,7 @@ class JournalEntryCreator
                 ),
 
                 'description' =>
-                    $line['description'] ?? null,
+                $line['description'] ?? null,
             ]);
         }
 

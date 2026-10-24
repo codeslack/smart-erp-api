@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\DB;
 
 use App\Core\Enums\DocumentStatusEnum;
 use App\Core\Exceptions\BusinessException;
-
+use App\Modules\DocumentNumber\Enums\DocumentType;
 use App\Modules\OpeningStock\Models\OpeningStock;
 use App\Modules\OpeningStock\Repositories\Contracts\OpeningStockRepositoryInterface;
 
@@ -30,8 +30,7 @@ class OpeningStockService
                 unset($data['sources']);
 
                 $data['document_no'] = nextDocumentNumber(
-                    'opening_stock',
-                    'OPN'
+                    DocumentType::OPENING_STOCK
                 );
 
                 $data['status'] =

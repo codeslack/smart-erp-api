@@ -4,6 +4,8 @@ namespace App\Modules\DocumentNumber\Services;
 
 use Illuminate\Support\Facades\DB;
 
+use App\Modules\DocumentNumber\Enums\DocumentType;
+
 use App\Modules\DocumentNumber\Models\DocumentNumber;
 
 use App\Modules\Accounting\Services\FinancialYearService;
@@ -15,7 +17,7 @@ class DocumentNumberService
     ) {}
 
     public function next(
-        string $documentType,
+        DocumentType $documentType,
         string $prefix
     ): string {
 

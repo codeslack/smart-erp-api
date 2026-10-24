@@ -85,19 +85,19 @@ class AccountLedgerSameAccountTest extends TestCase
                 'lines' => [
                     [
                         'chart_of_account_uuid'
-                            => $this->cashAccount->uuid,
+                        => $this->cashAccount->uuid,
                         'debit' => 1000,
                         'credit' => 0,
                     ],
                     [
                         'chart_of_account_uuid'
-                            => $this->cashAccount->uuid,
+                        => $this->cashAccount->uuid,
                         'debit' => 500,
                         'credit' => 0,
                     ],
                     [
                         'chart_of_account_uuid'
-                            => $this->salesAccount->uuid,
+                        => $this->salesAccount->uuid,
                         'debit' => 0,
                         'credit' => 1500,
                     ],
@@ -116,6 +116,9 @@ class AccountLedgerSameAccountTest extends TestCase
             Str::isUuid($uuid)
         );
 
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
+
         $this->postJson(
             "/api/accounting/journal-entries/{$uuid}/post"
         )
@@ -124,6 +127,9 @@ class AccountLedgerSameAccountTest extends TestCase
                 'data.status',
                 'posted'
             );
+
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
 
         $ledgers = AccountLedger::query()
             ->where('tenant_id', $this->tenant->id)

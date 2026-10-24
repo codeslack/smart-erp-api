@@ -24,9 +24,21 @@ interface ProductBatchRepositoryInterface
         ?int $productVariantId = null
     ): ?ProductBatch;
 
+    public function findByBatchNumberForUpdate(
+        string $batchNumber,
+        int $productId,
+        int $warehouseId,
+    ): ?ProductBatch;
+
     public function findForUpdate(
         int $id
     ): ProductBatch;
+
+    /** @return Collection<int, ProductBatch> */
+    public function findBySourceForUpdate(
+        string $sourceableType,
+        int $sourceableId,
+    ): Collection;
 
     public function initializeOriginalQuantity(
         ProductBatch $batch,

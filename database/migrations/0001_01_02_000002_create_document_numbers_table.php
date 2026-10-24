@@ -37,11 +37,22 @@ return new class extends Migration
 
             $table->timestamps();
 
-            $table->unique([
-                'tenant_id',
-                'document_type',
-                'financial_year',
-            ]);
+             $table->unique(
+                [
+                    'tenant_id',
+                    'document_type',
+                    'financial_year',
+                ],
+                'document_numbers_tenant_type_year_unique'
+            );
+
+            $table->index(
+                [
+                    'tenant_id',
+                    'document_type',
+                ],
+                'document_numbers_tenant_type_index'
+            );
         });
     }
 

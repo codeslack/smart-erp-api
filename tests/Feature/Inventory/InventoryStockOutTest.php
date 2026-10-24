@@ -7,6 +7,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 use Tests\Support\CreatesTenant;
 
+use App\Core\Exceptions\BusinessException;
+
 use App\Core\Tenant\TenantManager;
 
 use App\Modules\Settings\Models\Setting;
@@ -20,6 +22,7 @@ use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 use App\Modules\SystemNumber\Enums\SystemNumberTypeEnum;
 
 use App\Modules\Inventory\Models\ProductStock;
+use App\Modules\Inventory\Models\ProductBatch;
 use App\Modules\Inventory\Models\StockLedger;
 use App\Modules\Inventory\Models\InventoryCostLayer;
 
@@ -118,7 +121,7 @@ class InventoryStockOutTest extends TestCase
             'tenant_id' =>
                 $this->tenant->id,
 
-            'name' => 'Main Warehouse', 
+            'name' => 'Main Warehouse',
 
             'code' =>
                 nextSystemNumber(
@@ -561,5 +564,110 @@ class InventoryStockOutTest extends TestCase
                     'OPEN',
             ]
         );
+    }
+
+    public function test_stock_out_rejects_batch_belonging_to_another_product(): void
+    {
+        /*
+        |--------------------------------------------------------------------------
+        | Arrange - Create an active batch for Product A
+        |--------------------------------------------------------------------------
+        */
+
+        $this->product->update([
+            'inventory_tracking_type' => InventoryTrackingTypeEnum::BATCH,
+        ]);
+
+        $batch = ProductBatch::create([
+            'tenant_id' => $this->tenant->id,
+            'product_id' => $this->product->id,
+            'warehouse_id' => $this->warehouse->id,
+            'batch_no' => 'BATCH-STOCK-OUT-WRONG-PRODUCT',
+            'unit_cost' => 100,
+            'original_quantity' => 10,
+            'remaining_quantity' => 10,
+            'status' => \App\Modules\Inventory\Enums\ProductBatchStatusEnum::ACTIVE,
+        ]);
+
+        $otherProduct = Product::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Other Test Product',
+            'code' => nextSystemNumber(SystemNumberTypeEnum::PRODUCT),
+            'sku' => 'OTHER-' . random_int(100000, 999999),
+            'slug' => 'other-product-' . random_int(100000, 999999),
+            'product_type' => ProductTypeEnum::PRODUCT,
+            'inventory_tracking_type' => InventoryTrackingTypeEnum::BATCH,
+            'purchase_price' => 500,
+            'selling_price' => 700,
+            'is_active' => true,
+        ]);
+
+        $originalRemainingQuantity = (float) $batch->remaining_quantity;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Act - Attempt stock-out using Product A's batch for Product B
+        |--------------------------------------------------------------------------
+        */
+
+        $movement = new InventoryMovementData(
+            productId: $otherProduct->id,
+            productVariantId: null,
+            warehouseId: $this->warehouse->id,
+            quantity: 2,
+            unitCost: 0,
+            transactionType: 'SALE',
+            transactionDate: now(),
+            referenceType: null,
+            referenceId: null,
+            referenceNo: 'WRONG-BATCH-STOCK-OUT',
+            batchId: $batch->id,
+            serialId: null,
+            remarks: 'Reject batch belonging to another product',
+        );
+
+        try {
+            $this->postingService->stockOut($movement);
+
+            $this->fail(
+                'Expected stock-out to reject the mismatched batch.'
+            );
+        } catch (\App\Core\Exceptions\BusinessException $exception) {
+            $this->assertStringContainsString(
+                'does not belong',
+                strtolower($exception->getMessage())
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Assert - Original batch quantity remains unchanged
+        |--------------------------------------------------------------------------
+        */
+
+        $batch->refresh();
+
+        $this->assertEquals(
+            $originalRemainingQuantity,
+            (float) $batch->remaining_quantity
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Assert - No stock or ledger records for Product B
+        |--------------------------------------------------------------------------
+        */
+
+        $this->assertDatabaseMissing('product_stocks', [
+            'tenant_id' => $this->tenant->id,
+            'product_id' => $otherProduct->id,
+            'warehouse_id' => $this->warehouse->id,
+        ]);
+
+        $this->assertDatabaseMissing('stock_ledgers', [
+            'tenant_id' => $this->tenant->id,
+            'product_id' => $otherProduct->id,
+            'product_batch_id' => $batch->id,
+        ]);
     }
 }

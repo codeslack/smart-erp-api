@@ -52,6 +52,20 @@ class InventoryStockOutService
                     $movement
                 );
 
+                // Validate a supplied batch before stock availability checks.
+                if ($movement->batchId !== null) {
+                    $batch = $this->batchService->lock(
+                        $movement->batchId
+                    );
+
+                    $this->batchService->validateOwnership(
+                        batch: $batch,
+                        productId: $movement->productId,
+                        warehouseId: $movement->warehouseId,
+                        productVariantId: $movement->productVariantId,
+                    );
+                }
+
                 $stock =
                     $this->getStock(
                         $movement
@@ -243,6 +257,13 @@ class InventoryStockOutService
             $this->batchService->lock(
                 $movement->batchId
             );
+
+        $this->batchService->validateOwnership(
+            batch: $batch,
+            productId: $movement->productId,
+            warehouseId: $movement->warehouseId,
+            productVariantId: $movement->productVariantId,
+        );
 
         $this->batchService->decrease(
             $batch,

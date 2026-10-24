@@ -103,6 +103,9 @@ class PaymentApiTest extends TestCase
 
         $response->assertCreated();
 
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
+
         $payment = Payment::query()
             ->where(
                 'payment_no',
@@ -213,15 +216,15 @@ class PaymentApiTest extends TestCase
             [
                 'payment_no' => 'REC-UPDATED',
                 'payment_type' =>
-                    PaymentTypeEnum::RECEIPT->value,
+                PaymentTypeEnum::RECEIPT->value,
                 'payment_date' => '2026-09-29',
                 'party_type' =>
-                    PaymentPartyTypeEnum::CUSTOMER->value,
+                PaymentPartyTypeEnum::CUSTOMER->value,
                 'party_id' => $customer->id,
                 'account_id' => $this->cashAccount->id,
                 'amount' => 15000,
                 'payment_method' =>
-                    PaymentMethodEnum::BANK_TRANSFER->value,
+                PaymentMethodEnum::BANK_TRANSFER->value,
                 'reference_no' => 'REF-001',
                 'notes' => 'Updated payment',
             ]
@@ -362,6 +365,9 @@ class PaymentApiTest extends TestCase
 
         $response->assertCreated();
 
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
+
         $payment = Payment::query()
             ->where(
                 'payment_no',
@@ -415,28 +421,28 @@ class PaymentApiTest extends TestCase
             [
                 'payment_no' => $payment->payment_no,
                 'payment_type' =>
-                    PaymentTypeEnum::RECEIPT->value,
+                PaymentTypeEnum::RECEIPT->value,
                 'payment_date' =>
-                    $payment->payment_date->toDateString(),
+                $payment->payment_date->toDateString(),
                 'party_type' =>
-                    PaymentPartyTypeEnum::CUSTOMER->value,
+                PaymentPartyTypeEnum::CUSTOMER->value,
                 'party_id' => $customer->id,
                 'account_id' => $this->cashAccount->id,
                 'amount' => 10000,
                 'payment_method' =>
-                    PaymentMethodEnum::CASH->value,
+                PaymentMethodEnum::CASH->value,
                 'reference_no' => null,
                 'notes' => 'Updated allocations',
                 'allocations' => [
                     [
                         'document_type' =>
-                            'customer_opening_bill',
+                        'customer_opening_bill',
                         'document_id' => 101,
                         'allocated_amount' => 6000,
                     ],
                     [
                         'document_type' =>
-                            'customer_opening_bill',
+                        'customer_opening_bill',
                         'document_id' => 102,
                         'allocated_amount' => 2000,
                     ],
@@ -447,6 +453,9 @@ class PaymentApiTest extends TestCase
         $response->assertSuccessful();
 
         $payment->refresh();
+
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
 
         $this->assertCount(
             2,
@@ -513,16 +522,16 @@ class PaymentApiTest extends TestCase
             [
                 'payment_no' => $payment->payment_no,
                 'payment_type' =>
-                    PaymentTypeEnum::RECEIPT->value,
+                PaymentTypeEnum::RECEIPT->value,
                 'payment_date' =>
-                    $payment->payment_date->toDateString(),
+                $payment->payment_date->toDateString(),
                 'party_type' =>
-                    PaymentPartyTypeEnum::CUSTOMER->value,
+                PaymentPartyTypeEnum::CUSTOMER->value,
                 'party_id' => $customer->id,
                 'account_id' => $this->cashAccount->id,
                 'amount' => 10000,
                 'payment_method' =>
-                    PaymentMethodEnum::CASH->value,
+                PaymentMethodEnum::CASH->value,
                 'reference_no' => null,
                 'notes' => 'Clear allocations',
                 'allocations' => [],
@@ -572,16 +581,16 @@ class PaymentApiTest extends TestCase
             [
                 'payment_no' => $payment->payment_no,
                 'payment_type' =>
-                    PaymentTypeEnum::RECEIPT->value,
+                PaymentTypeEnum::RECEIPT->value,
                 'payment_date' =>
-                    $payment->payment_date->toDateString(),
+                $payment->payment_date->toDateString(),
                 'party_type' =>
-                    PaymentPartyTypeEnum::CUSTOMER->value,
+                PaymentPartyTypeEnum::CUSTOMER->value,
                 'party_id' => $customer->id,
                 'account_id' => $this->cashAccount->id,
                 'amount' => 10000,
                 'payment_method' =>
-                    PaymentMethodEnum::BANK_TRANSFER->value,
+                PaymentMethodEnum::BANK_TRANSFER->value,
                 'reference_no' => 'REF-002',
                 'notes' => 'Keep allocation',
             ]
@@ -590,6 +599,9 @@ class PaymentApiTest extends TestCase
         $response->assertSuccessful();
 
         $payment->refresh();
+
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
 
         $this->assertCount(
             1,
@@ -607,5 +619,4 @@ class PaymentApiTest extends TestCase
             'data.allocations'
         );
     }
-
 }

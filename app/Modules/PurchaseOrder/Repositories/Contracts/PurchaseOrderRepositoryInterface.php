@@ -2,18 +2,40 @@
 
 namespace App\Modules\PurchaseOrder\Repositories\Contracts;
 
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+
+use App\Modules\PurchaseOrder\Models\PurchaseOrder;
+use App\Modules\PurchaseOrder\Models\PurchaseOrderItem;
+
+use App\Core\Repositories\Contracts\BaseRepositoryInterface;
+
 interface PurchaseOrderRepositoryInterface
+    extends BaseRepositoryInterface
 {
-    public function paginate();
+    public function findByUuid(
+        string $uuid
+    ): ?PurchaseOrder;
 
-    public function find(int $id);
+    public function findByOrderNumber(
+        string $orderNumber
+    ): ?PurchaseOrder;
 
-    public function create(array $data);
+    public function paginateWithFilters(
+        array $filters = [],
+        int $perPage = 15
+    ): LengthAwarePaginator;
 
-    public function update(
-        int $id,
-        array $data
-    );
+    public function getWithRelations(
+        string $uuid,
+        array $relations = []
+    ): ?PurchaseOrder;
 
-    public function delete(int $id);
+    public function getItems(
+        string $uuid
+    ): Collection;
+
+    public function findItemForReceiptUpdate(
+        int $itemId
+    ): ?PurchaseOrderItem;
 }

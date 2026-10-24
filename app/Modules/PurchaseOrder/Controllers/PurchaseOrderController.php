@@ -2,93 +2,138 @@
 
 namespace App\Modules\PurchaseOrder\Controllers;
 
-use App\Http\Controllers\Controller;
-use App\Modules\PurchaseOrder\Models\PurchaseOrder;
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+
+use App\Http\Controllers\ApiController;
+
 use App\Modules\PurchaseOrder\Services\PurchaseOrderService;
+
 use App\Modules\PurchaseOrder\Resources\PurchaseOrderResource;
+use App\Modules\PurchaseOrder\Resources\PurchaseOrderItemResource;
+
 use App\Modules\PurchaseOrder\Requests\StorePurchaseOrderRequest;
 use App\Modules\PurchaseOrder\Requests\UpdatePurchaseOrderRequest;
 
-class PurchaseOrderController extends Controller
+class PurchaseOrderController extends ApiController
 {
     public function __construct(
-        protected PurchaseOrderService $service
+        private readonly PurchaseOrderService $service
     ) {}
 
-    public function index()
+    public function index(Request $request): JsonResponse
     {
-        return PurchaseOrderResource::collection(
-            $this->service->getAll()
+        $purchaseOrders = $this->service->paginate(
+            $request->only([
+                'status',
+                'supplier_id',
+                'warehouse_id',
+                'order_number',
+                'order_date_from',
+                'order_date_to',
+            ]),
+            (int) $request->input('per_page', 15)
+        );
+
+        return $this->success(
+            PurchaseOrderResource::collection($purchaseOrders),
+            'Purchase orders retrieved successfully.'
         );
     }
 
     public function store(
         StorePurchaseOrderRequest $request
-    ) {
-        return new PurchaseOrderResource(
-            $this->service->create(
-                $request->validated()
-            )
+    ): JsonResponse {
+        $purchaseOrder = $this->service->create(
+            $request->validated()
+        );
+
+        return $this->success(
+            new PurchaseOrderResource($purchaseOrder),
+            'Purchase order created successfully.',
+            201
         );
     }
 
     public function show(
-        PurchaseOrder $purchaseOrder
-    ) {
-        return new PurchaseOrderResource(
-            $this->service->find(
-                $purchaseOrder->id
-            )
+        string $uuid
+    ): JsonResponse {
+        $purchaseOrder = $this->service->findByUuid($uuid);
+
+        if (!$purchaseOrder) {
+            return $this->error(
+                'Purchase order not found.',
+                null,
+                404
+            );
+        }
+
+        return $this->success(
+            new PurchaseOrderResource($purchaseOrder),
+            'Purchase order retrieved successfully.'
         );
     }
 
     public function update(
         UpdatePurchaseOrderRequest $request,
-        PurchaseOrder $purchaseOrder
-    ) {
-        return new PurchaseOrderResource(
-            $this->service->update(
-                $purchaseOrder->id,
-                $request->validated()
-            )
+        string $uuid
+    ): JsonResponse {
+        $purchaseOrder = $this->service->update(
+            $uuid,
+            $request->validated()
+        );
+
+        return $this->success(
+            new PurchaseOrderResource($purchaseOrder),
+            'Purchase order updated successfully.'
         );
     }
 
-    public function approve(
-        PurchaseOrder $purchaseOrder
-    ) {
-        return response()->json([
-            'success' => true,
-            'message' => 'Purchase Order approved successfully',
-            'data' => new PurchaseOrderResource(
-                $this->service->approve(
-                    $purchaseOrder
-                )
-            ),
-        ]);
+    public function confirm(
+        string $uuid
+    ): JsonResponse {
+        $purchaseOrder = $this->service->confirm($uuid);
+
+        return $this->success(
+            new PurchaseOrderResource($purchaseOrder),
+            'Purchase order confirmed successfully.'
+        );
     }
 
-    public function convertToPurchase(
-        PurchaseOrder $purchaseOrder
-    ) {
-        return response()->json([
-            'success' => true,
-            'message' => 'Purchase Order converted successfully',
-            'data' => $this->service->convertToPurchase(
-                $purchaseOrder
-            ),
-        ]);
+    public function cancel(
+        Request $request,
+        string $uuid
+    ): JsonResponse {
+        $purchaseOrder = $this->service->cancel(
+            $uuid,
+            $request->input('reason')
+        );
+
+        return $this->success(
+            new PurchaseOrderResource($purchaseOrder),
+            'Purchase order cancelled successfully.'
+        );
     }
 
     public function destroy(
-        PurchaseOrder $purchaseOrder
-    ) {
-        $this->service->delete(
-            $purchaseOrder->id
-        );
+        string $uuid
+    ): JsonResponse {
+        $this->service->delete($uuid);
 
-        return response()->json([
-            'message' => 'Purchase Order deleted successfully',
-        ]);
+        return $this->success(
+            null,
+            'Purchase order deleted successfully.'
+        );
+    }
+
+    public function items(
+        string $uuid
+    ): JsonResponse {
+        $items = $this->service->getItems($uuid);
+
+        return $this->success(
+            PurchaseOrderItemResource::collection($items),
+            'Purchase order items retrieved successfully.'
+        );
     }
 }

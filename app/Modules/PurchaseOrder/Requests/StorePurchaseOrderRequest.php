@@ -2,33 +2,63 @@
 
 namespace App\Modules\PurchaseOrder\Requests;
 
+use Illuminate\Validation\Rule;
+
+use App\Core\Requests\BaseRequest;
 use App\Core\Validation\TenantRule;
-use Illuminate\Foundation\Http\FormRequest;
 
-class StorePurchaseOrderRequest extends FormRequest
+class StorePurchaseOrderRequest extends BaseRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     public function rules(): array
     {
         return [
-
-            'supplier_id' => [
-                'required',
-                TenantRule::exists(
-                    'suppliers'
-                ),
-            ],
-
             'order_date' => [
                 'required',
                 'date',
             ],
 
+            'expected_delivery_date' => [
+                'nullable',
+                'date',
+                'after_or_equal:order_date',
+            ],
+
+            'supplier_id' => [
+                'required',
+                'integer',
+                TenantRule::exists('suppliers'),
+            ],
+
+            'warehouse_id' => [
+                'required',
+                'integer',
+                TenantRule::exists('warehouses'),
+            ],
+
+            'payment_term_id' => [
+                'nullable',
+                'integer',
+                TenantRule::exists('payment_terms'),
+            ],
+
+            'currency_code' => [
+                'required',
+                'string',
+                'size:3',
+            ],
+
+            'exchange_rate' => [
+                'required',
+                'numeric',
+                'gt:0',
+            ],
+
             'notes' => [
+                'nullable',
+                'string',
+            ],
+
+            'terms_and_conditions' => [
                 'nullable',
                 'string',
             ],
@@ -40,17 +70,55 @@ class StorePurchaseOrderRequest extends FormRequest
             ],
 
             'items.*.product_id' => [
-                'required',
+                'nullable',
+                'integer',
+                TenantRule::exists('products'),
+            ],
+
+            'items.*.product_variant_id' => [
+                'nullable',
                 TenantRule::exists(
-                    'products'
+                    'product_variants'
                 ),
             ],
 
             'items.*.warehouse_id' => [
+                'nullable',
+                'integer',
+                TenantRule::exists('warehouses'),
+            ],
+
+            'items.*.line_type' => [
                 'required',
-                TenantRule::exists(
-                    'warehouses'
-                ),
+                'string',
+                Rule::in([
+                    'product',
+                    'service',
+                    'expense',
+                ]),
+            ],
+
+            'items.*.item_name' => [
+                'required',
+                'string',
+                'max:255',
+            ],
+
+            'items.*.sku' => [
+                'nullable',
+                'string',
+                'max:100',
+            ],
+
+            'items.*.description' => [
+                'nullable',
+                'string',
+            ],
+
+            'items.*.unit_of_measure_id' => [
+                'nullable',
+                'integer',
+                TenantRule::exists('units'),
             ],
 
             'items.*.quantity' => [
@@ -59,10 +127,36 @@ class StorePurchaseOrderRequest extends FormRequest
                 'gt:0',
             ],
 
-            'items.*.unit_cost' => [
+            'items.*.unit_price' => [
                 'required',
                 'numeric',
-                'gt:0',
+                'gte:0',
+            ],
+
+            'items.*.discount_type' => [
+                'required',
+                'string',
+                Rule::in([
+                    'fixed',
+                    'percentage',
+                ]),
+            ],
+
+            'items.*.discount_rate' => [
+                'nullable',
+                'numeric',
+                'gte:0',
+            ],
+
+            'items.*.tax_group_id' => [
+                'nullable',
+                'integer',
+                TenantRule::exists('tax_groups'),
+            ],
+
+            'items.*.is_tax_inclusive' => [
+                'sometimes',
+                'boolean',
             ],
         ];
     }

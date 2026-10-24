@@ -91,6 +91,9 @@ class CustomerOpeningBalanceApiTest extends TestCase
 
         $response->assertCreated();
 
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
+
         $customer = Customer::query()
             ->where('name', 'Opening Balance Customer')
             ->firstOrFail();
@@ -148,6 +151,9 @@ class CustomerOpeningBalanceApiTest extends TestCase
         );
 
         $response->assertSuccessful();
+
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
 
         $openingBill = CustomerOpeningBill::query()
             ->where('customer_id', $customer->id)

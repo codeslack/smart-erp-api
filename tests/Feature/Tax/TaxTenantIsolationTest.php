@@ -91,10 +91,70 @@ class TaxTenantIsolationTest extends TestCase
 
         $this->assertFalse(
             $groups->contains(
-                fn (TaxGroup $group): bool =>
-                    $group->id === $tenantBGroup->id,
+                fn(TaxGroup $group): bool =>
+                $group->id === $tenantBGroup->id,
             ),
         );
+    }
+
+    public function test_tenant_owned_queries_return_no_rows_without_active_tenant(): void
+    {
+        $tenant = $this->tenant;
+
+        Tax::query()->create([
+            'tenant_id' => $tenant->id,
+            'code' => 'NO-CONTEXT',
+            'name' => 'Tenant scoped tax',
+            'tax_type' => TaxTypeEnum::GST->value,
+            'is_active' => true,
+            'effective_from' => '2026-01-01',
+        ]);
+
+        $manager = app(TenantManager::class);
+        $manager->clear();
+
+        try {
+            $this->assertCount(0, Tax::query()->get());
+            $this->assertNull(Tax::query()->first());
+        } finally {
+            $manager->setTenant($tenant);
+        }
+    }
+
+    public function test_tenant_owned_model_rejects_foreign_tenant_assignment(): void
+    {
+        $tenantA = $this->tenant;
+        $tenantB = $this->createTestTenant();
+
+        app(TenantManager::class)->setTenant($tenantA);
+
+        $tax = new Tax([
+            'code' => 'FOREIGN-TENANT',
+            'name' => 'Must not be created for another tenant',
+            'tax_type' => TaxTypeEnum::GST->value,
+            'is_active' => true,
+            'effective_from' => '2026-01-01',
+        ]);
+
+        // Simulate an explicit assignment that bypasses mass assignment.
+        $tax->tenant_id = $tenantB->id;
+
+        try {
+            $tax->save();
+
+            $this->fail(
+                'A tenant-owned model must reject a foreign tenant assignment.'
+            );
+        } catch (\RuntimeException $exception) {
+            $this->assertSame(
+                'Cannot create a tenant-owned record for a different tenant.',
+                $exception->getMessage(),
+            );
+        }
+
+        $this->assertDatabaseMissing('taxes', [
+            'code' => 'FOREIGN-TENANT',
+        ]);
     }
 
     public function test_tax_records_are_isolated_by_tenant(): void
@@ -131,8 +191,8 @@ class TaxTenantIsolationTest extends TestCase
 
         $this->assertFalse(
             $taxes->contains(
-                fn (Tax $tax): bool =>
-                    $tax->id === $tenantBTax->id,
+                fn(Tax $tax): bool =>
+                $tax->id === $tenantBTax->id,
             ),
         );
     }

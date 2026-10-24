@@ -2,107 +2,164 @@
 
 namespace App\Modules\GoodsReceiptNote\Controllers;
 
-use App\Http\Controllers\Controller;
-use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNote;
+use Illuminate\Http\JsonResponse;
+
+use App\Http\Controllers\ApiController;
+
 use App\Modules\GoodsReceiptNote\Services\GoodsReceiptNoteService;
+use App\Modules\GoodsReceiptNote\Services\GoodsReceiptNoteDraftItemService;
+
 use App\Modules\GoodsReceiptNote\Resources\GoodsReceiptNoteResource;
+use App\Modules\GoodsReceiptNote\Resources\GoodsReceiptNoteItemResource;
+
 use App\Modules\GoodsReceiptNote\Requests\StoreGoodsReceiptNoteRequest;
 use App\Modules\GoodsReceiptNote\Requests\UpdateGoodsReceiptNoteRequest;
+use App\Modules\GoodsReceiptNote\Requests\UpdateGoodsReceiptNoteItemRequest;
 
-class GoodsReceiptNoteController extends Controller
+use App\Modules\GoodsReceiptNote\Repositories\Contracts\GoodsReceiptNoteItemRepositoryInterface;
+
+class GoodsReceiptNoteController extends ApiController
 {
     public function __construct(
-        protected GoodsReceiptNoteService $service
+        protected GoodsReceiptNoteService $goodsReceiptNoteService,
+        protected GoodsReceiptNoteDraftItemService $draftItemService,
+        protected GoodsReceiptNoteItemRepositoryInterface $itemRepository,
     ) {}
-
-    public function index()
-    {
-        return GoodsReceiptNoteResource::collection(
-            $this->service->getAll()
-        );
-    }
 
     public function store(
         StoreGoodsReceiptNoteRequest $request
-    ) {
-        return new GoodsReceiptNoteResource(
-            $this->service->create(
-                $request->validated()
-            )
+    ): JsonResponse {
+        $goodsReceiptNote = $this->goodsReceiptNoteService->create(
+            $request->validated()
+        );
+
+        return $this->success(
+            new GoodsReceiptNoteResource($goodsReceiptNote),
+            'Goods receipt note created successfully.',
+            201
         );
     }
 
-    public function show(
-        GoodsReceiptNote $goodsReceiptNote
-    ) {
-        return new GoodsReceiptNoteResource(
-            $this->service->find(
-                $goodsReceiptNote->id
-            )
+    public function show(string $uuid): JsonResponse
+    {
+        $goodsReceiptNote = $this->goodsReceiptNoteService
+            ->findByUuid($uuid);
+
+        return $this->success(
+            new GoodsReceiptNoteResource($goodsReceiptNote),
+            'Goods receipt note retrieved successfully.'
         );
     }
 
     public function update(
         UpdateGoodsReceiptNoteRequest $request,
-        GoodsReceiptNote $goodsReceiptNote
-    ) {
-        return new GoodsReceiptNoteResource(
-            $this->service->update(
-                $goodsReceiptNote->id,
-                $request->validated()
-            )
+        string $uuid
+    ): JsonResponse {
+        $goodsReceiptNote = $this->goodsReceiptNoteService
+            ->findByUuid($uuid);
+
+        $goodsReceiptNote = $this->goodsReceiptNoteService->update(
+            $goodsReceiptNote,
+            $request->validated()
+        );
+
+        return $this->success(
+            new GoodsReceiptNoteResource($goodsReceiptNote),
+            'Goods receipt note updated successfully.'
         );
     }
 
-    public function receive(
-        GoodsReceiptNote $goodsReceiptNote
-    ) {
-        return response()->json([
-            'success' => true,
-            'message' => 'Goods Receipt Note received successfully',
-            'data' => new GoodsReceiptNoteResource(
-                $this->service->receive(
-                    $goodsReceiptNote
-                )
-            ),
-        ]);
-    }
+    public function updateItem(
+        UpdateGoodsReceiptNoteItemRequest $request,
+        string $uuid,
+        string $itemUuid
+    ): JsonResponse {
+        $goodsReceiptNote = $this->goodsReceiptNoteService
+            ->findByUuid($uuid);
 
-    public function convertToPurchase(
-        GoodsReceiptNote $goodsReceiptNote
-    ) {
-        return response()->json([
-            'success' => true,
-            'message' => 'GRN converted to Purchase successfully',
-            'data' => $this->service->convertToPurchase(
-                $goodsReceiptNote
-            ),
-        ]);
-    }
+        $item = $this->itemRepository->findByUuid($itemUuid);
 
-    public function cancel(
-        GoodsReceiptNote $goodsReceiptNote
-    ) {
-        return response()->json([
-            'success' => true,
-            'message' => 'Goods Receipt Note cancelled successfully',
-            'data' => new GoodsReceiptNoteResource(
-                $this->service->cancel(
-                    $goodsReceiptNote
-                )
-            ),
-        ]);
-    }
+        if (
+            ! $item
+            || (int) $item->goods_receipt_note_id
+                !== (int) $goodsReceiptNote->id
+        ) {
+            return $this->error(
+                'Goods receipt note item not found.',
+                null,
+                404
+            );
+        }
 
-    public function destroy(
-        GoodsReceiptNote $goodsReceiptNote
-    ) {
-        $this->service->delete(
-            $goodsReceiptNote->id
+        $item = $this->draftItemService->updateItem(
+            $goodsReceiptNote,
+            $item,
+            $request->validated()
         );
 
-        return response()->json([
-            'message' => 'Goods Receipt Note deleted successfully',
-        ]);
+        return $this->success(
+            new GoodsReceiptNoteItemResource($item),
+            'Goods receipt note item updated successfully.'
+        );
+    }
+
+    public function deleteItem(
+        string $uuid,
+        string $itemUuid
+    ): JsonResponse {
+        $goodsReceiptNote = $this->goodsReceiptNoteService
+            ->findByUuid($uuid);
+
+        $item = $this->itemRepository->findByUuid($itemUuid);
+
+        if (
+            ! $item
+            || (int) $item->goods_receipt_note_id
+                !== (int) $goodsReceiptNote->id
+        ) {
+            return $this->error(
+                'Goods receipt note item not found.',
+                null,
+                404
+            );
+        }
+
+        $this->draftItemService->deleteItem(
+            $goodsReceiptNote,
+            $item
+        );
+
+        return $this->success(
+            null,
+            'Goods receipt note item deleted successfully.'
+        );
+    }
+
+    public function confirm(string $uuid): JsonResponse
+    {
+        $goodsReceiptNote = $this->goodsReceiptNoteService
+            ->findByUuid($uuid);
+
+        $goodsReceiptNote = $this->goodsReceiptNoteService
+            ->confirm($goodsReceiptNote);
+
+        return $this->success(
+            new GoodsReceiptNoteResource($goodsReceiptNote),
+            'Goods receipt note confirmed successfully.'
+        );
+    }
+
+    public function cancel(string $uuid): JsonResponse
+    {
+        $goodsReceiptNote = $this->goodsReceiptNoteService
+            ->findByUuid($uuid);
+
+        $goodsReceiptNote = $this->goodsReceiptNoteService
+            ->cancel($goodsReceiptNote);
+
+        return $this->success(
+            new GoodsReceiptNoteResource($goodsReceiptNote),
+            'Goods receipt note cancelled successfully.'
+        );
     }
 }

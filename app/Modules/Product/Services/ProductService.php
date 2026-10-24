@@ -14,6 +14,8 @@ use App\Modules\Product\Models\ProductVariant;
 
 use App\Modules\SystemNumber\Enums\SystemNumberTypeEnum;
 
+use App\Modules\ProductUnit\Services\ProductUnitService;
+
 use App\Modules\Product\Repositories\Contracts\ProductRepositoryInterface;
 
 class ProductService extends BaseService
@@ -21,6 +23,7 @@ class ProductService extends BaseService
     public function __construct(
         protected ProductRepositoryInterface $productRepository,
         protected ProductVariantService $productVariantService,
+        protected ProductUnitService $productUnitService,
     ) {}
 
     public function paginate(
@@ -28,8 +31,13 @@ class ProductService extends BaseService
     ): LengthAwarePaginator {
 
         return Product::query()
-            ->with(['category', 'brand', 'unit', 'variants.attributes']) // Eager loads all 4 relations
-            ->latest() // Optional: keeps recent products on page 1
+            ->with([
+                'category',
+                'brand',
+                'unit',
+                'variants.attributes',
+            ])
+            ->latest()
             ->paginate($perPage);
     }
 
@@ -38,17 +46,39 @@ class ProductService extends BaseService
         int $perPage = 15
     ): LengthAwarePaginator {
 
-        $query = Product::query()->with(['category', 'brand', 'unit', 'variants.attributes']);
+        $query = Product::query()
+            ->with([
+                'category',
+                'brand',
+                'unit',
+                'variants.attributes',
+            ]);
 
         if (filled($search)) {
+
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('code', 'like', "%{$search}%")
-                  ->orWhere('display_name', 'like', "%{$search}%");
+
+                $q->where(
+                    'name',
+                    'like',
+                    "%{$search}%"
+                )
+                ->orWhere(
+                    'code',
+                    'like',
+                    "%{$search}%"
+                )
+                ->orWhere(
+                    'display_name',
+                    'like',
+                    "%{$search}%"
+                );
             });
         }
 
-        return $query->latest()->paginate($perPage);
+        return $query
+            ->latest()
+            ->paginate($perPage);
     }
 
     /*
@@ -93,6 +123,23 @@ class ProductService extends BaseService
                     ->create(
                         $data
                     );
+
+                /*
+                |--------------------------------------------------------------------------
+                | Base Product Unit
+                |--------------------------------------------------------------------------
+                */
+
+                $this->productUnitService
+                    ->syncBaseUnit(
+                        $product
+                    );
+
+                /*
+                |--------------------------------------------------------------------------
+                | Variants
+                |--------------------------------------------------------------------------
+                */
 
                 if (
                     $product->has_variants &&
@@ -147,11 +194,45 @@ class ProductService extends BaseService
                     $data['variants']
                 );
 
-                // validate 
+                /*
+                |--------------------------------------------------------------------------
+                | Validate Locked Fields
+                |--------------------------------------------------------------------------
+                */
+
                 $this->validateLockedFields(
                     $product,
                     $data
                 );
+
+                /*
+                |--------------------------------------------------------------------------
+                | Validate Base Unit Change
+                |--------------------------------------------------------------------------
+                */
+
+                if (
+                    array_key_exists(
+                        'unit_id',
+                        $data
+                    ) &&
+                    ! is_null(
+                        $data['unit_id']
+                    )
+                ) {
+
+                    $this->productUnitService
+                        ->ensureBaseUnitChangeAllowed(
+                            $product,
+                            (int) $data['unit_id']
+                        );
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | Slug
+                |--------------------------------------------------------------------------
+                */
 
                 if (
                     isset($data['name']) &&
@@ -167,8 +248,14 @@ class ProductService extends BaseService
 
                 $data = array_filter(
                     $data,
-                    fn ($value) => !is_null($value)
+                    fn ($value) => ! is_null($value)
                 );
+
+                /*
+                |--------------------------------------------------------------------------
+                | Update Product
+                |--------------------------------------------------------------------------
+                */
 
                 $product =
                     $this->productRepository
@@ -177,14 +264,33 @@ class ProductService extends BaseService
                         $data
                     );
 
-                if ($product->has_variants &&
-                        !empty($variants)
-                    ) {
+                /*
+                |--------------------------------------------------------------------------
+                | Synchronize Base Product Unit
+                |--------------------------------------------------------------------------
+                */
+
+                $this->productUnitService
+                    ->syncBaseUnit(
+                        $product
+                    );
+
+                /*
+                |--------------------------------------------------------------------------
+                | Variants
+                |--------------------------------------------------------------------------
+                */
+
+                if (
+                    $product->has_variants &&
+                    ! empty($variants)
+                ) {
 
                     $this->syncVariants(
                         $product,
                         $variants
                     );
+
                 } else {
 
                     $product->variants()
@@ -211,7 +317,11 @@ class ProductService extends BaseService
         Product $product
     ): bool {
 
-        if ($this->hasTransactions($product)) {
+        if (
+            $this->hasTransactions(
+                $product
+            )
+        ) {
 
             throw new BusinessException(
                 'Product cannot be deleted because transactions exist.'
@@ -274,7 +384,9 @@ class ProductService extends BaseService
             */
 
             if (
-                ! empty($variantData['uuid'])
+                ! empty(
+                    $variantData['uuid']
+                )
             ) {
 
                 $variant =
@@ -330,7 +442,9 @@ class ProductService extends BaseService
             );
 
         if (
-            ! empty($variantsToDelete)
+            ! empty(
+                $variantsToDelete
+            )
         ) {
 
             ProductVariant::query()
@@ -363,10 +477,10 @@ class ProductService extends BaseService
 
         while (
             $this->productRepository
-            ->existsBySlug(
-                $slug,
-                $ignoreId
-            )
+                ->existsBySlug(
+                    $slug,
+                    $ignoreId
+                )
         ) {
 
             $slug =
@@ -394,7 +508,9 @@ class ProductService extends BaseService
         array $data
     ): void {
 
-        if (! $product->isLocked()) {
+        if (
+            ! $product->isLocked()
+        ) {
             return;
         }
 
@@ -409,8 +525,12 @@ class ProductService extends BaseService
         ) {
 
             if (
-                array_key_exists($field, $data) &&
-                $data[$field] != $product->{$field}
+                array_key_exists(
+                    $field,
+                    $data
+                ) &&
+                $data[$field] !=
+                $product->{$field}
             ) {
 
                 throw new BusinessException(

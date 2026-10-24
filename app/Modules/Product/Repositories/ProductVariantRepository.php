@@ -3,6 +3,7 @@
 namespace App\Modules\Product\Repositories;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 use App\Core\Repositories\BaseRepository;
@@ -135,6 +136,19 @@ class ProductVariantRepository extends BaseRepository
                 )
             )
             ->exists();
+    }
+
+    public function findByProductId(
+        int $productId
+    ): Collection {
+
+        return $this->model
+            ->newQuery()
+            ->where(
+                'product_id',
+                $productId
+            )
+            ->get();
     }
 
     public function paginateWithRelations(

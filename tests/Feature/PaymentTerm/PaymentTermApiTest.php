@@ -72,6 +72,9 @@ class PaymentTermApiTest extends TestCase
 
         $response->assertCreated();
 
+        app(\App\Core\Tenant\TenantManager::class)
+            ->setTenant($this->tenant);
+
         $paymentTerm = PaymentTerm::query()
             ->where('code', $payload['code'])
             ->firstOrFail();

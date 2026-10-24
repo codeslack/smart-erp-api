@@ -1,6 +1,7 @@
 <?php
 
 use App\Core\Tenant\TenantManager;
+use App\Modules\DocumentNumber\Enums\DocumentType;
 use App\Modules\SystemNumber\Enums\SystemNumberTypeEnum;
 use App\Modules\SystemNumber\Services\SystemNumberService;
 use App\Modules\DocumentNumber\Services\DocumentNumberService;
@@ -75,26 +76,23 @@ if (! function_exists('nextDocumentNumber')) {
      * - Financial Year
      *
      * Example:
-     * nextDocumentNumber('receipt', 'REC');
+     * nextDocumentNumber(DocumentType::RECEIPT);
      * // REC-2026-000001
      *
-     * nextDocumentNumber('payment', 'PAY');
+     * nextDocumentNumber(DocumentType::PAYMENT);
      * // PAY-2026-000001
      *
-     * @param string $documentType e.g., 'receipt'
-     * @param string $prefix       e.g., 'REC'
-     * @return string              e.g., 'REC-2026-000001'
+     * @param DocumentType $documentType
+     * @return string
      */
     function nextDocumentNumber(
-        string $documentType,
-        string $prefix
+        DocumentType $documentType,
     ): string {
-
         return app(
             DocumentNumberService::class
         )->next(
             $documentType,
-            $prefix
+            $documentType->prefix()
         );
     }
 }
@@ -108,9 +106,9 @@ if (! function_exists('nextSystemNumber')) {
      * nextSystemNumber('SystemNumberTypeEnum::COMPANY');
      * nextSystemNumber('SystemNumberTypeEnum::USER');
      * nextSystemNumber('SystemNumberTypeEnum::CUSTOMER');
-     * 
+     *
      * @param SystemNumberTypeEnum $type
-     * 
+     *
      * @return string        e.g., 'USR-000001'
      */
     function nextSystemNumber(
