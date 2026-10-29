@@ -2,463 +2,91 @@
 
 namespace App\Modules\PurchaseReturn\Services;
 
-use Illuminate\Support\Facades\DB;
-use App\Modules\Purchase\Models\PurchaseItem;
-use Illuminate\Validation\ValidationException;
-use App\Modules\Inventory\Services\InventoryService;
-use App\Modules\Inventory\Enums\StockTransactionType;
+use App\Core\Exceptions\BusinessException;
+use App\Core\Exceptions\NotFoundException;
+use App\Core\Services\BaseService;
 use App\Modules\PurchaseReturn\Models\PurchaseReturn;
-use App\Modules\PurchaseReturn\Models\PurchaseReturnItem;
-use App\Modules\PurchaseReturn\Enums\PurchaseReturnStatus;
-use App\Modules\Accounting\Services\Contracts\AccountingPostingServiceInterface;
 use App\Modules\PurchaseReturn\Repositories\Contracts\PurchaseReturnRepositoryInterface;
+use App\Modules\PurchaseReturn\Services\Actions\CancelPurchaseReturnAction;
+use App\Modules\PurchaseReturn\Services\Actions\ConfirmPurchaseReturnAction;
+use App\Modules\PurchaseReturn\Services\Actions\CreatePurchaseReturnAction;
+use App\Modules\PurchaseReturn\Services\Actions\UpdatePurchaseReturnAction;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 
-class PurchaseReturnService
+class PurchaseReturnService extends BaseService
 {
     public function __construct(
         protected PurchaseReturnRepositoryInterface $repository,
-        protected InventoryService $inventoryService,
-        protected AccountingPostingServiceInterface $accountingPostingService,
+        protected CreatePurchaseReturnAction $createAction,
+        protected UpdatePurchaseReturnAction $updateAction,
+        protected ConfirmPurchaseReturnAction $confirmAction,
+        protected CancelPurchaseReturnAction $cancelAction,
     ) {}
 
-    public function getAll()
+    public function paginate(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
-        return $this->repository->paginate();
+        return $this->repository->paginateWithFilters($filters, $perPage);
     }
 
-    public function find(int $id)
+    public function findByUuid(string $uuid): ?PurchaseReturn
+    {
+        return $this->repository->findByUuid($uuid);
+    }
+
+    public function findByUuidOrFail(string $uuid): PurchaseReturn
+    {
+        $purchaseReturn = $this->repository->findByUuid($uuid);
+
+        if (! $purchaseReturn) {
+            throw new NotFoundException('Purchase return not found.');
+        }
+
+        return $purchaseReturn;
+    }
+
+    public function find(int|string $id): ?PurchaseReturn
     {
         return $this->repository->find($id);
     }
 
     public function create(array $data): PurchaseReturn
     {
-        return DB::transaction(function () use ($data) {
+        return $this->createAction->execute($data);
+    }
 
-            $items = $data['items'];
+    public function update(PurchaseReturn $purchaseReturn, array $data): PurchaseReturn
+    {
+        return $this->updateAction->execute($purchaseReturn, $data);
+    }
 
-            unset($data['items']);
+    public function confirm(PurchaseReturn $purchaseReturn): PurchaseReturn
+    {
+        return $this->confirmAction->execute($purchaseReturn);
+    }
 
-            $purchaseReturn =
-                $this->createPurchaseReturn($data);
+    public function approve(PurchaseReturn $purchaseReturn): PurchaseReturn
+    {
+        return $this->confirm($purchaseReturn);
+    }
 
-            $totals =
-                $this->syncItems(
-                    purchaseReturn: $purchaseReturn,
-                    items: $items,
-                    isUpdate: false
-                );
+    public function cancel(PurchaseReturn $purchaseReturn, ?string $reason = null): PurchaseReturn
+    {
+        return $this->cancelAction->execute($purchaseReturn, $reason);
+    }
 
-            $purchaseReturn->update($totals);
+    public function delete(PurchaseReturn $purchaseReturn): bool
+    {
+        if (! $purchaseReturn->isDraft()) {
+            throw new BusinessException('Only draft purchase returns can be deleted.');
+        }
 
-            return $this->refreshRelations(
-                $purchaseReturn
-            );
+        return (bool) DB::transaction(function () use ($purchaseReturn) {
+            $purchaseReturn->batches()->delete();
+            $purchaseReturn->serials()->delete();
+            $purchaseReturn->items()->delete();
+
+            return $purchaseReturn->delete();
         });
-    }
-
-    public function update(
-        int $id,
-        array $data
-    ): PurchaseReturn {
-
-        return DB::transaction(function () use ($id, $data) {
-
-            $purchaseReturn =
-                $this->repository->find($id);
-
-            $this->ensureDraft($purchaseReturn);
-
-            $items =
-                $data['items'] ?? null;
-
-            unset($data['items']);
-
-            $purchaseReturn->update($data);
-
-            if ($items !== null) {
-
-                $purchaseReturn
-                    ->items()
-                    ->delete();
-
-                $totals =
-                    $this->syncItems(
-                        purchaseReturn: $purchaseReturn,
-                        items: $items,
-                        isUpdate: true
-                    );
-
-                $purchaseReturn->update($totals);
-            }
-
-            return $this->refreshRelations(
-                $purchaseReturn
-            );
-        });
-    }
-
-    public function approve(
-        PurchaseReturn $purchaseReturn
-    ): PurchaseReturn {
-
-        return DB::transaction(function () use ($purchaseReturn) {
-
-            $purchaseReturn =
-                PurchaseReturn::query()
-                    ->lockForUpdate()
-                    ->findOrFail(
-                        $purchaseReturn->id
-                    );
-
-            $this->ensureDraft($purchaseReturn);
-
-            foreach ($purchaseReturn->items as $item) {
-
-                $this->inventoryService->validateStockOrFail(
-                    productId: $item->product_id,
-                    warehouseId: $item->warehouse_id,
-                    requiredQuantity: $item->quantity,
-                    productName: $item->product?->name
-                );
-            }
-
-            $this->postInventory(
-                $purchaseReturn
-            );
-
-            $purchaseReturn->update([
-
-                'status' =>
-                    PurchaseReturnStatus::CONFIRMED,
-
-                'approved_by' =>
-                    auth()->id(),
-
-                'approved_at' =>
-                    now(),
-            ]);
-
-            $purchaseReturn =
-                $this->refreshRelations(
-                    $purchaseReturn
-                );
-
-            $this->accountingPostingService
-                ->postPurchaseReturn(
-                    $purchaseReturn
-                );
-
-            return $purchaseReturn;
-        });
-    }
-
-    public function delete(
-        int $id
-    ): bool {
-
-        return DB::transaction(function () use ($id) {
-
-            $purchaseReturn =
-                $this->repository->find($id);
-
-            $this->ensureDraft($purchaseReturn);
-
-            return (bool)
-                $this->repository->delete($id);
-        });
-    }
-
-    private function createPurchaseReturn(
-        array $data
-    ): PurchaseReturn {
-
-        $data['status'] =
-            PurchaseReturnStatus::DRAFT;
-
-        $data['return_no'] =
-            'TEMP';
-
-        $purchaseReturn =
-            $this->repository->create($data);
-
-        $purchaseReturn->update([
-
-            'return_no' => sprintf(
-                'PRN-%06d',
-                $purchaseReturn->id
-            ),
-        ]);
-
-        return $purchaseReturn->fresh();
-    }
-
-    private function syncItems(
-        PurchaseReturn $purchaseReturn,
-        array $items,
-        bool $isUpdate = false
-    ): array {
-
-        $subtotal = 0;
-        $discount = 0;
-        $tax = 0;
-        $grandTotal = 0;
-
-        foreach ($items as $item) {
-
-            $this->validatePurchaseItem(
-                $item,
-                $isUpdate
-                    ? $purchaseReturn->id
-                    : null
-            );
-
-            $totals =
-                $this->calculateLineTotals(
-                    $item
-                );
-
-            PurchaseReturnItem::create([
-
-                'purchase_return_id' =>
-                    $purchaseReturn->id,
-
-                'purchase_item_id' =>
-                    $item['purchase_item_id'],
-
-                'product_id' =>
-                    $item['product_id'],
-
-                'warehouse_id' =>
-                    $item['warehouse_id'],
-
-                'returned_quantity' =>
-                    $item['returned_quantity'],
-
-                'unit_cost' =>
-                    $item['unit_cost'],
-
-                'discount' =>
-                    $totals['discount'],
-
-                'tax' =>
-                    $totals['tax'],
-
-                'line_total' =>
-                    $totals['line_total'],
-
-                'condition' =>
-                    $item['condition'] ?? null,
-
-                'reason' =>
-                    $item['reason'] ?? null,
-            ]);
-
-            $subtotal += $totals['subtotal'];
-            $discount += $totals['discount'];
-            $tax += $totals['tax'];
-            $grandTotal += $totals['line_total'];
-        }
-
-        return [
-
-            'subtotal' =>
-                $subtotal,
-
-            'discount' =>
-                $discount,
-
-            'tax' =>
-                $tax,
-
-            'grand_total' =>
-                $grandTotal,
-        ];
-    }
-
-    private function calculateLineTotals(
-        array $item
-    ): array {
-
-        $subtotal =
-            $item['returned_quantity']
-            *
-            $item['unit_cost'];
-
-        $discount =
-            $item['discount'] ?? 0;
-
-        $tax =
-            $item['tax'] ?? 0;
-
-        return [
-
-            'subtotal' =>
-                $subtotal,
-
-            'discount' =>
-                $discount,
-
-            'tax' =>
-                $tax,
-
-            'line_total' =>
-                $subtotal - $discount + $tax,
-        ];
-    }
-
-    private function validatePurchaseItem(
-        array $item,
-        ?int $excludePurchaseReturnId = null
-    ): void {
-
-        $purchaseItem = PurchaseItem::query()
-            ->where('id', $item['purchase_item_id'])
-            ->whereHas(
-                'purchase',
-                fn ($q) => $q->where(
-                    'tenant_id',
-                    tenant()->id
-                )
-            )
-            ->firstOrFail();
-
-        $returnedQty = PurchaseReturnItem::query()
-            ->where(
-                'purchase_item_id',
-                $purchaseItem->id
-            )
-            ->when(
-                $excludePurchaseReturnId,
-                fn ($q) =>
-                    $q->whereHas(
-                        'purchaseReturn',
-                        fn ($sub) =>
-                            $sub->where(
-                                'id',
-                                '!=',
-                                $excludePurchaseReturnId
-                            )
-                    )
-            )
-            ->whereHas(
-                'purchaseReturn',
-                fn ($q) =>
-                    $q->whereNotIn(
-                        'status',
-                            PurchaseReturnStatus::CONFIRMED,
-                    )
-            )
-            ->sum('returned_quantity');
-
-        $availableQty =
-            $purchaseItem->quantity
-            -
-            $returnedQty;
-
-        if ($item['returned_quantity'] > $availableQty) {
-
-            throw ValidationException::withMessages([
-                'returned_quantity' => [
-                    sprintf(
-                        'Return quantity exceeds available quantity. Available: %s, Requested: %s',
-                        $availableQty,
-                        $item['returned_quantity']
-                    )
-                ]
-            ]);
-        }
-
-        $currentStock =
-            $this->inventoryService->availableStock(
-                $item['product_id'],
-                $item['warehouse_id']
-            );
-
-        if ($item['returned_quantity'] > $currentStock) {
-
-            throw ValidationException::withMessages([
-                'returned_quantity' => [
-                    sprintf(
-                        'Return quantity exceeds current stock. Current Stock: %s, Requested: %s',
-                        $currentStock,
-                        $item['returned_quantity']
-                    )
-                ]
-            ]);
-        }
-    }
-
-    private function postInventory(
-        PurchaseReturn $purchaseReturn
-    ): void {
-
-        foreach (
-            $purchaseReturn->items
-            as $item
-        ) {
-
-            $unitCost = (float) $item->purchaseItem->unit_cost;
-
-            $this->inventoryService->stockOut(
-
-                productId:
-                    $item->product_id,
-
-                warehouseId:
-                    $item->warehouse_id,
-
-                quantity:
-                    $item->quantity,
-
-                transactionType:
-                    StockTransactionType::PURCHASE_RETURN,
-
-                unitCost: $unitCost,
-
-                referenceType:
-                    PurchaseReturn::class,
-
-                referenceId:
-                    $purchaseReturn->id,
-
-                remarks:
-                    "Purchase Return {$purchaseReturn->return_no}",
-            );
-        }
-    }
-
-    private function ensureDraft(
-        PurchaseReturn $purchaseReturn
-    ): void {
-
-        if (
-            $purchaseReturn->status !==
-            PurchaseReturnStatus::DRAFT
-        ) {
-            throw ValidationException::withMessages([
-                'status' => [
-                    'Only draft purchase returns can be modified.'
-                ]
-            ]);
-        }
-    }
-
-    private function refreshRelations(
-        PurchaseReturn $purchaseReturn
-    ): PurchaseReturn {
-
-        return $purchaseReturn
-            ->fresh()
-            ->load([
-
-                'supplier',
-                'purchase',
-                'approvedBy',
-
-                'items.product',
-                'items.warehouse',
-                'items.purchaseItem',
-            ]);
     }
 }

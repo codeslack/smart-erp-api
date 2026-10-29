@@ -2,14 +2,14 @@
 
 namespace App\Modules\Accounting\Controllers;
 
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\ApiController;
 use App\Modules\Accounting\Models\AccountGroup;
 use App\Modules\Accounting\Services\AccountGroupService;
 use App\Modules\Accounting\Resources\AccountGroupResource;
 use App\Modules\Accounting\Requests\StoreAccountGroupRequest;
 use App\Modules\Accounting\Requests\UpdateAccountGroupRequest;
 
-class AccountGroupController extends Controller
+class AccountGroupController extends ApiController
 {
     public function __construct(
         protected AccountGroupService $service
@@ -17,8 +17,11 @@ class AccountGroupController extends Controller
 
     public function index()
     {
-        return AccountGroupResource::collection(
-            $this->service->getAll()
+        return $this->success(
+            AccountGroupResource::collection(
+                $this->service->getAll()
+            ),
+            'Account Groups retrieved successfully'
         );
     }
 
@@ -29,19 +32,20 @@ class AccountGroupController extends Controller
             $request->validated()
         );
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Account Group created successfully',
-            'data'    => $group,
-        ], 201);
+        return $this->success(
+            new AccountGroupResource($group),
+            'Account Group created successfully',
+            201
+        );
     }
 
     public function show(
         AccountGroup $accountGroup
     ) {
-        return response()->json([
-            'data' => $accountGroup,
-        ]);
+        return $this->success(
+            new AccountGroupResource($accountGroup),
+            'Account Group retrieved successfully'
+        );
     }
 
     public function update(
@@ -53,11 +57,10 @@ class AccountGroupController extends Controller
             $request->validated()
         );
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Account Group updated successfully',
-            'data'    => $group,
-        ]);
+        return $this->success(
+            new AccountGroupResource($group),
+            'Account Group updated successfully'
+        );
     }
 
     public function destroy(
@@ -67,9 +70,9 @@ class AccountGroupController extends Controller
             $accountGroup->id
         );
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Account Group deleted successfully',
-        ]);
+        return $this->success(
+            null,
+            'Account Group deleted successfully'
+        );
     }
 }

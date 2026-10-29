@@ -131,16 +131,22 @@ Route::middleware([
             Route::apiResource(
                 'journal-entries',
                 JournalEntryController::class
-            )->parameters([ 'journal-entries' => 'journalEntry', ]);
+            )->parameters([
+                'journal-entries' => 'journalEntry',
+            ]);
 
             Route::apiResource(
                 'account-groups',
                 AccountGroupController::class
-            );
+            )->parameters([
+                'account-groups' => 'accountGroup',
+            ]);
 
             Route::apiResource(
                 'chart-of-accounts',
                 ChartOfAccountController::class
-            );
+            )->parameters([
+                'chart-of-accounts' => 'chartOfAccount',
+            ]);
         });
 });

@@ -37,6 +37,11 @@ class Sale extends TenantModel
         'sale_date' => 'date',
     ];
 
+    public function uniqueIds(): array
+    {
+        return [];
+    }
+
     public function customer(): BelongsTo
     {
         return $this->belongsTo(

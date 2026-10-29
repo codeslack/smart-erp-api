@@ -4,6 +4,7 @@ namespace App\Modules\Accounting\Models;
 
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
 
 use App\Core\Models\TenantModel;
 
@@ -12,23 +13,14 @@ class ChartOfAccount extends TenantModel
     protected $table = 'chart_of_accounts';
 
     protected $fillable = [
-
         'account_group_id',
-
         'parent_id',
-
         'account_code',
-
         'account_name',
-
         'account_type',
-
         'opening_balance',
-
         'current_balance',
-
         'is_system',
-
         'is_active',
     ];
 
@@ -38,14 +30,24 @@ class ChartOfAccount extends TenantModel
             parent::casts(),
             [
                 'opening_balance' => 'decimal:4',
-
                 'current_balance' => 'decimal:4',
-
                 'is_system' => 'boolean',
-
                 'is_active' => 'boolean',            
             ]
         );
+    }
+
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return $this->where(function ($query) use ($value, $field) {
+            if ($field) {
+                $query->where($field, $value);
+            } elseif (Str::isUuid($value)) {
+                $query->where('uuid', $value);
+            } else {
+                $query->where('id', $value);
+            }
+        })->first();
     }
 
     public function group(): BelongsTo

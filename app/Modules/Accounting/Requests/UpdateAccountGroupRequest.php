@@ -2,8 +2,9 @@
 
 namespace App\Modules\Accounting\Requests;
 
-use Illuminate\Validation\Rule;
 use Illuminate\Foundation\Http\FormRequest;
+use App\Core\Validation\TenantRule;
+use App\Modules\Accounting\Models\AccountGroup;
 
 class UpdateAccountGroupRequest extends FormRequest
 {
@@ -14,28 +15,20 @@ class UpdateAccountGroupRequest extends FormRequest
 
     public function rules(): array
     {
-        $group = $this->route(
-            'accountGroup'
-        );
+        $group = $this->route('accountGroup') ?? $this->route('account_group');
+        $id = $group instanceof AccountGroup
+            ? $group->id
+            : (is_numeric($group) ? $group : AccountGroup::where('uuid', $group)->value('id'));
 
         return [
-
             'name' => [
                 'required',
                 'string',
                 'max:255',
-
-                Rule::unique(
+                TenantRule::unique(
                     'account_groups',
                     'name'
-                )
-                    ->where(
-                        'tenant_id',
-                        tenant()->id
-                    )
-                    ->ignore(
-                        $group?->id
-                    ),
+                )->ignore($id),
             ],
 
             'code' => [

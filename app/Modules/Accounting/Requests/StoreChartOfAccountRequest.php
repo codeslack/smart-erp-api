@@ -16,26 +16,32 @@ class StoreChartOfAccountRequest extends FormRequest
     public function rules(): array
     {
         return [
-
             'account_group_id' => [
-                'required',
-                TenantRule::exists(
-                    'account_groups'
-                ),
+                'required_without:account_group_uuid',
+                'nullable',
+                TenantRule::exists('account_groups', 'id'),
+            ],
+
+            'account_group_uuid' => [
+                'required_without:account_group_id',
+                'nullable',
+                TenantRule::exists('account_groups', 'uuid'),
             ],
 
             'parent_id' => [
                 'nullable',
-                TenantRule::exists(
-                    'chart_of_accounts'
-                ),
+                TenantRule::exists('chart_of_accounts', 'id'),
+            ],
+
+            'parent_account_uuid' => [
+                'nullable',
+                TenantRule::exists('chart_of_accounts', 'uuid'),
             ],
 
             'account_code' => [
                 'required',
                 'string',
                 'max:50',
-
                 TenantRule::unique(
                     'chart_of_accounts',
                     'account_code'

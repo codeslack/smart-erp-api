@@ -16,9 +16,15 @@ class AccountGroupService
         return $this->repository->paginate();
     }
 
-    public function find(int $id)
+    public function find(int|string $id): AccountGroup
     {
-        return $this->repository->findById($id);
+        if (is_numeric($id)) {
+            return $this->repository->findById($id);
+        }
+
+        return AccountGroup::query()
+            ->where('uuid', $id)
+            ->firstOrFail();
     }
 
     public function create(array $data)
@@ -29,16 +35,20 @@ class AccountGroupService
     }
 
     public function update(
-        int $id,
+        int|string $id,
         array $data
     ) {
+        $group = $this->find(
+            $id
+        );
+
         return $this->repository->update(
-            $id,
+            $group,
             $data
         );
     }
 
-    public function delete(int $id)
+    public function delete(int|string $id)
     {
         $group = $this->find(
             $id
@@ -51,7 +61,7 @@ class AccountGroupService
         );
 
         return $this->repository->delete(
-            $id
+            $group
         );
     }
 }

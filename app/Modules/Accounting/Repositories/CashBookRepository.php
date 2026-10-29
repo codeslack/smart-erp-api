@@ -2,223 +2,65 @@
 
 namespace App\Modules\Accounting\Repositories;
 
+use App\Modules\Accounting\Enums\AccountingAccounts;
+use App\Modules\Accounting\Models\AccountLedger;
 use App\Modules\Accounting\Models\ChartOfAccount;
-use App\Modules\Accounting\Models\JournalEntryLine;
 use App\Modules\Accounting\Repositories\Contracts\CashBookRepositoryInterface;
 
-class CashBookRepository
-    implements CashBookRepositoryInterface
+class CashBookRepository implements CashBookRepositoryInterface
 {
     public function getCashBook(
         ?string $fromDate = null,
         ?string $toDate = null
     ): array {
-
         $cashAccount = ChartOfAccount::query()
-
-            ->where(
-                'account_code',
-                '1000'
-            )
-
+            ->where('account_code', AccountingAccounts::CASH)
             ->firstOrFail();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Opening Balance
-        |--------------------------------------------------------------------------
-        */
-
-        // $openingBalance = JournalEntryLine::query()
-
-        //     ->where(
-        //         'chart_of_account_id',
-        //         $cashAccount->id
-        //     )
-
-        //     ->when(
-        //         $fromDate,
-        //         fn ($q) =>
-        //         $q->whereHas(
-        //             'journalEntry',
-        //             fn ($journal) =>
-        //             $journal->whereDate(
-        //                 'entry_date',
-        //                 '<',
-        //                 $fromDate
-        //             )
-        //         )
-        //     )
-
-        //     ->get()
-
-        //     ->sum(function ($line) {
-
-        //         return
-        //             (float) $line->debit
-        //             -
-        //             (float) $line->credit;
-        //     });
-
-        $openingBalance = 0;
+        $openingBalance = 0.0;
 
         if ($fromDate) {
+            $openingDebit = (float) AccountLedger::query()
+                ->where('chart_of_account_id', $cashAccount->id)
+                ->whereDate('entry_date', '<', $fromDate)
+                ->sum('debit');
 
-            $openingBalance = JournalEntryLine::query()
+            $openingCredit = (float) AccountLedger::query()
+                ->where('chart_of_account_id', $cashAccount->id)
+                ->whereDate('entry_date', '<', $fromDate)
+                ->sum('credit');
 
-                ->where(
-                    'chart_of_account_id',
-                    $cashAccount->id
-                )
-
-                ->whereHas(
-                    'journalEntry',
-                    fn ($journal) =>
-                    $journal->whereDate(
-                        'entry_date',
-                        '<',
-                        $fromDate
-                    )
-                )
-
-                ->get()
-
-                ->sum(function ($line) {
-
-                    return
-                        (float) $line->debit
-                        -
-                        (float) $line->credit;
-                });
+            $openingBalance = $openingDebit - $openingCredit;
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Cash Transactions
-        |--------------------------------------------------------------------------
-        */
-
-        $lines = JournalEntryLine::query()
-
-            ->with('journalEntry')
-
-            ->where(
-                'chart_of_account_id',
-                $cashAccount->id
-            )
-
-            ->when(
-                $fromDate,
-                fn ($q) =>
-                $q->whereHas(
-                    'journalEntry',
-                    fn ($journal) =>
-                    $journal->whereDate(
-                        'entry_date',
-                        '>=',
-                        $fromDate
-                    )
-                )
-            )
-
-            ->when(
-                $toDate,
-                fn ($q) =>
-                $q->whereHas(
-                    'journalEntry',
-                    fn ($journal) =>
-                    $journal->whereDate(
-                        'entry_date',
-                        '<=',
-                        $toDate
-                    )
-                )
-            )
-
+        $ledgers = AccountLedger::query()
+            ->where('chart_of_account_id', $cashAccount->id)
+            ->when($fromDate, fn($q) => $q->whereDate('entry_date', '>=', $fromDate))
+            ->when($toDate, fn($q) => $q->whereDate('entry_date', '<=', $toDate))
+            ->orderBy('entry_date', 'asc')
+            ->orderBy('id', 'asc')
             ->get();
-
-        $transactions = collect();
-
-        foreach ($lines as $line) {
-
-            $transactions->push([
-
-                'date'
-                    => $line
-                        ->journalEntry
-                        ->entry_date,
-
-                'voucher_no'
-                    => $line
-                        ->journalEntry
-                        ->voucher_no,
-
-                'description'
-                    => $line
-                        ->journalEntry
-                        ->description,
-
-                'debit'
-                    => (float) $line->debit,
-
-                'credit'
-                    => (float) $line->credit,
-            ]);
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Sort
-        |--------------------------------------------------------------------------
-        */
-
-        $transactions = $transactions
-
-            ->sortBy([
-                ['date', 'asc'],
-                ['voucher_no', 'asc'],
-            ])
-
-            ->values();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Running Balance
-        |--------------------------------------------------------------------------
-        */
 
         $runningBalance = $openingBalance;
 
-        $transactions = $transactions
+        $transactions = $ledgers->map(function ($ledger) use (&$runningBalance) {
+            $runningBalance += (float) $ledger->debit;
+            $runningBalance -= (float) $ledger->credit;
 
-            ->map(function (
-                $row
-            ) use (
-                &$runningBalance
-            ) {
-
-                $runningBalance +=
-                    $row['debit'];
-
-                $runningBalance -=
-                    $row['credit'];
-
-                $row['balance']
-                    = $runningBalance;
-
-                return $row;
-            });
+            return [
+                'date' => $ledger->entry_date,
+                'voucher_no' => $ledger->voucher_no,
+                'description' => $ledger->description,
+                'debit' => (float) $ledger->debit,
+                'credit' => (float) $ledger->credit,
+                'balance' => $runningBalance,
+            ];
+        });
 
         return [
-
-            'opening_balance'
-                => $openingBalance,
-
-            'transactions'
-                => $transactions,
-
-            'closing_balance'
-                => $runningBalance,
+            'opening_balance' => $openingBalance,
+            'transactions' => $transactions,
+            'closing_balance' => $runningBalance,
         ];
     }
 }

@@ -2,14 +2,14 @@
 
 namespace App\Modules\Accounting\Controllers;
 
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\ApiController;
 use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Accounting\Services\ChartOfAccountService;
 use App\Modules\Accounting\Resources\ChartOfAccountResource;
 use App\Modules\Accounting\Requests\StoreChartOfAccountRequest;
 use App\Modules\Accounting\Requests\UpdateChartOfAccountRequest;
 
-class ChartOfAccountController extends Controller
+class ChartOfAccountController extends ApiController
 {
     public function __construct(
         protected ChartOfAccountService $service
@@ -17,8 +17,11 @@ class ChartOfAccountController extends Controller
 
     public function index()
     {
-        return ChartOfAccountResource::collection(
-            $this->service->getAll()
+        return $this->success(
+            ChartOfAccountResource::collection(
+                $this->service->getAll()
+            ),
+            'Chart of Accounts retrieved successfully'
         );
     }
 
@@ -29,21 +32,22 @@ class ChartOfAccountController extends Controller
             $request->validated()
         );
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Account created successfully',
-            'data'    => $account,
-        ], 201);
+        return $this->success(
+            new ChartOfAccountResource($account),
+            'Account created successfully',
+            201
+        );
     }
 
     public function show(
         ChartOfAccount $chartOfAccount
     ) {
-        return response()->json([
-            'data' => $this->service->find(
-                $chartOfAccount->id
+        return $this->success(
+            new ChartOfAccountResource(
+                $this->service->find($chartOfAccount->id)
             ),
-        ]);
+            'Account retrieved successfully'
+        );
     }
 
     public function update(
@@ -55,11 +59,10 @@ class ChartOfAccountController extends Controller
             $request->validated()
         );
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Account updated successfully',
-            'data'    => $account,
-        ]);
+        return $this->success(
+            new ChartOfAccountResource($account),
+            'Account updated successfully'
+        );
     }
 
     public function destroy(
@@ -69,9 +72,9 @@ class ChartOfAccountController extends Controller
             $chartOfAccount->id
         );
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Account deleted successfully',
-        ]);
+        return $this->success(
+            null,
+            'Account deleted successfully'
+        );
     }
 }

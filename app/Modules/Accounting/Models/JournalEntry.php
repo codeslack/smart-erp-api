@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
 
 use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
 use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
@@ -19,20 +20,14 @@ class JournalEntry extends TenantModel
     protected $table = 'journal_entries';
 
     protected $fillable = [
-
         'voucher_no',
         'voucher_type',
-
         'reference_type',
         'reference_id',
         'reversal_of_journal_entry_id',
-
         'entry_date',
-
         'description',
-
         'status',
-
         'created_by',
     ];
 
@@ -50,6 +45,19 @@ class JournalEntry extends TenantModel
                 'entry_date' => 'date',
             ]
         );
+    }
+
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return $this->where(function ($query) use ($value, $field) {
+            if ($field) {
+                $query->where($field, $value);
+            } elseif (Str::isUuid($value)) {
+                $query->where('uuid', $value);
+            } else {
+                $query->where('id', $value);
+            }
+        })->first();
     }
 
     public function lines(): HasMany

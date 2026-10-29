@@ -6,16 +6,15 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::create('purchase_return_items', function (
-            Blueprint $table
-        ) {
-
+        Schema::create('purchase_return_items', function (Blueprint $table) {
             $table->id();
+            $table->uuid('uuid')->unique();
+
+            $table->foreignId('tenant_id')
+                ->constrained('tenants')
+                ->cascadeOnDelete();
 
             $table->foreignId('purchase_return_id')
                 ->constrained('purchase_returns')
@@ -28,63 +27,62 @@ return new class extends Migration
 
             $table->foreignId('product_id')
                 ->constrained('products')
-                ->cascadeOnDelete();
+                ->restrictOnDelete();
+
+            $table->foreignId('product_variant_id')
+                ->nullable()
+                ->constrained('product_variants')
+                ->nullOnDelete();
 
             $table->foreignId('warehouse_id')
                 ->constrained('warehouses')
-                ->cascadeOnDelete();
+                ->restrictOnDelete();
 
-            $table->decimal(
-                'returned_quantity',
-                18,
-                4
-            );
+            $table->foreignId('unit_id')
+                ->nullable()
+                ->constrained('units')
+                ->nullOnDelete();
 
-            $table->decimal(
-                'unit_cost',
-                18,
-                4
-            );
+            $table->decimal('returned_quantity', 18, 4);
+            $table->decimal('base_quantity', 18, 4)->nullable();
+            $table->decimal('unit_cost', 18, 4);
 
-            $table->decimal(
-                'discount',
-                18,
-                4
-            )->default(0);
+            $table->decimal('subtotal', 18, 4)->default(0);
+            $table->decimal('discount_amount', 18, 4)->default(0);
 
-            $table->decimal(
-                'tax',
-                18,
-                4
-            )->default(0);
+            $table->unsignedBigInteger('tax_id')->nullable();
+            $table->decimal('tax_rate', 8, 4)->default(0);
+            $table->decimal('tax_amount', 18, 4)->default(0);
+            $table->decimal('line_total', 18, 4)->default(0);
 
-            $table->decimal(
-                'line_total',
-                18,
-                4
-            );
-
-            $table->string('condition')
-                ->default('good');
-
-            $table->string('reason')
-                ->nullable();
+            $table->string('condition', 30)->default('good');
+            $table->string('reason', 255)->nullable();
 
             $table->timestamps();
+            $table->softDeletes();
 
-            $table->index('purchase_return_id');
+            $table->index(
+                ['tenant_id', 'purchase_return_id'],
+                'pri_tenant_return_index'
+            );
 
-            $table->index('purchase_item_id');
+            $table->index(
+                ['tenant_id', 'purchase_item_id'],
+                'pri_tenant_item_index'
+            );
 
-            $table->index('product_id');
+            $table->index(
+                ['tenant_id', 'product_id'],
+                'pri_tenant_product_index'
+            );
 
-            $table->index('warehouse_id');
+            $table->index(
+                ['tenant_id', 'warehouse_id'],
+                'pri_tenant_warehouse_index'
+            );
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('purchase_return_items');

@@ -91,6 +91,7 @@ return [
     App\Modules\PurchaseOrder\PurchaseOrderModule::class,
     App\Modules\GoodsReceiptNote\GoodsReceiptNoteModule::class,
     App\Modules\Purchase\PurchaseModule::class,
+    App\Modules\PurchaseReturn\PurchaseReturnModule::class,
 
     /*
     |--------------------------------------------------------------------------

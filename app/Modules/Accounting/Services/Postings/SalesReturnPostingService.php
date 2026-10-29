@@ -5,6 +5,7 @@ namespace App\Modules\Accounting\Services\Postings;
 use App\Modules\Inventory\Models\StockLedger;
 use App\Modules\SalesReturn\Models\SalesReturn;
 use App\Modules\Accounting\Enums\AccountingAccounts;
+use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
 use App\Modules\Inventory\Enums\StockTransactionType;
 
 class SalesReturnPostingService extends BasePostingService
@@ -12,38 +13,22 @@ class SalesReturnPostingService extends BasePostingService
     public function post(
         SalesReturn $salesReturn
     ): void {
+        $grandTotal = $this->decimal($salesReturn->grand_total);
+        $this->validateAmount($grandTotal);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Inventory Cost
-        |--------------------------------------------------------------------------
-        |
-        | Inventory has already been restored during approval.
-        | Read the actual inventory value from Stock Ledger.
-        |
-        */
+        $inventoryCost = StockLedger::query()
+            ->where('tenant_id', tenantId())
+            ->where('referenceable_type', SalesReturn::class)
+            ->where('referenceable_id', $salesReturn->id)
+            ->where(
+                'transaction_type',
+                StockTransactionType::SALES_RETURN
+            )
+            ->sum('total_cost');
 
-        $inventoryCost =
-            StockLedger::query()
-
-                ->where(
-                    'reference_type',
-                    SalesReturn::class
-                )
-
-                ->where(
-                    'reference_id',
-                    $salesReturn->id
-                )
-
-                ->where(
-                    'transaction_type',
-                    StockTransactionType::SALES_RETURN
-                )
-
-                ->sum(
-                    'line_cost'
-                );
+        $entryDate = $salesReturn->return_date instanceof \DateTimeInterface
+            ? $salesReturn->return_date->format('Y-m-d')
+            : (string) $salesReturn->return_date;
 
         /*
         |--------------------------------------------------------------------------
@@ -54,45 +39,21 @@ class SalesReturnPostingService extends BasePostingService
         | Cr Accounts Receivable
         |
         */
-
         $this->createJournalEntry(
-
-            entryDate:
-                $salesReturn->return_date,
-
-            voucherType:
-                'sales_return',
-
-            referenceType:
-                SalesReturn::class,
-
-            referenceId:
-                $salesReturn->id,
-
-            description:
-                "Sales Return {$salesReturn->return_no}",
-
+            entryDate: $entryDate,
+            voucherType: JournalVoucherTypeEnum::SALES_RETURN->value,
+            referenceType: SalesReturn::class,
+            referenceId: $salesReturn->id,
+            description: "Sales Return {$salesReturn->return_no}",
             lines: [
-
-                [
-                    'account_code' =>
-                        AccountingAccounts::SALES_RETURN,
-
-                    'debit' =>
-                        $salesReturn->grand_total,
-
-                    'credit' => 0,
-                ],
-
-                [
-                    'account_code' =>
-                        AccountingAccounts::ACCOUNTS_RECEIVABLE,
-
-                    'debit' => 0,
-
-                    'credit' =>
-                        $salesReturn->grand_total,
-                ],
+                $this->debit(
+                    AccountingAccounts::SALES_RETURN,
+                    $grandTotal
+                ),
+                $this->credit(
+                    AccountingAccounts::ACCOUNTS_RECEIVABLE,
+                    $grandTotal
+                ),
             ]
         );
 
@@ -105,47 +66,24 @@ class SalesReturnPostingService extends BasePostingService
         | Cr Cost Of Goods Sold
         |
         */
-
         if ($inventoryCost > 0) {
+            $costAmount = $this->decimal($inventoryCost);
 
             $this->createJournalEntry(
-
-                entryDate:
-                    $salesReturn->return_date,
-
-                voucherType:
-                    'sales_return',
-
-                referenceType:
-                    SalesReturn::class,
-
-                referenceId:
-                    $salesReturn->id,
-
-                description:
-                    "Inventory Restore {$salesReturn->return_no}",
-
+                entryDate: $entryDate,
+                voucherType: JournalVoucherTypeEnum::SALES_RETURN->value,
+                referenceType: SalesReturn::class,
+                referenceId: $salesReturn->id,
+                description: "Inventory Restore {$salesReturn->return_no}",
                 lines: [
-
-                    [
-                        'account_code' =>
-                            AccountingAccounts::INVENTORY,
-
-                        'debit' =>
-                            $inventoryCost,
-
-                        'credit' => 0,
-                    ],
-
-                    [
-                        'account_code' =>
-                            AccountingAccounts::COST_OF_GOODS_SOLD,
-
-                        'debit' => 0,
-
-                        'credit' =>
-                            $inventoryCost,
-                    ],
+                    $this->debit(
+                        AccountingAccounts::INVENTORY,
+                        $costAmount
+                    ),
+                    $this->credit(
+                        AccountingAccounts::COST_OF_GOODS_SOLD,
+                        $costAmount
+                    ),
                 ]
             );
         }

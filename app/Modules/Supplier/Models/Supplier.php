@@ -10,31 +10,25 @@ use App\Core\Models\TenantModel;
 
 use App\Modules\PaymentTerm\Models\PaymentTerm;
 use App\Modules\SupplierOpeningBill\Models\SupplierOpeningBill;
+use App\Modules\Purchase\Models\Purchase;
+use App\Modules\PurchaseReturn\Models\PurchaseReturn;
 
 class Supplier extends TenantModel
 {
     use SoftDeletes;
 
     protected $fillable = [
-
         'name',
         'code',
-
         'contact_person',
-
         'phone',
         'email',
-
         'address',
-
         'tax_number',
-
         'payment_term_id',
-
         'credit_days',
         'credit_limit',
         'credit_control',
-
         'is_active',
     ];
 
@@ -61,6 +55,20 @@ class Supplier extends TenantModel
     {
         return $this->hasMany(
             SupplierOpeningBill::class
+        );
+    }
+
+    public function purchases(): HasMany
+    {
+        return $this->hasMany(
+            Purchase::class
+        );
+    }
+
+    public function purchaseReturns(): HasMany
+    {
+        return $this->hasMany(
+            PurchaseReturn::class
         );
     }
 

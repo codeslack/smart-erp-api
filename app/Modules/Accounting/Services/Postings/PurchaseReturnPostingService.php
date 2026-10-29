@@ -2,132 +2,79 @@
 
 namespace App\Modules\Accounting\Services\Postings;
 
-use App\Modules\Inventory\Models\StockLedger;
-use App\Modules\PurchaseReturn\Models\PurchaseReturn;
-
 use App\Modules\Accounting\Enums\AccountingAccounts;
+use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
 use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
-
-use App\Modules\Inventory\Enums\StockTransactionType;
+use App\Modules\PurchaseReturn\Enums\PurchaseReturnRefundType;
+use App\Modules\PurchaseReturn\Models\PurchaseReturn;
 
 class PurchaseReturnPostingService extends BasePostingService
 {
-    public function post(
-        PurchaseReturn $purchaseReturn
-    ): void {
-        /*
-         * Actual inventory cost returned.
-         */
-        $inventoryCost = StockLedger::query()
-            ->where(
-                'reference_type',
-                PurchaseReturn::class
-            )
-            ->where(
-                'reference_id',
-                $purchaseReturn->id
-            )
-            ->where(
-                'transaction_type',
-                StockTransactionType::PURCHASE_RETURN
-            )
-            ->sum('line_cost');
+    public function post(PurchaseReturn $purchaseReturn): void
+    {
+        $grandTotal = $this->decimal($purchaseReturn->grand_total);
+        $this->validateAmount($grandTotal);
 
-        $inventoryCost = $this->decimal(
-            $inventoryCost
-        );
+        $purchaseReturn->loadMissing(['refundAccount']);
 
-        $grandTotal = $this->decimal(
-            $purchaseReturn->grand_total
-        );
+        $taxAmount = (float) $purchaseReturn->tax_amount;
+        $inventoryAmount = max(0, (float) $purchaseReturn->grand_total - $taxAmount);
 
-        $this->validateAmount(
-            $grandTotal
-        );
+        $lines = [];
 
-        $this->validateAmount(
-            $inventoryCost
-        );
-
-        /*
-         * Reverse supplier liability
-         *
-         * Dr Accounts Payable
-         * Cr Inventory
-         */
-        $this->createJournalEntry(
-            entryDate:
-                $purchaseReturn->return_date,
-
-            voucherType:
-                JournalVoucherTypeEnum
-                    ::PURCHASE_RETURN
-                    ->value,
-
-            referenceType:
-                PurchaseReturn::class,
-
-            referenceId:
-                $purchaseReturn->id,
-
-            description:
-                "Purchase Return {$purchaseReturn->return_no}",
-
-            lines: [
-                $this->debit(
-                    AccountingAccounts::ACCOUNTS_PAYABLE,
-                    $grandTotal
-                ),
-
-                $this->credit(
-                    AccountingAccounts::INVENTORY,
-                    $inventoryCost
-                ),
-            ]
-        );
-
-        /*
-         * Reverse input tax.
-         *
-         * Dr Accounts Payable
-         * Cr Input Tax Receivable
-         */
-        $tax = $this->decimal(
-            $purchaseReturn->tax
-        );
-
-        if (
-            bccomp($tax, '0.0000', 4) > 0
-        ) {
-            $this->createJournalEntry(
-                entryDate:
-                    $purchaseReturn->return_date,
-
-                voucherType:
-                    JournalVoucherTypeEnum::PURCHASE_RETURN
-                        ->value,
-
-                referenceType:
-                    PurchaseReturn::class,
-
-                referenceId:
-                    $purchaseReturn->id,
-
-                description:
-                    "Purchase Return Tax {$purchaseReturn->return_no}",
-
-                lines: [
-                    $this->debit(
-                        AccountingAccounts::ACCOUNTS_PAYABLE,
-                        $tax
-                    ),
-
-                    $this->credit(
-                        AccountingAccounts::INPUT_TAX_RECEIVABLE,
-                        $tax
-                    ),
-                ]
+        // Debit: Accounts Payable (for credit notes) or Refund Account (Cash/Bank)
+        if ($purchaseReturn->refund_type !== PurchaseReturnRefundType::CREDIT_NOTE && $purchaseReturn->refundAccount) {
+            $lines[] = [
+                'chart_of_account_uuid' => $purchaseReturn->refundAccount->uuid,
+                'debit' => $grandTotal,
+                'credit' => '0.0000',
+                'description' => "Purchase Return Refund {$purchaseReturn->return_no}",
+            ];
+        } else {
+            $lines[] = $this->debit(
+                AccountingAccounts::ACCOUNTS_PAYABLE,
+                $grandTotal,
+                "Purchase Return {$purchaseReturn->return_no}"
             );
+        }
+
+        // Credit: Inventory for goods cost returned
+        if ($inventoryAmount > 0) {
+            $lines[] = $this->credit(
+                AccountingAccounts::INVENTORY,
+                $this->decimal($inventoryAmount),
+                "Purchase Return Inventory {$purchaseReturn->return_no}"
+            );
+        }
+
+        // Credit: Input Tax Receivable for reversed tax
+        if ($taxAmount > 0) {
+            $lines[] = $this->credit(
+                AccountingAccounts::INPUT_TAX_RECEIVABLE,
+                $this->decimal($taxAmount),
+                "Purchase Return Tax {$purchaseReturn->return_no}"
+            );
+        }
+
+        $entryDate = $purchaseReturn->return_date instanceof \DateTimeInterface
+            ? $purchaseReturn->return_date->format('Y-m-d')
+            : (string) $purchaseReturn->return_date;
+
+        $entry = $this->journalEntryService->createAndPost([
+            'voucher_type' => JournalVoucherTypeEnum::PURCHASE_RETURN->value,
+            'reference_type' => PurchaseReturn::class,
+            'reference_id' => $purchaseReturn->id,
+            'entry_date' => $entryDate,
+            'description' => "Purchase Return {$purchaseReturn->return_no}",
+            'status' => JournalEntryStatusEnum::DRAFT,
+            'created_by' => auth()->id() ?? userId(),
+            'lines' => $lines,
+        ]);
+
+        if ($entry) {
+            $purchaseReturn->update([
+                'journal_entry_id' => $entry->id,
+            ]);
         }
     }
 }

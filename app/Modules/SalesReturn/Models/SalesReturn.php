@@ -12,50 +12,41 @@ class SalesReturn extends TenantModel
 {
     protected $fillable = [
         'tenant_id',
-
         'return_no',
-
         'sale_id',
         'customer_id',
-
         'return_date',
-
         'subtotal',
         'discount',
         'tax',
         'grand_total',
-
         'refund_amount',
         'credited_amount',
-
         'refund_type',
         'return_reason',
-
         'status',
-
         'approved_by',
         'approved_at',
-
         'notes',
     ];
 
     protected $casts = [
         'return_date'     => 'date',
-
         'subtotal'        => 'decimal:4',
         'discount'        => 'decimal:4',
         'tax'             => 'decimal:4',
         'grand_total'     => 'decimal:4',
-
         'refund_amount'   => 'decimal:4',
         'credited_amount' => 'decimal:4',
-
         'approved_at'     => 'datetime',
-
-        'refund_type' => SalesReturnRefundType::class,
-
-        'status' => SalesReturnStatus::class,
+        'refund_type'     => SalesReturnRefundType::class,
+        'status'          => SalesReturnStatus::class,
     ];
+
+    public function uniqueIds(): array
+    {
+        return [];
+    }
 
     public function sale(): BelongsTo
     {

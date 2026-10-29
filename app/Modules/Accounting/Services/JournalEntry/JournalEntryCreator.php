@@ -3,13 +3,10 @@
 namespace App\Modules\Accounting\Services\JournalEntry;
 
 use App\Core\Exceptions\BusinessException;
-
 use App\Modules\DocumentNumber\Enums\DocumentType;
-
 use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Models\JournalEntryLine;
-
 use App\Modules\Accounting\Repositories\Contracts\JournalEntryRepositoryInterface;
 
 class JournalEntryCreator
@@ -78,30 +75,29 @@ class JournalEntryCreator
         array $line,
         int $tenantId
     ): ChartOfAccount {
-        if (
-            ! isset(
-                $line['chart_of_account_uuid']
-            )
-        ) {
+        $uuid = $line['chart_of_account_uuid'] ?? null;
+        $code = $line['account_code'] ?? null;
+        $id = $line['chart_of_account_id'] ?? null;
+
+        if (! $uuid && ! $code && ! $id) {
             throw new BusinessException(
-                'Chart of account UUID is required.'
+                'Chart of account identifier (UUID, code, or ID) is required.'
             );
         }
 
-        $account = ChartOfAccount::query()
-            ->where(
-                'tenant_id',
-                $tenantId
-            )
-            ->where(
-                'uuid',
-                $line['chart_of_account_uuid']
-            )
-            ->where(
-                'is_active',
-                true
-            )
-            ->first();
+        $query = ChartOfAccount::query()
+            ->where('tenant_id', $tenantId)
+            ->where('is_active', true);
+
+        if ($uuid) {
+            $query->where('uuid', $uuid);
+        } elseif ($code) {
+            $query->where('account_code', $code);
+        } else {
+            $query->whereKey($id);
+        }
+
+        $account = $query->first();
 
         if (! $account) {
             throw new BusinessException(

@@ -2,6 +2,7 @@
 
 namespace App\Modules\Accounting\Services;
 
+use App\Modules\Accounting\Models\AccountGroup;
 use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Accounting\Repositories\Contracts\ChartOfAccountRepositoryInterface;
 
@@ -13,8 +14,7 @@ class ChartOfAccountService
 
     public function getAll()
     {
-        return $this->repository
-            ->query()
+        return ChartOfAccount::query()
             ->with([
                 'group',
                 'parent',
@@ -22,27 +22,35 @@ class ChartOfAccountService
             ->paginate();
     }
 
-    public function find(int $id)
+    public function find(int|string $id): ChartOfAccount
     {
-        return $this->repository
-            ->query()
+        return ChartOfAccount::query()
             ->with([
                 'group',
                 'parent',
                 'children',
             ])
-            ->findOrFail($id);
+            ->where(function ($q) use ($id) {
+                if (is_numeric($id)) {
+                    $q->whereKey($id);
+                } else {
+                    $q->where('uuid', $id);
+                }
+            })
+            ->firstOrFail();
     }
 
     public function create(array $data)
     {
+        $data = $this->resolveForeignKeys($data);
+
         return $this->repository->create(
             $data
         );
     }
 
     public function update(
-        int $id,
+        int|string $id,
         array $data
     ) {
         $account = $this->find(
@@ -55,13 +63,15 @@ class ChartOfAccountService
             'System accounts cannot be modified.'
         );
 
+        $data = $this->resolveForeignKeys($data);
+
         return $this->repository->update(
-            $id,
+            $account,
             $data
         );
     }
 
-    public function delete(int $id)
+    public function delete(int|string $id)
     {
         $account = $this->find(
             $id
@@ -80,7 +90,36 @@ class ChartOfAccountService
         );
 
         return $this->repository->delete(
-            $id
+            $account
         );
+    }
+
+    protected function resolveForeignKeys(array $data): array
+    {
+        if (! empty($data['account_group_uuid']) && empty($data['account_group_id'])) {
+            $group = AccountGroup::query()
+                ->where('uuid', $data['account_group_uuid'])
+                ->first();
+
+            if ($group) {
+                $data['account_group_id'] = $group->id;
+            }
+
+            unset($data['account_group_uuid']);
+        }
+
+        if (! empty($data['parent_account_uuid']) && empty($data['parent_id'])) {
+            $parent = ChartOfAccount::query()
+                ->where('uuid', $data['parent_account_uuid'])
+                ->first();
+
+            if ($parent) {
+                $data['parent_id'] = $parent->id;
+            }
+
+            unset($data['parent_account_uuid']);
+        }
+
+        return $data;
     }
 }

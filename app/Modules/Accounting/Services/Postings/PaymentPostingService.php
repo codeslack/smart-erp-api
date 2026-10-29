@@ -3,7 +3,7 @@
 namespace App\Modules\Accounting\Services\Postings;
 
 use App\Modules\Accounting\Enums\AccountingAccounts;
-
+use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
 use App\Modules\Payment\Models\Payment;
 use App\Modules\Payment\Enums\PaymentTypeEnum;
 
@@ -12,91 +12,52 @@ class PaymentPostingService extends BasePostingService
     public function post(
         Payment $payment
     ): void {
-
         $payment->loadMissing(
             'paymentAccount'
         );
 
-        $this->validateAmount(
-            $payment->amount
+        $amount = $this->decimal($payment->amount);
+        $this->validateAmount($amount);
+
+        $paymentAccountCode = $this->getAccountCode(
+            $payment->paymentAccount
         );
 
-        $paymentAccountCode =
-            $this->getAccountCode(
-                $payment->paymentAccount
-            );
-
         $lines = match ($payment->payment_type) {
-
-            PaymentTypeEnum::INVOICE =>
-            $this->buildInvoicePaymentLines(
+            PaymentTypeEnum::PAYMENT => $this->buildInvoicePaymentLines(
                 paymentAccountCode: $paymentAccountCode,
-
-                amount: $payment->amount
+                amount: $amount
             ),
 
-            PaymentTypeEnum::ADVANCE =>
-            $this->buildAdvancePaymentLines(
+            PaymentTypeEnum::RECEIPT => $this->buildRefundPaymentLines(
                 paymentAccountCode: $paymentAccountCode,
-
-                amount: $payment->amount
-            ),
-
-            PaymentTypeEnum::REFUND =>
-            $this->buildRefundPaymentLines(
-                paymentAccountCode: $paymentAccountCode,
-
-                amount: $payment->amount
+                amount: $amount
             ),
         };
 
+        $entryDate = $payment->payment_date instanceof \DateTimeInterface
+            ? $payment->payment_date->format('Y-m-d')
+            : (string) $payment->payment_date;
+
         $this->createJournalEntry(
-
-            entryDate: $payment->payment_date,
-
-            voucherType: 'payment',
-
+            entryDate: $entryDate,
+            voucherType: JournalVoucherTypeEnum::PAYMENT->value,
             referenceType: Payment::class,
-
             referenceId: $payment->id,
-
             description: "Payment {$payment->payment_no}",
-
             lines: $lines
         );
     }
 
     protected function buildInvoicePaymentLines(
         string $paymentAccountCode,
-        float $amount
+        string|float $amount
     ): array {
-
         return [
-
             $this->debit(
                 AccountingAccounts::ACCOUNTS_PAYABLE,
                 $amount
             ),
-
-            $this->credit(
-                $paymentAccountCode,
-                $amount
-            ),
-        ];
-    }
-
-    protected function buildAdvancePaymentLines(
-        string $paymentAccountCode,
-        float $amount
-    ): array {
-
-        return [
-
-            $this->debit(
-                AccountingAccounts::SUPPLIER_ADVANCES,
-                $amount
-            ),
-
             $this->credit(
                 $paymentAccountCode,
                 $amount
@@ -106,16 +67,13 @@ class PaymentPostingService extends BasePostingService
 
     protected function buildRefundPaymentLines(
         string $paymentAccountCode,
-        float $amount
+        string|float $amount
     ): array {
-
         return [
-
             $this->debit(
                 $paymentAccountCode,
                 $amount
             ),
-
             $this->credit(
                 AccountingAccounts::SUPPLIER_ADVANCES,
                 $amount

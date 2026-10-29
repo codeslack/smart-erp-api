@@ -10,31 +10,24 @@ use App\Core\Models\TenantModel;
 
 use App\Modules\PaymentTerm\Models\PaymentTerm;
 use App\Modules\CustomerOpeningBill\Models\CustomerOpeningBill;
+use App\Modules\Sales\Models\Sale;
 
 class Customer extends TenantModel
 {
     use SoftDeletes;
 
     protected $fillable = [
-
         'name',
         'code',
-
         'contact_person',
-
         'phone',
         'email',
-
         'address',
-
         'tax_number',
-
         'payment_term_id',
-
         'credit_days',
         'credit_limit',
         'credit_control',
-
         'is_active',
     ];
 
@@ -61,6 +54,13 @@ class Customer extends TenantModel
     {
         return $this->hasMany(
             CustomerOpeningBill::class
+        );
+    }
+
+    public function sales(): HasMany
+    {
+        return $this->hasMany(
+            Sale::class
         );
     }
 

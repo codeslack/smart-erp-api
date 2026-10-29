@@ -3,11 +3,8 @@
 namespace App\Modules\Accounting\Services\Postings;
 
 use App\Core\Exceptions\BusinessException;
-
 use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
-
 use App\Modules\Accounting\Models\ChartOfAccount;
-
 use App\Modules\Accounting\Services\JournalEntry\JournalEntryService;
 
 abstract class BasePostingService
@@ -34,7 +31,7 @@ abstract class BasePostingService
     protected function getAccount(
         string $accountCode
     ): ChartOfAccount {
-        $tenantId = tenant()?->id;
+        $tenantId = tenantId();
 
         if (! $tenantId) {
             throw new BusinessException(
@@ -55,6 +52,18 @@ abstract class BasePostingService
         }
 
         return $account;
+    }
+
+    protected function getAccountCode(
+        ?ChartOfAccount $account
+    ): string {
+        if (! $account) {
+            throw new BusinessException(
+                'Payment account not found.'
+            );
+        }
+
+        return $account->account_code;
     }
 
     protected function getAccountUuid(
@@ -128,7 +137,7 @@ abstract class BasePostingService
             'entry_date' => $entryDate,
             'description' => $description,
             'status' => JournalEntryStatusEnum::DRAFT,
-            'created_by' => auth()->id(),
+            'created_by' => auth()->id() ?? userId(),
             'lines' => $lines,
         ]);
     }
