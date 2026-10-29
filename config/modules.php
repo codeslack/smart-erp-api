@@ -80,6 +80,7 @@ return [
     App\Modules\Tax\TaxModule::class,
 
     App\Modules\Payment\PaymentModule::class,
+    App\Modules\AdvanceAllocation\AdvanceAllocationModule::class,
 
     /*
     |--------------------------------------------------------------------------
@@ -89,6 +90,7 @@ return [
 
     App\Modules\PurchaseOrder\PurchaseOrderModule::class,
     App\Modules\GoodsReceiptNote\GoodsReceiptNoteModule::class,
+    App\Modules\Purchase\PurchaseModule::class,
 
     /*
     |--------------------------------------------------------------------------

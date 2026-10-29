@@ -2,7 +2,7 @@
 
 namespace App\Modules\AdvanceAllocation\Models;
 
-use App\Core\Tenant\Models\TenantModel;
+use App\Core\Models\TenantModel;
 
 class AdvanceAllocation extends TenantModel
 {

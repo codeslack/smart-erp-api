@@ -6,12 +6,14 @@ class BusinessException extends BaseApiException
 {
     public function __construct(
         string $message,
-        ?string $errorCode = null
+        ?string $errorCode = 'BUSINESS_ERROR',
+        ?array $errors = null
     ) {
         parent::__construct(
             $message,
             422,
-            $errorCode
+            $errorCode ?? 'BUSINESS_ERROR',
+            $errors
         );
     }
 }

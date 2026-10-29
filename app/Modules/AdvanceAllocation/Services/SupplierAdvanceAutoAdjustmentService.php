@@ -8,6 +8,7 @@ use App\Modules\Purchase\Models\Purchase;
 
 use App\Modules\Payment\Models\Payment;
 
+use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
 use App\Modules\Payment\Enums\PaymentStatusEnum;
 use App\Modules\Payment\Enums\PaymentTypeEnum;
 
@@ -51,7 +52,12 @@ class SupplierAdvanceAutoAdjustmentService
                 )
 
                 ->where(
-                    'supplier_id',
+                    'party_type',
+                    PaymentPartyTypeEnum::SUPPLIER
+                )
+
+                ->where(
+                    'party_id',
                     $purchase->supplier_id
                 )
 
@@ -62,7 +68,7 @@ class SupplierAdvanceAutoAdjustmentService
 
                 ->where(
                     'payment_type',
-                    PaymentTypeEnum::ADVANCE
+                    PaymentTypeEnum::PAYMENT
                 )
 
                 ->orderBy(

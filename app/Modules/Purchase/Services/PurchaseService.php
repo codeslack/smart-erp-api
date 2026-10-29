@@ -2,213 +2,79 @@
 
 namespace App\Modules\Purchase\Services;
 
-use Illuminate\Support\Facades\DB;
+use App\Core\Exceptions\BusinessException;
+use App\Core\Exceptions\NotFoundException;
+use App\Core\Services\BaseService;
 use App\Modules\Purchase\Models\Purchase;
-use App\Modules\Purchase\Models\PurchaseItem;
-use App\Modules\Purchase\Enums\PurchaseStatus;
-use App\Modules\Inventory\Services\InventoryService;
-use App\Modules\Inventory\Enums\StockTransactionType;
 use App\Modules\Purchase\Repositories\Contracts\PurchaseRepositoryInterface;
-use App\Modules\Accounting\Services\Contracts\AccountingPostingServiceInterface;
-use App\Modules\AdvanceAllocation\Services\SupplierAdvanceAutoAdjustmentService;
-use App\Modules\Accounting\Services\Postings\SupplierAdvanceAdjustmentPostingService;
+use App\Modules\Purchase\Services\Actions\CreatePurchaseAction;
+use App\Modules\Purchase\Services\Actions\UpdatePurchaseAction;
+use App\Modules\Purchase\Services\Actions\ConfirmPurchaseAction;
+use App\Modules\Purchase\Services\Actions\CancelPurchaseAction;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
-class PurchaseService
+class PurchaseService extends BaseService
 {
     public function __construct(
         protected PurchaseRepositoryInterface $repository,
-        protected InventoryService $inventoryService,
-        protected AccountingPostingServiceInterface $postingService,
-        protected SupplierAdvanceAutoAdjustmentService $supplierAdvanceAutoAdjustmentService,
-        protected SupplierAdvanceAdjustmentPostingService $supplierAdvanceAdjustmentPostingService,
+        protected CreatePurchaseAction $createAction,
+        protected UpdatePurchaseAction $updateAction,
+        protected ConfirmPurchaseAction $confirmAction,
+        protected CancelPurchaseAction $cancelAction,
     ) {}
 
-    public function getAll()
+    public function paginate(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
-        return $this->repository->paginate();
+        return $this->repository->paginateWithFilters($filters, $perPage);
     }
 
-    public function find(int $id)
+    public function findByUuid(string $uuid): ?Purchase
     {
-        return $this->repository->find($id);
+        return $this->repository->findByUuid($uuid);
     }
 
-    public function create(array $data)
+    public function findByUuidOrFail(string $uuid): Purchase
     {
-        return DB::transaction(function () use ($data) {
+        $purchase = $this->repository->findByUuid($uuid);
 
-            $items = $data['items'];
-
-            unset($data['items']);
-
-            $purchaseNo = nextDocumentNumber(
-                'purchase',
-                'PUR'
-            );
-
-            $purchase = $this->repository->create([
-                ...$data,
-                'purchase_no' => $purchaseNo,
-                'status' =>
-                    PurchaseStatus::DRAFT,
-            ]);
-
-            $subtotal = 0;
-
-            foreach ($items as $item) {
-
-                $lineTotal =
-                    $item['quantity']
-                    *
-                    $item['unit_cost'];
-
-                PurchaseItem::create([
-                    'purchase_id' => $purchase->id,
-
-                    'product_id' => $item['product_id'],
-
-                    'warehouse_id' => $item['warehouse_id'],
-
-                    'quantity' => $item['quantity'],
-
-                    'unit_cost' => $item['unit_cost'],
-
-                    'line_total' => $lineTotal,
-                ]);
-
-                $subtotal += $lineTotal;
-            }
-
-            $purchase->update([
-                'subtotal' => $subtotal,
-                'grand_total' => $subtotal,
-                'paid_amount' => 0,
-                'due_amount'  => $subtotal,
-            ]);
-
-            return $purchase
-                ->fresh()
-                ->load('items');
-        });
-    }
-
-    public function update(
-        int $id,
-        array $data
-    ) {
-        return $this->repository->update(
-            $id,
-            $data
-        );
-    }
-
-    public function approve(
-        Purchase $purchase
-    ) {
-        if (
-            $purchase->status !== PurchaseStatus::DRAFT
-        ) {
-            abort(
-                422,
-                'Purchase already approved.'
-            );
+        if (! $purchase) {
+            throw new NotFoundException('Purchase not found.');
         }
 
-        return DB::transaction(function () use ($purchase) {
-
-            foreach ($purchase->items as $item) {
-
-                $this->inventoryService->stockIn(
-                    productId: $item->product_id,
-
-                    warehouseId: $item->warehouse_id,
-
-                    quantity: $item->quantity,
-
-                    unitCost: $item->unit_cost,
-
-                    transactionType: StockTransactionType::PURCHASE,
-
-                    referenceType: Purchase::class,
-
-                    referenceId: $purchase->id,
-
-                    remarks: sprintf(
-                        'Purchase %s',
-                        $purchase->purchase_no
-                    ),
-                );
-            }
-
-            $purchase->update([
-                'status' => PurchaseStatus::CONFIRMED,
-            ]);
-
-            $purchase = $purchase
-                ->fresh()
-                ->load(
-                    'supplier',
-                    'items',
-                );
-
-            /*
-            |--------------------------------------------------------------------------
-            | Post Purchase Entry
-            |--------------------------------------------------------------------------
-            |
-            | Dr Accounts Inventory
-            | Cr Accounts Payable
-            |
-            */
-            $this->postingService
-                ->postPurchase(
-                    $purchase
-                );
-
-            /*
-            |--------------------------------------------------------------------------
-            | Auto Adjust Supplier Advance
-            |--------------------------------------------------------------------------
-            */
-
-            $adjustedAmount =
-                $this->supplierAdvanceAutoAdjustmentService
-                    ->adjust(
-                        $purchase
-                    );
-
-            /*
-            |--------------------------------------------------------------------------
-            | Post Advance Adjustment
-            |--------------------------------------------------------------------------
-            |
-            | Dr Accounts Payable
-            | Cr Supplier Advances
-            |
-            */
-
-            if (
-                $adjustedAmount > 0
-            ) {
-
-                $this->supplierAdvanceAdjustmentPostingService
-                    ->post(
-
-                        $purchase->fresh(),
-
-                        $adjustedAmount
-                    );
-            }
-
-            return $purchase->fresh();
-        });
+        return $purchase;
     }
 
-    public function delete(
-        int $id
-    ) {
-        return $this->repository->delete(
-            $id
-        );
+    public function find(int $id): ?Purchase
+    {
+        return $this->repository->findById($id);
+    }
+
+    public function create(array $data): Purchase
+    {
+        return $this->createAction->execute($data);
+    }
+
+    public function update(Purchase $purchase, array $data): Purchase
+    {
+        return $this->updateAction->execute($purchase, $data);
+    }
+
+    public function confirm(Purchase $purchase): Purchase
+    {
+        return $this->confirmAction->execute($purchase);
+    }
+
+    public function cancel(Purchase $purchase, ?string $reason = null): Purchase
+    {
+        return $this->cancelAction->execute($purchase, $reason);
+    }
+
+    public function delete(Purchase $purchase): bool
+    {
+        if (! $purchase->isDraft() && ! $purchase->isCancelled()) {
+            throw new BusinessException('Only draft or cancelled purchases can be deleted.');
+        }
+
+        return $this->repository->delete($purchase);
     }
 }

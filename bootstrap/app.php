@@ -35,9 +35,11 @@ return Application::configure(basePath: dirname(__DIR__))
                 \Throwable $exception,
                 Request $request
             ) {
-                return app(
-                    ApiExceptionHandler::class
-                )->render($exception);
+                if ($request->is('api/*') || $request->expectsJson()) {
+                    return app(
+                        ApiExceptionHandler::class
+                    )->render($exception);
+                }
             }
         );
     })->create();

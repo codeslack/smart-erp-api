@@ -1,0 +1,161 @@
+<?php
+
+namespace App\Modules\Purchase\Services\Support;
+
+use App\Modules\Supplier\Models\Supplier;
+use App\Modules\Warehouse\Models\Warehouse;
+use App\Modules\PaymentTerm\Models\PaymentTerm;
+use App\Modules\PurchaseOrder\Models\PurchaseOrder;
+use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNote;
+use App\Modules\Product\Models\Product;
+use App\Modules\Product\Models\ProductVariant;
+use App\Modules\Unit\Models\Unit;
+use App\Modules\Tax\Models\Tax;
+use App\Modules\Accounting\Models\ChartOfAccount;
+use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNoteItem;
+use App\Modules\PurchaseOrder\Models\PurchaseOrderItem;
+
+class PurchasePayloadResolver
+{
+    public function resolveHeader(array $data): array
+    {
+        if (isset($data['supplier_uuid']) && ! isset($data['supplier_id'])) {
+            $data['supplier_id'] = Supplier::query()->where('uuid', $data['supplier_uuid'])->value('id');
+            unset($data['supplier_uuid']);
+        }
+
+        if (isset($data['warehouse_uuid']) && ! isset($data['warehouse_id'])) {
+            $data['warehouse_id'] = Warehouse::query()->where('uuid', $data['warehouse_uuid'])->value('id');
+            unset($data['warehouse_uuid']);
+        }
+
+        if (isset($data['purchase_order_uuid']) && ! isset($data['purchase_order_id'])) {
+            $data['purchase_order_id'] = PurchaseOrder::query()->where('uuid', $data['purchase_order_uuid'])->value('id');
+            unset($data['purchase_order_uuid']);
+        }
+
+        if (isset($data['goods_receipt_note_uuid']) && ! isset($data['goods_receipt_note_id'])) {
+            $data['goods_receipt_note_id'] = GoodsReceiptNote::query()->where('uuid', $data['goods_receipt_note_uuid'])->value('id');
+            unset($data['goods_receipt_note_uuid']);
+        }
+
+        if (isset($data['payment_term_uuid']) && ! isset($data['payment_term_id'])) {
+            $data['payment_term_id'] = PaymentTerm::query()->where('uuid', $data['payment_term_uuid'])->value('id');
+            unset($data['payment_term_uuid']);
+        }
+
+        return $data;
+    }
+
+    public function resolveItems(array $rawItems, ?int $defaultWarehouseId = null): array
+    {
+        $resolved = [];
+
+        foreach ($rawItems as $item) {
+            if (isset($item['product_uuid']) && ! isset($item['product_id'])) {
+                $item['product_id'] = Product::query()->where('uuid', $item['product_uuid'])->value('id');
+                unset($item['product_uuid']);
+            }
+
+            if (isset($item['product_variant_uuid']) && ! isset($item['product_variant_id'])) {
+                $item['product_variant_id'] = ProductVariant::query()->where('uuid', $item['product_variant_uuid'])->value('id');
+                unset($item['product_variant_uuid']);
+            }
+
+            if (isset($item['warehouse_uuid']) && ! isset($item['warehouse_id'])) {
+                $item['warehouse_id'] = Warehouse::query()->where('uuid', $item['warehouse_uuid'])->value('id');
+                unset($item['warehouse_uuid']);
+            }
+
+            if (! isset($item['warehouse_id']) && $defaultWarehouseId !== null) {
+                $item['warehouse_id'] = $defaultWarehouseId;
+            }
+
+            if (isset($item['goods_receipt_note_item_uuid']) && ! isset($item['goods_receipt_note_item_id'])) {
+                $item['goods_receipt_note_item_id'] = GoodsReceiptNoteItem::query()->where('uuid', $item['goods_receipt_note_item_uuid'])->value('id');
+                unset($item['goods_receipt_note_item_uuid']);
+            }
+
+            if (isset($item['purchase_order_item_uuid']) && ! isset($item['purchase_order_item_id'])) {
+                $item['purchase_order_item_id'] = PurchaseOrderItem::query()->where('uuid', $item['purchase_order_item_uuid'])->value('id');
+                unset($item['purchase_order_item_uuid']);
+            }
+
+            if (isset($item['unit_uuid']) && ! isset($item['unit_id'])) {
+                $item['unit_id'] = Unit::query()->where('uuid', $item['unit_uuid'])->value('id');
+                unset($item['unit_uuid']);
+            }
+
+            if (isset($item['tax_uuid']) && ! isset($item['tax_id'])) {
+                $item['tax_id'] = Tax::query()->where('uuid', $item['tax_uuid'])->value('id');
+                unset($item['tax_uuid']);
+            }
+
+            // Derive product and variant from GRN item if not explicitly supplied
+            if (isset($item['goods_receipt_note_item_id']) && ! isset($item['product_id'])) {
+                $grnItem = GoodsReceiptNoteItem::query()->find($item['goods_receipt_note_item_id']);
+                if ($grnItem) {
+                    $item['product_id'] = $grnItem->product_id;
+                    $item['product_variant_id'] = $item['product_variant_id'] ?? $grnItem->product_variant_id;
+                    $item['unit_id'] = $item['unit_id'] ?? $grnItem->unit_id;
+                    $item['warehouse_id'] = $item['warehouse_id'] ?? $grnItem->warehouse_id;
+                    $item['unit_cost'] = $item['unit_cost'] ?? $grnItem->unit_cost;
+                }
+            }
+
+            $resolved[] = $item;
+        }
+
+        return $resolved;
+    }
+
+    public function resolveCharges(array $rawCharges, float $itemsSubtotal = 0.0): array
+    {
+        $resolved = [];
+
+        foreach ($rawCharges as $index => $charge) {
+            if (isset($charge['chart_of_account_uuid']) && ! isset($charge['chart_of_account_id'])) {
+                $charge['chart_of_account_id'] = ChartOfAccount::query()
+                    ->where('uuid', $charge['chart_of_account_uuid'])
+                    ->value('id');
+                unset($charge['chart_of_account_uuid']);
+            }
+
+            if (isset($charge['tax_uuid']) && ! isset($charge['tax_id'])) {
+                $charge['tax_id'] = Tax::query()
+                    ->where('uuid', $charge['tax_uuid'])
+                    ->value('id');
+                unset($charge['tax_uuid']);
+            }
+
+            $calculationMethod = $charge['calculation_method'] ?? 'fixed';
+            $calculationValue = (float) ($charge['calculation_value'] ?? 0);
+            $amount = (float) ($charge['amount'] ?? 0);
+
+            if ($calculationMethod === 'percentage' && $amount === 0.0 && $calculationValue > 0) {
+                $amount = round($itemsSubtotal * ($calculationValue / 100), 4);
+            } elseif ($calculationMethod === 'fixed' && $amount === 0.0 && $calculationValue > 0) {
+                $amount = round($calculationValue, 4);
+            }
+
+            $taxRate = (float) ($charge['tax_rate'] ?? 0);
+            $taxAmount = (float) ($charge['tax_amount'] ?? 0);
+
+            if ($taxRate > 0 && $taxAmount === 0.0) {
+                $taxAmount = round($amount * ($taxRate / 100), 4);
+            }
+
+            $charge['calculation_method'] = $calculationMethod;
+            $charge['calculation_value'] = $calculationValue;
+            $charge['amount'] = $amount;
+            $charge['tax_rate'] = $taxRate;
+            $charge['tax_amount'] = $taxAmount;
+            $charge['sort_order'] = (int) ($charge['sort_order'] ?? $index);
+
+            $resolved[] = $charge;
+        }
+
+        return $resolved;
+    }
+}
+

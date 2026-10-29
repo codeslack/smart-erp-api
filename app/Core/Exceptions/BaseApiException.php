@@ -9,7 +9,8 @@ abstract class BaseApiException extends Exception
     public function __construct(
         string $message,
         protected int $status = 400,
-        protected ?string $errorCode = null
+        protected ?string $errorCode = null,
+        protected ?array $errors = null
     ) {
         parent::__construct($message);
     }
@@ -22,5 +23,10 @@ abstract class BaseApiException extends Exception
     public function errorCode(): ?string
     {
         return $this->errorCode;
+    }
+
+    public function errors(): ?array
+    {
+        return $this->errors;
     }
 }

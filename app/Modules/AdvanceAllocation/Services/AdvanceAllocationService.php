@@ -39,7 +39,7 @@ class AdvanceAllocationService
 
         return max(
             0,
-            $receipt->amount - $allocated
+            (float) $receipt->amount - $allocated
         );
     }
 
@@ -60,9 +60,11 @@ class AdvanceAllocationService
                 $payment->id
             );
 
+        $directAllocated = (float) $payment->allocations()->sum('allocated_amount');
+
         return max(
             0,
-            $payment->amount - $allocated
+            (float) $payment->amount - ($allocated + $directAllocated)
         );
     }
 
