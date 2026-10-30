@@ -2,527 +2,97 @@
 
 namespace App\Modules\SalesReturn\Services;
 
-use Illuminate\Support\Facades\DB;
-use App\Modules\Sales\Models\SaleItem;
 use App\Modules\SalesReturn\Models\SalesReturn;
-use App\Modules\SalesReturn\Models\SalesReturnItem;
-use App\Modules\SalesReturn\Enums\SalesReturnStatus;
-use App\Modules\Inventory\Services\InventoryService;
-use App\Modules\Inventory\Enums\StockTransactionType;
-use App\Modules\Accounting\Services\Contracts\AccountingPostingServiceInterface;
 use App\Modules\SalesReturn\Repositories\Contracts\SalesReturnRepositoryInterface;
+use App\Modules\SalesReturn\Services\Actions\CancelSalesReturnAction;
+use App\Modules\SalesReturn\Services\Actions\ConfirmSalesReturnAction;
+use App\Modules\SalesReturn\Services\Actions\CreateSalesReturnAction;
+use App\Modules\SalesReturn\Services\Actions\UpdateSalesReturnAction;
+use App\Modules\SalesReturn\Services\Validators\SalesReturnValidator;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 
 class SalesReturnService
 {
     public function __construct(
         protected SalesReturnRepositoryInterface $repository,
-        protected InventoryService $inventoryService,
-        protected AccountingPostingServiceInterface $accountingPostingService
+        protected CreateSalesReturnAction $createAction,
+        protected UpdateSalesReturnAction $updateAction,
+        protected ConfirmSalesReturnAction $confirmAction,
+        protected CancelSalesReturnAction $cancelAction,
+        protected SalesReturnValidator $validator
     ) {}
 
-    public function getAll()
+    public function getAll(int $perPage = 15): LengthAwarePaginator
     {
-        return $this->repository->paginate();
+        return $this->repository->paginate($perPage);
     }
 
-    public function find(int $id)
+    public function paginate(array $filters = [], int $perPage = 15): LengthAwarePaginator
+    {
+        return $this->repository->paginateWithFilters($filters, $perPage);
+    }
+
+    public function find(int|string $id): SalesReturn
     {
         return $this->repository->find($id);
     }
 
-    public function create(
-        array $data
-    )
+    public function findByUuid(string $uuid): ?SalesReturn
     {
-        return DB::transaction(function () use ($data) {
-
-            $items = $data['items'];
-
-            unset($data['items']);
-
-            $data['status'] =
-                SalesReturnStatus::DRAFT;
-
-            $data['return_no'] =
-                'TEMP';
-
-            $salesReturn =
-                $this->repository->create(
-                    $data
-                );
-
-            $salesReturn->update([
-                'return_no' => sprintf(
-                    'SRN-%06d',
-                    $salesReturn->id
-                ),
-            ]);
-
-            $this->syncItems(
-                $salesReturn,
-                $items
-            );
-
-            $this->recalculateTotals(
-                $salesReturn
-            );
-
-            $this->calculateRefundAmounts(
-                $salesReturn
-            );
-
-            return $salesReturn
-                ->fresh()
-                ->load([
-                    'customer',
-                    'sale',
-                    'items.product',
-                    'items.warehouse',
-                    'items.saleItem',
-                ]);
-        });
+        return $this->repository->findByUuid($uuid);
     }
 
-    public function update(
-        int $id,
-        array $data
-    )
+    public function create(array $data): SalesReturn
     {
-        return DB::transaction(function () use (
-            $id,
-            $data
-        ) {
+        return $this->createAction->execute($data);
+    }
 
-            $salesReturn =
-                $this->repository->find(
-                    $id
-                );
+    public function update(int|string|SalesReturn $return, array $data): SalesReturn
+    {
+        $model = $return instanceof SalesReturn ? $return : $this->find($return);
 
-            abort_if(
-                $salesReturn->status !==
-                SalesReturnStatus::DRAFT,
-                422,
-                'Only draft returns can be updated.'
-            );
+        return $this->updateAction->execute($model, $data);
+    }
 
-            $items =
-                $data['items'] ?? [];
+    public function confirm(int|string|SalesReturn $return): SalesReturn
+    {
+        $model = $return instanceof SalesReturn ? $return : $this->find($return);
 
-            unset($data['items']);
+        return $this->confirmAction->execute($model);
+    }
 
-            $salesReturn->update(
-                $data
-            );
+    public function approve(SalesReturn $return): SalesReturn
+    {
+        return $this->confirm($return);
+    }
 
-            if (! empty($items)) {
+    public function cancel(int|string|SalesReturn $return, ?string $reason = null): SalesReturn
+    {
+        $model = $return instanceof SalesReturn ? $return : $this->find($return);
 
-                $salesReturn
-                    ->items()
-                    ->delete();
+        return $this->cancelAction->execute($model, $reason);
+    }
 
-                $this->syncItems(
-                    $salesReturn,
-                    $items
-                );
-            }
+    public function delete(int|string|SalesReturn $return): bool
+    {
+        $model = $return instanceof SalesReturn ? $return : $this->find($return);
+        $this->validator->validateForDeletion($model);
 
-            $this->recalculateTotals(
-                $salesReturn
-            );
+        return DB::transaction(function () use ($model) {
+            $model->items()->delete();
 
-            $this->calculateRefundAmounts(
-                $salesReturn
-            );
-
-            return $salesReturn
-                ->fresh()
-                ->load([
-                    'customer',
-                    'sale',
-                    'items.product',
-                    'items.warehouse',
-                    'items.saleItem',
-                ]);
+            return (bool) $model->delete();
         });
     }
 
-    public function approve(
-        SalesReturn $salesReturn
-    ): SalesReturn {
+    public function getItems(string $uuid): Collection
+    {
+        $return = $this->findByUuid($uuid) ?? $this->find($uuid);
 
-        abort_if(
-            $salesReturn->status !== SalesReturnStatus::DRAFT,
-            422,
-            'Sales Return already approved.'
-        );
-
-        return DB::transaction(function () use (
-            $salesReturn
-        ) {
-
-            $salesReturn->loadMissing([
-                'items',
-            ]);
-
-            foreach (
-                $salesReturn->items as $item
-            ) {
-
-                $unitCost =
-                    (float) $item->saleItem->cost_price;
-
-                if ($unitCost <= 0) {
-                    abort(
-                        422,
-                        "Unable to determine inventory cost for product {$item->product_id}"
-                    );
-                }
-
-                $this->inventoryService->stockIn(
-
-                    productId: $item->product_id,
-
-                    warehouseId: $item->warehouse_id,
-
-                    quantity: (float) $item->quantity,
-
-                    unitCost: $unitCost,
-
-                    transactionType: StockTransactionType::SALES_RETURN,
-
-                    referenceType: SalesReturn::class,
-
-                    referenceId: $salesReturn->id,
-
-                    remarks: sprintf(
-                        'Sales Return %s',
-                        $salesReturn->return_no
-                    ),
-                );
-            }
-
-            $salesReturn->update([
-
-                'status'
-                    => SalesReturnStatus::CONFIRMED,
-
-                'approved_by'
-                    => auth()->id(),
-
-                'approved_at'
-                    => now(),
-            ]);
-
-            $salesReturn = $salesReturn
-                ->fresh()
-                ->load([
-                    'customer',
-                    'sale',
-                    'approvedBy',
-                    'items.product',
-                    'items.warehouse',
-                    'items.saleItem',
-                ]);
-
-            $this->accountingPostingService
-                ->postSalesReturn(
-                    $salesReturn
-                );
-
-            return $salesReturn;
-        });
+        return $return->items()
+            ->with(['product', 'variant', 'warehouse', 'unit', 'tax', 'batches', 'serials'])
+            ->get();
     }
-
-    public function delete(
-        int $id
-    ) {
-
-        return DB::transaction(function () use (
-            $id
-        ) {
-
-            $salesReturn =
-                $this->repository->find(
-                    $id
-                );
-
-            abort_if(
-
-                $salesReturn->status !==
-                SalesReturnStatus::DRAFT,
-
-                422,
-
-                'Approved sales returns cannot be deleted.'
-            );
-
-            return $this->repository->delete(
-                $id
-            );
-        });
-    }
-
-    protected function validateReturnQuantity(
-        SalesReturn $salesReturn,
-        SaleItem $saleItem,
-        float $requestQty
-    ): void {
-
-        $alreadyReturned =
-            SalesReturnItem::query()
-
-                ->where(
-                    'sale_item_id',
-                    $saleItem->id
-                )
-
-                ->whereHas(
-                    'salesReturn',
-                    function ($query) use (
-                        $salesReturn
-                    ) {
-
-                        $query
-                            ->where(
-                                'status',
-                                SalesReturnStatus::CONFIRMED
-                            )
-                            ->where(
-                                'id',
-                                '!=',
-                                $salesReturn->id
-                            );
-                    }
-                )
-
-                ->sum(
-                    'quantity'
-                );
-
-        $availableToReturn =
-            $saleItem->quantity
-            -
-            $alreadyReturned;
-
-        if (
-            bccomp(
-                (string) $requestQty,
-                (string) $availableToReturn,
-                4
-            ) === 1
-        ) {
-            abort(
-                422,
-                sprintf(
-                    'Only %s quantity available for return.',
-                    $availableToReturn
-                )
-            );
-        }
-    }
-
-    protected function syncItems(
-        SalesReturn $salesReturn,
-        array $items
-    ): void {
-
-        foreach ($items as $item) {
-
-            $saleItem =
-                SaleItem::query()
-                    ->where(
-                        'id',
-                        $item['sale_item_id']
-                    )
-                    ->where(
-                        'sale_id',
-                        $salesReturn->sale_id
-                    )
-                    ->first();
-
-            abort_if(
-                ! $saleItem,
-                422,
-                'Invalid sale item.'
-            );
-
-            abort_if(
-                $saleItem->product_id
-                !=
-                $item['product_id'],
-                422,
-                'Product mismatch.'
-            );
-
-            abort_if(
-                $saleItem->warehouse_id
-                !=
-                $item['warehouse_id'],
-                422,
-                'Warehouse mismatch.'
-            );
-
-            $this->validateReturnQuantity(
-                salesReturn: $salesReturn,
-                saleItem: $saleItem,
-                requestQty: $item['quantity']
-            );
-
-            $lineTotal =
-                (
-                    $item['quantity']
-                    *
-                    $item['unit_price']
-                )
-                -
-                (
-                    $item['discount']
-                    ?? 0
-                )
-                +
-                (
-                    $item['tax']
-                    ?? 0
-                );
-
-            SalesReturnItem::create([
-
-                'sales_return_id'
-                    => $salesReturn->id,
-
-                'sale_item_id'
-                    => $saleItem->id,
-
-                'product_id'
-                    => $item['product_id'],
-
-                'warehouse_id'
-                    => $item['warehouse_id'],
-
-                'quantity'
-                    => $item['quantity'],
-
-                'unit_price'
-                    => $item['unit_price'],
-
-                'discount'
-                    => $item['discount']
-                    ?? 0,
-
-                'tax'
-                    => $item['tax']
-                    ?? 0,
-
-                'line_total'
-                    => $lineTotal,
-
-                'condition'
-                    => $item['condition']
-                    ?? null,
-
-                'reason'
-                    => $item['reason']
-                    ?? null,
-            ]);
-        }
-    }
-
-    protected function recalculateTotals(
-        SalesReturn $salesReturn
-    ): void {
-
-        $salesReturn->loadMissing(
-            'items'
-        );
-
-        $subtotal =
-            $salesReturn->items->sum(
-                function ($item) {
-
-                    return
-                        $item->quantity
-                        *
-                        $item->unit_price;
-                }
-            );
-
-        $discount =
-            $salesReturn->items->sum(
-                'discount'
-            );
-
-        $tax =
-            $salesReturn->items->sum(
-                'tax'
-            );
-
-        $grandTotal =
-            $subtotal
-            -
-            $discount
-            +
-            $tax;
-
-        $salesReturn->update([
-
-            'subtotal'
-                => $subtotal,
-
-            'discount'
-                => $discount,
-
-            'tax'
-                => $tax,
-
-            'grand_total'
-                => $grandTotal,
-        ]);
-    }
-
-    protected function calculateRefundAmounts(
-        SalesReturn $salesReturn
-    ): void {
-
-        $refundAmount = 0;
-
-        $creditedAmount = 0;
-
-        if (
-            $salesReturn->refund_type
-            ===
-            \App\Modules\SalesReturn\Enums\SalesReturnRefundType::CREDIT_NOTE
-        ) {
-
-            $creditedAmount =
-                $salesReturn->grand_total;
-        }
-
-        if (
-            $salesReturn->refund_type
-            ===
-            \App\Modules\SalesReturn\Enums\SalesReturnRefundType::CASH_REFUND
-        ) {
-
-            $refundAmount =
-                $salesReturn->grand_total;
-        }
-
-        if (
-            $salesReturn->refund_type
-            ===
-            \App\Modules\SalesReturn\Enums\SalesReturnRefundType::BANK_REFUND
-        ) {
-
-            $refundAmount =
-                $salesReturn->grand_total;
-        }
-
-        $salesReturn->update([
-
-            'refund_amount' => $refundAmount,
-
-            'credited_amount' => $creditedAmount,
-        ]);
-    }
-
 }

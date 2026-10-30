@@ -2,113 +2,69 @@
 
 namespace App\Modules\SalesReturn\Requests;
 
-use Illuminate\Validation\Rule;
+use App\Core\Requests\BaseRequest;
 use App\Core\Validation\TenantRule;
-use Illuminate\Foundation\Http\FormRequest;
 use App\Modules\SalesReturn\Enums\SalesReturnCondition;
 use App\Modules\SalesReturn\Enums\SalesReturnRefundType;
+use Illuminate\Validation\Rule;
 
-class StoreSalesReturnRequest extends FormRequest
+class StoreSalesReturnRequest extends BaseRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     public function rules(): array
     {
         return [
+            'return_date' => ['required', 'date'],
 
-            'sale_id' => [
-                'required',
-                TenantRule::exists('sales'),
-            ],
+            'sale_id' => ['required_without:sale_uuid', 'nullable', 'integer', TenantRule::exists('sales', 'id')],
+            'sale_uuid' => ['required_without:sale_id', 'nullable', 'string', TenantRule::exists('sales', 'uuid')],
 
-            'customer_id' => [
-                'required',
-                TenantRule::exists('customers'),
-            ],
+            'customer_id' => ['nullable', 'integer', TenantRule::exists('customers', 'id')],
+            'customer_uuid' => ['nullable', 'string', TenantRule::exists('customers', 'uuid')],
 
-            'return_date' => [
-                'required',
-                'date',
-            ],
+            'warehouse_id' => ['nullable', 'integer', TenantRule::exists('warehouses', 'id')],
+            'warehouse_uuid' => ['nullable', 'string', TenantRule::exists('warehouses', 'uuid')],
 
-            'refund_type' => [
-                'nullable',
-                Rule::enum(
-                    SalesReturnRefundType::class
-                ),
-            ],
+            'refund_account_id' => ['nullable', 'integer', TenantRule::exists('chart_of_accounts', 'id')],
+            'refund_account_uuid' => ['nullable', 'string', TenantRule::exists('chart_of_accounts', 'uuid')],
 
-            'return_reason' => [
-                'nullable',
-                'string',
-                'max:255',
-            ],
+            'return_no' => ['nullable', 'string', 'max:50'],
+            'refund_type' => ['nullable', Rule::enum(SalesReturnRefundType::class)],
+            'return_reason' => ['nullable', 'string', 'max:255'],
+            'notes' => ['nullable', 'string'],
+            'rounding_amount' => ['nullable', 'numeric'],
 
-            'notes' => [
-                'nullable',
-                'string',
-            ],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.sale_item_id' => ['nullable', 'integer', TenantRule::exists('sale_items', 'id')],
+            'items.*.sale_item_uuid' => ['nullable', 'string', TenantRule::exists('sale_items', 'uuid')],
+            'items.*.product_id' => ['nullable', 'integer', TenantRule::exists('products', 'id')],
+            'items.*.product_uuid' => ['nullable', 'string', TenantRule::exists('products', 'uuid')],
+            'items.*.product_variant_id' => ['nullable', 'integer', TenantRule::exists('product_variants', 'id')],
+            'items.*.product_variant_uuid' => ['nullable', 'string', TenantRule::exists('product_variants', 'uuid')],
+            'items.*.warehouse_id' => ['nullable', 'integer', TenantRule::exists('warehouses', 'id')],
+            'items.*.warehouse_uuid' => ['nullable', 'string', TenantRule::exists('warehouses', 'uuid')],
 
-            'items' => [
-                'required',
-                'array',
-                'min:1',
-            ],
+            'items.*.returned_quantity' => ['required_without:items.*.quantity', 'nullable', 'numeric', 'gt:0'],
+            'items.*.quantity' => ['required_without:items.*.returned_quantity', 'nullable', 'numeric', 'gt:0'],
+            'items.*.unit_price' => ['nullable', 'numeric', 'gte:0'],
+            'items.*.unit_cost' => ['nullable', 'numeric', 'gte:0'],
 
-            'items.*.sale_item_id' => [
-                'required',
-                Rule::exists('sale_items', 'id'),
-            ],
+            'items.*.discount_type' => ['nullable', 'string', Rule::in(['fixed', 'percentage'])],
+            'items.*.discount_rate' => ['nullable', 'numeric', 'gte:0'],
+            'items.*.discount_amount' => ['nullable', 'numeric', 'gte:0'],
 
-            'items.*.product_id' => [
-                'required',
-                TenantRule::exists('products'),
-            ],
+            'items.*.tax_id' => ['nullable', 'integer', TenantRule::exists('taxes', 'id')],
+            'items.*.tax_uuid' => ['nullable', 'string', TenantRule::exists('taxes', 'uuid')],
+            'items.*.tax_rate' => ['nullable', 'numeric', 'gte:0'],
+            'items.*.tax_amount' => ['nullable', 'numeric', 'gte:0'],
 
-            'items.*.warehouse_id' => [
-                'required',
-                TenantRule::exists('warehouses'),
-            ],
+            'items.*.condition' => ['nullable', Rule::enum(SalesReturnCondition::class)],
+            'items.*.reason' => ['nullable', 'string', 'max:255'],
 
-            'items.*.quantity' => [
-                'required',
-                'numeric',
-                'gt:0',
-            ],
+            'items.*.batches' => ['nullable', 'array'],
+            'items.*.batches.*.batch_no' => ['required_with:items.*.batches', 'string', 'max:100'],
+            'items.*.batches.*.quantity' => ['required_with:items.*.batches', 'numeric', 'gt:0'],
 
-            'items.*.unit_price' => [
-                'required',
-                'numeric',
-                'gt:0',
-            ],
-
-            'items.*.discount' => [
-                'nullable',
-                'numeric',
-                'min:0',
-            ],
-
-            'items.*.tax' => [
-                'nullable',
-                'numeric',
-                'min:0',
-            ],
-
-            'items.*.condition' => [
-                'nullable',
-                Rule::enum(
-                    SalesReturnCondition::class
-                ),
-            ],
-
-            'items.*.reason' => [
-                'nullable',
-                'string',
-                'max:255',
-            ],
+            'items.*.serials' => ['nullable', 'array'],
         ];
     }
 }

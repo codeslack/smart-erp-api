@@ -2,68 +2,76 @@
 
 namespace App\Modules\SalesReturn\Resources;
 
+use App\Modules\SalesReturn\Enums\SalesReturnStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class SalesReturnResource extends JsonResource
 {
-    public function toArray(
-        Request $request
-    ): array {
+    public function toArray(Request $request): array
+    {
+        $statusValue = $this->status instanceof SalesReturnStatus
+            ? $this->status->value
+            : (string) $this->status;
+
+        $statusLabel = $this->status instanceof SalesReturnStatus
+            ? $this->status->label()
+            : ucfirst((string) $this->status);
 
         return [
-
-            'id' => $this->id,
-
+            'uuid' => $this->uuid,
             'return_no' => $this->return_no,
+            'return_date' => $this->return_date?->toDateString(),
 
-            'sale_id' => $this->sale_id,
+            'status' => $statusValue,
+            'status_label' => $statusLabel,
 
-            'customer_id' => $this->customer_id,
+            'customer' => $this->whenLoaded('customer', fn () => [
+                'uuid' => $this->customer->uuid,
+                'name' => $this->customer->name,
+                'code' => $this->customer->code,
+            ]),
 
-            'return_date' => $this->return_date,
+            'sale' => $this->whenLoaded('sale', fn () => [
+                'uuid' => $this->sale->uuid,
+                'sale_no' => $this->sale->sale_no,
+            ]),
 
-            'subtotal' => $this->subtotal,
+            'warehouse' => $this->whenLoaded('warehouse', fn () => [
+                'uuid' => $this->warehouse->uuid,
+                'name' => $this->warehouse->name,
+            ]),
 
-            'discount' => $this->discount,
+            'refund_account' => $this->whenLoaded('refundAccount', fn () => [
+                'uuid' => $this->refundAccount->uuid,
+                'name' => $this->refundAccount->name,
+                'code' => $this->refundAccount->code,
+            ]),
 
-            'tax' => $this->tax,
+            'currency_code' => $this->currency_code,
+            'exchange_rate' => (float) $this->exchange_rate,
 
-            'grand_total' => $this->grand_total,
+            'subtotal' => (float) $this->subtotal,
+            'discount_amount' => (float) $this->discount_amount,
+            'tax_amount' => (float) $this->tax_amount,
+            'rounding_amount' => (float) $this->rounding_amount,
+            'grand_total' => (float) $this->grand_total,
 
-            'refund_amount' => $this->refund_amount,
-
-            'credited_amount' => $this->credited_amount,
-
-            'refund_type' => $this->refund_type?->value,
+            'refund_amount' => (float) $this->refund_amount,
+            'credited_amount' => (float) $this->credited_amount,
+            'refund_type' => $this->refund_type?->value ?? (string) $this->refund_type,
 
             'return_reason' => $this->return_reason,
-
-            'status' => $this->status,
-
-            'approved_by' => $this->approved_by,
-
-            'approved_at' => $this->approved_at,
-
             'notes' => $this->notes,
 
-            'customer' => $this->whenLoaded(
-                'customer'
-            ),
+            'approved_at' => $this->approved_at?->toIso8601String(),
+            'cancelled_at' => $this->cancelled_at?->toIso8601String(),
+            'cancellation_reason' => $this->cancellation_reason,
 
-            'sale' => $this->whenLoaded(
-                'sale'
-            ),
+            'items' => SalesReturnItemResource::collection($this->whenLoaded('items')),
 
-            'items' => SalesReturnItemResource::collection(
-                $this->whenLoaded(
-                    'items'
-                )
-            ),
-
-            'created_at' => $this->created_at,
-
-            'updated_at' => $this->updated_at,
+            'created_at' => $this->created_at?->toIso8601String(),
+            'updated_at' => $this->updated_at?->toIso8601String(),
         ];
     }
 }

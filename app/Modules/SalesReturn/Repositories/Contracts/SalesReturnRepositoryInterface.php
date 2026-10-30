@@ -2,18 +2,17 @@
 
 namespace App\Modules\SalesReturn\Repositories\Contracts;
 
-interface SalesReturnRepositoryInterface
+use App\Core\Repositories\Contracts\BaseRepositoryInterface;
+use App\Modules\SalesReturn\Models\SalesReturn;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+
+interface SalesReturnRepositoryInterface extends BaseRepositoryInterface
 {
-    public function paginate();
+    public function paginateWithFilters(array $filters = [], int $perPage = 15): LengthAwarePaginator;
 
-    public function find(int $id);
+    public function findByUuid(string $uuid): ?SalesReturn;
 
-    public function create(array $data);
+    public function findByReturnNo(string $returnNo): ?SalesReturn;
 
-    public function update(
-        int $id,
-        array $data
-    );
-
-    public function delete(int $id);
+    public function find(int|string $id): SalesReturn;
 }

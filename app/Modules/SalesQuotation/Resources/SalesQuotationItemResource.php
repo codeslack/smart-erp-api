@@ -7,28 +7,56 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class SalesQuotationItemResource extends JsonResource
 {
-    public function toArray(
-        Request $request
-    ): array {
+    public function toArray(Request $request): array
+    {
         return [
+            'uuid' => $this->uuid,
 
-            'id' => $this->id,
+            'product' => $this->whenLoaded('product', fn () => [
+                'uuid' => $this->product->uuid,
+                'name' => $this->product->name,
+                'sku' => $this->product->sku,
+            ]),
 
-            'sales_quotation_id' => $this->sales_quotation_id,
+            'variant' => $this->whenLoaded('variant', fn () => [
+                'uuid' => $this->variant->uuid,
+                'name' => $this->variant->name,
+            ]),
 
-            'product_id' => $this->product_id,
+            'warehouse' => $this->whenLoaded('warehouse', fn () => [
+                'uuid' => $this->warehouse->uuid,
+                'name' => $this->warehouse->name,
+            ]),
 
-            'warehouse_id' => $this->warehouse_id,
+            'unit' => $this->whenLoaded('unit', fn () => [
+                'uuid' => $this->unit->uuid,
+                'name' => $this->unit->name,
+                'code' => $this->unit->code,
+            ]),
 
-            'quantity' => $this->quantity,
+            'tax' => $this->whenLoaded('tax', fn () => [
+                'uuid' => $this->tax->uuid,
+                'name' => $this->tax->name,
+                'rate' => (float) $this->tax->rate,
+            ]),
 
-            'unit_price' => $this->unit_price,
+            'quantity' => (float) $this->quantity,
+            'unit_price' => (float) $this->unit_price,
 
-            'line_total' => $this->line_total,
+            'discount_type' => $this->discount_type,
+            'discount_rate' => (float) $this->discount_rate,
+            'discount_amount' => (float) $this->discount_amount,
 
-            'created_at' => $this->created_at,
+            'tax_rate' => (float) $this->tax_rate,
+            'tax_amount' => (float) $this->tax_amount,
 
-            'updated_at' => $this->updated_at,
+            'subtotal' => (float) $this->subtotal,
+            'total_price' => (float) $this->total_price,
+            'line_total' => (float) ($this->line_total ?? $this->total_price),
+            'notes' => $this->notes,
+
+            'created_at' => $this->created_at?->toISOString(),
+            'updated_at' => $this->updated_at?->toISOString(),
         ];
     }
 }

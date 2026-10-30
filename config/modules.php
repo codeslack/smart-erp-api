@@ -99,8 +99,10 @@ return [
     |--------------------------------------------------------------------------
     */
 
+    App\Modules\SalesQuotation\SalesQuotationModule::class,
     App\Modules\SalesOrder\SalesOrderModule::class,
     App\Modules\Sales\SalesModule::class,
+    App\Modules\SalesReturn\SalesReturnModule::class,
 
     /*
     |--------------------------------------------------------------------------

@@ -6,6 +6,7 @@ use App\Modules\Inventory\Models\StockLedger;
 use App\Modules\SalesReturn\Models\SalesReturn;
 use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
+use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
 use App\Modules\Inventory\Enums\StockTransactionType;
 
 class SalesReturnPostingService extends BasePostingService
@@ -20,9 +21,9 @@ class SalesReturnPostingService extends BasePostingService
             ->where('tenant_id', tenantId())
             ->where('referenceable_type', SalesReturn::class)
             ->where('referenceable_id', $salesReturn->id)
-            ->where(
+            ->whereIn(
                 'transaction_type',
-                StockTransactionType::SALES_RETURN
+                [StockTransactionType::SALES_RETURN, InventoryTransactionTypeEnum::SALE_RETURN->value]
             )
             ->sum('total_cost');
 

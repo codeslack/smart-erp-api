@@ -2,276 +2,128 @@
 
 namespace App\Modules\SalesQuotation\Services;
 
-use Illuminate\Support\Facades\DB;
-use App\Modules\Sales\Models\Sale;
-use App\Modules\Sales\Models\SaleItem;
-use App\Modules\Product\Models\Product;
-use App\Modules\Sales\Enums\SaleStatus;
 use App\Modules\SalesOrder\Models\SalesOrder;
-use App\Modules\SalesOrder\Models\SalesOrderItem;
-use App\Modules\SalesOrder\Enums\SalesOrderStatus;
 use App\Modules\SalesQuotation\Models\SalesQuotation;
-use App\Modules\SalesQuotation\Models\SalesQuotationItem;
-use App\Modules\SalesQuotation\Enums\SalesQuotationStatus;
 use App\Modules\SalesQuotation\Repositories\Contracts\SalesQuotationRepositoryInterface;
+use App\Modules\SalesQuotation\Services\Actions\AcceptSalesQuotationAction;
+use App\Modules\SalesQuotation\Services\Actions\CancelSalesQuotationAction;
+use App\Modules\SalesQuotation\Services\Actions\ConvertSalesQuotationToOrderAction;
+use App\Modules\SalesQuotation\Services\Actions\CreateSalesQuotationAction;
+use App\Modules\SalesQuotation\Services\Actions\RejectSalesQuotationAction;
+use App\Modules\SalesQuotation\Services\Actions\SendSalesQuotationAction;
+use App\Modules\SalesQuotation\Services\Actions\UpdateSalesQuotationAction;
+use App\Modules\SalesQuotation\Services\Validators\SalesQuotationValidator;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 
 class SalesQuotationService
 {
     public function __construct(
-        protected SalesQuotationRepositoryInterface $repository
+        protected SalesQuotationRepositoryInterface $repository,
+        protected CreateSalesQuotationAction $createAction,
+        protected UpdateSalesQuotationAction $updateAction,
+        protected SendSalesQuotationAction $sendAction,
+        protected AcceptSalesQuotationAction $acceptAction,
+        protected RejectSalesQuotationAction $rejectAction,
+        protected CancelSalesQuotationAction $cancelAction,
+        protected ConvertSalesQuotationToOrderAction $convertOrderAction,
+        protected SalesQuotationValidator $validator
     ) {}
 
-    public function getAll()
+    public function paginate(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
-        return $this->repository->paginate();
+        return $this->repository->paginateWithFilters($filters, $perPage);
     }
 
-    public function find(int $id)
+    public function find(int|string $id): SalesQuotation
     {
         return $this->repository->find($id);
     }
 
-    public function create(array $data)
+    public function findByUuid(string $uuid): ?SalesQuotation
     {
-        return DB::transaction(function () use ($data) {
+        return $this->repository->findByUuid($uuid);
+    }
 
-            $items = $data['items'];
+    public function create(array $data): SalesQuotation
+    {
+        return $this->createAction->execute($data);
+    }
 
-            unset($data['items']);
+    public function update(int|string $id, array $data): SalesQuotation
+    {
+        $quotation = $this->resolveQuotation($id);
 
-            $nextId = (
-                SalesQuotation::max('id') ?? 0
-            ) + 1;
+        return $this->updateAction->execute($quotation, $data);
+    }
 
-            $data['quotation_no'] = sprintf(
-                'QTN-%06d',
-                $nextId
-            );
+    public function send(int|string $id): SalesQuotation
+    {
+        $quotation = $this->resolveQuotation($id);
 
-            $data['status'] = SalesQuotationStatus::DRAFT;
+        return $this->sendAction->execute($quotation);
+    }
 
-            $quotation = $this->repository->create(
-                $data
-            );
+    public function accept(int|string $id): SalesQuotation
+    {
+        $quotation = $this->resolveQuotation($id);
 
-            $subtotal = 0;
+        return $this->acceptAction->execute($quotation);
+    }
 
-            foreach ($items as $item) {
+    public function reject(int|string $id, ?string $reason = null): SalesQuotation
+    {
+        $quotation = $this->resolveQuotation($id);
 
-                $product = Product::find(
-                    $item['product_id']
-                );
+        return $this->rejectAction->execute($quotation, $reason);
+    }
 
-                abort_if(
-                    !$product,
-                    422,
-                    'Invalid product.'
-                );
+    public function cancel(int|string $id, ?string $reason = null): SalesQuotation
+    {
+        $quotation = $this->resolveQuotation($id);
 
-                $lineTotal =
-                    $item['quantity']
-                    *
-                    $item['unit_price'];
+        return $this->cancelAction->execute($quotation, $reason);
+    }
 
-                SalesQuotationItem::create([
-                    'sales_quotation_id' => $quotation->id,
-                    'product_id'         => $item['product_id'],
-                    'warehouse_id'       => $item['warehouse_id'],
-                    'quantity'           => $item['quantity'],
-                    'unit_price'         => $item['unit_price'],
-                    'line_total'         => $lineTotal,
-                ]);
+    public function convertToOrder(int|string $id, array $overrides = []): SalesOrder
+    {
+        $quotation = $this->resolveQuotation($id);
 
-                $subtotal += $lineTotal;
+        return $this->convertOrderAction->execute($quotation, $overrides);
+    }
+
+    public function delete(int|string $id): bool
+    {
+        $quotation = $this->resolveQuotation($id);
+        $this->validator->validateForDeletion($quotation);
+
+        $quotation->items()->delete();
+
+        return (bool) $this->repository->delete($quotation);
+    }
+
+    public function getItems(int|string $id): Collection
+    {
+        $quotation = $this->resolveQuotation($id);
+
+        return $quotation->items()->with([
+            'product',
+            'variant',
+            'warehouse',
+            'unit',
+            'tax',
+        ])->get();
+    }
+
+    protected function resolveQuotation(int|string $id): SalesQuotation
+    {
+        if (is_string($id) && ! is_numeric($id)) {
+            $quotation = $this->repository->findByUuid($id);
+            if ($quotation) {
+                return $quotation;
             }
+        }
 
-            $quotation->update([
-                'subtotal'    => $subtotal,
-                'grand_total' => $subtotal,
-            ]);
-
-            return $quotation->load(
-                'items'
-            );
-        });
-    }
-
-    public function update(
-        int $id,
-        array $data
-    ) {
-        $quotation = $this->find(
-            $id
-        );
-
-        abort_if(
-            $quotation->status !== SalesQuotationStatus::DRAFT,
-            422,
-            'Only draft quotations can be updated.'
-        );
-
-        return $this->repository->update(
-            $id,
-            $data
-        );
-    }
-
-    public function approve(
-        SalesQuotation $quotation
-    ) {
-        abort_if(
-            $quotation->status !== SalesQuotationStatus::DRAFT,
-            422,
-            'Quotation already approved.'
-        );
-
-        $quotation->update([
-            'status' => SalesQuotationStatus::APPROVED,
-        ]);
-
-        return $quotation->fresh();
-    }
-
-    public function convertToSalesOrder(
-        SalesQuotation $quotation
-    ) {
-        return DB::transaction(function () use ($quotation) {
-
-            abort_if(
-                $quotation->status !== SalesQuotationStatus::APPROVED,
-                422,
-                'Quotation must be approved first.'
-            );
-
-            $quotation->loadMissing(
-                'items'
-            );
-
-            $nextId = (
-                SalesOrder::max('id') ?? 0
-            ) + 1;
-
-            $salesOrder = SalesOrder::create([
-                'tenant_id'   => tenant()->id,
-                'customer_id' => $quotation->customer_id,
-                'so_no'       => sprintf(
-                    'SO-%06d',
-                    $nextId
-                ),
-                'order_date'  => now(),
-                'subtotal'    => $quotation->subtotal,
-                'discount_amount' => 0,
-                'tax_amount'      => 0,
-                'grand_total' => $quotation->grand_total,
-                'status'      => SalesOrderStatus::DRAFT,
-                'notes'       => sprintf(
-                    'Generated from %s',
-                    $quotation->quotation_no
-                ),
-            ]);
-
-            foreach (
-                $quotation->items as $item
-            ) {
-
-                SalesOrderItem::create([
-                    'sales_order_id'    => $salesOrder->id,
-                    'product_id'        => $item->product_id,
-                    'warehouse_id'      => $item->warehouse_id,
-                    'quantity'          => $item->quantity,
-                    'delivered_quantity' => 0,
-                    'pending_quantity'  => $item->quantity,
-                    'unit_price'        => $item->unit_price,
-                    'line_total'        => $item->line_total,
-                ]);
-            }
-
-            $quotation->update([
-                'status' => SalesQuotationStatus::CONVERTED_TO_ORDER,
-            ]);
-
-            return $salesOrder->load(
-                'items'
-            );
-        });
-    }
-
-
-    public function convertToSale(
-        SalesQuotation $quotation
-    ) {
-        return DB::transaction(function () use ($quotation) {
-
-            abort_if(
-                $quotation->status !== SalesQuotationStatus::APPROVED,
-                422,
-                'Quotation must be approved first.'
-            );
-
-            $quotation->loadMissing(
-                'items'
-            );
-
-            $nextId = (
-                Sale::max('id') ?? 0
-            ) + 1;
-
-            $sale = Sale::create([
-                'tenant_id'   => tenant()->id,
-                'customer_id' => $quotation->customer_id,
-                'sale_no'     => sprintf(
-                    'SAL-%06d',
-                    $nextId
-                ),
-                'sale_date'   => now(),
-                'subtotal'    => $quotation->subtotal,
-                'grand_total' => $quotation->grand_total,
-                'status'      => SaleStatus::DRAFT,
-                'notes'       => sprintf(
-                    'Generated from %s',
-                    $quotation->quotation_no
-                ),
-            ]);
-
-            foreach (
-                $quotation->items as $item
-            ) {
-
-                SaleItem::create([
-                    'sale_id'      => $sale->id,
-                    'product_id'   => $item->product_id,
-                    'warehouse_id' => $item->warehouse_id,
-                    'quantity'     => $item->quantity,
-                    'unit_price'   => $item->unit_price,
-                    'line_total'   => $item->line_total,
-                ]);
-            }
-
-            $quotation->update([
-                'status' => SalesQuotationStatus::CONVERTED_TO_SALE,
-            ]);
-
-            return $sale->load(
-                'items'
-            );
-        });
-    }
-
-    public function delete(
-        int $id
-    ) {
-        $quotation = $this->find(
-            $id
-        );
-
-        abort_if(
-            $quotation->status !== SalesQuotationStatus::DRAFT,
-            422,
-            'Only draft quotations can be deleted.'
-        );
-
-        return $this->repository->delete(
-            $id
-        );
+        return $this->repository->find($id);
     }
 }

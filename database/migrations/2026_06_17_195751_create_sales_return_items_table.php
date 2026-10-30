@@ -6,85 +6,103 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::create('sales_return_items', function (
-            Blueprint $table
-        ) {
-
+        Schema::create('sales_return_items', function (Blueprint $table) {
             $table->id();
+            $table->uuid('uuid')->unique();
 
+            // Tenant
+            $table->foreignId('tenant_id')
+                ->constrained('tenants')
+                ->cascadeOnDelete();
+
+            // Parent
             $table->foreignId('sales_return_id')
                 ->constrained('sales_returns')
                 ->cascadeOnDelete();
 
+            // Original sale item
             $table->foreignId('sale_item_id')
                 ->nullable()
                 ->constrained('sale_items')
                 ->nullOnDelete();
 
+            // Product & Variant
             $table->foreignId('product_id')
                 ->constrained('products')
                 ->cascadeOnDelete();
+
+            $table->foreignId('product_variant_id')
+                ->nullable()
+                ->constrained('product_variants')
+                ->restrictOnDelete();
 
             $table->foreignId('warehouse_id')
                 ->constrained('warehouses')
                 ->cascadeOnDelete();
 
-            $table->decimal(
-                'quantity',
-                18,
-                4
-            );
+            $table->foreignId('unit_id')
+                ->nullable()
+                ->constrained('units')
+                ->nullOnDelete();
 
-            $table->decimal(
-                'unit_price',
-                18,
-                4
-            );
+            $table->string('line_type', 30)->default('product');
+            $table->string('item_name', 255)->nullable();
+            $table->string('sku', 100)->nullable();
+            $table->text('description')->nullable();
 
-            $table->decimal(
-                'discount',
-                18,
-                4
-            )->default(0);
+            // Quantities
+            $table->decimal('returned_quantity', 18, 4);
+            $table->decimal('base_quantity', 18, 4)->nullable();
 
-            $table->decimal(
-                'tax',
-                18,
-                4
-            )->default(0);
+            // Pricing & cost
+            $table->decimal('unit_price', 18, 4);
+            $table->decimal('unit_cost', 18, 4)->default(0);
 
-            $table->decimal(
-                'line_total',
-                18,
-                4
-            );
+            // Discount
+            $table->string('discount_type', 20)->default('fixed');
+            $table->decimal('discount_rate', 18, 4)->default(0);
+            $table->decimal('discount_amount', 18, 4)->default(0);
 
-            $table->string('condition')
-                ->default('good');
+            $table->decimal('net_unit_price', 18, 4)->default(0);
+            $table->decimal('subtotal', 18, 4)->default(0);
 
-            $table->string('reason')
-                ->nullable();
+            // Tax
+            $table->foreignId('tax_id')
+                ->nullable()
+                ->constrained('taxes')
+                ->nullOnDelete();
+
+            $table->decimal('tax_rate', 18, 4)->default(0);
+            $table->decimal('tax_amount', 18, 4)->default(0);
+
+            $table->decimal('line_total', 18, 4);
+            $table->decimal('total_amount', 18, 4)->default(0);
+
+            $table->string('condition', 30)->default('good');
+            $table->string('reason', 255)->nullable();
 
             $table->timestamps();
+            $table->softDeletes();
 
-            $table->index('sales_return_id');
+            $table->index(
+                ['tenant_id', 'sales_return_id'],
+                'sr_items_tenant_return_index'
+            );
 
-            $table->index('sale_item_id');
+            $table->index(
+                ['tenant_id', 'product_id'],
+                'sr_items_tenant_product_index'
+            );
 
-            $table->index('product_id');
-
-            $table->index('warehouse_id');
+            $table->index(
+                ['tenant_id', 'sale_item_id'],
+                'sr_items_tenant_sale_item_index'
+            );
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('sales_return_items');

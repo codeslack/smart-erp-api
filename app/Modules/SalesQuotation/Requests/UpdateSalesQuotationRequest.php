@@ -2,7 +2,59 @@
 
 namespace App\Modules\SalesQuotation\Requests;
 
-class UpdateSalesQuotationRequest
-    extends StoreSalesQuotationRequest
+use App\Core\Requests\BaseRequest;
+use App\Core\Validation\TenantRule;
+use Illuminate\Validation\Rule;
+
+class UpdateSalesQuotationRequest extends BaseRequest
 {
+    public function rules(): array
+    {
+        return [
+            'customer_id' => ['nullable', 'integer', TenantRule::exists('customers', 'id')],
+            'customer_uuid' => ['nullable', 'string', TenantRule::exists('customers', 'uuid')],
+
+            'warehouse_id' => ['nullable', 'integer', TenantRule::exists('warehouses', 'id')],
+            'warehouse_uuid' => ['nullable', 'string', TenantRule::exists('warehouses', 'uuid')],
+
+            'quotation_date' => ['nullable', 'date'],
+            'expiry_date' => ['nullable', 'date', 'after_or_equal:quotation_date'],
+
+            'currency_code' => ['nullable', 'string', 'max:10'],
+            'exchange_rate' => ['nullable', 'numeric', 'gt:0'],
+
+            'shipping_amount' => ['nullable', 'numeric', 'gte:0'],
+            'rounding_amount' => ['nullable', 'numeric'],
+
+            'notes' => ['nullable', 'string'],
+            'terms_conditions' => ['nullable', 'string'],
+
+            'items' => ['nullable', 'array', 'min:1'],
+            'items.*.product_id' => ['required_without:items.*.product_uuid', 'nullable', 'integer', TenantRule::exists('products', 'id')],
+            'items.*.product_uuid' => ['required_without:items.*.product_id', 'nullable', 'string', TenantRule::exists('products', 'uuid')],
+
+            'items.*.product_variant_id' => ['nullable', 'integer', TenantRule::exists('product_variants', 'id')],
+            'items.*.product_variant_uuid' => ['nullable', 'string', TenantRule::exists('product_variants', 'uuid')],
+
+            'items.*.warehouse_id' => ['nullable', 'integer', TenantRule::exists('warehouses', 'id')],
+            'items.*.warehouse_uuid' => ['nullable', 'string', TenantRule::exists('warehouses', 'uuid')],
+
+            'items.*.unit_id' => ['nullable', 'integer', TenantRule::exists('units', 'id')],
+            'items.*.unit_uuid' => ['nullable', 'string', TenantRule::exists('units', 'uuid')],
+
+            'items.*.quantity' => ['required_with:items', 'numeric', 'gt:0'],
+            'items.*.unit_price' => ['required_with:items', 'numeric', 'gte:0'],
+
+            'items.*.discount_type' => ['nullable', 'string', Rule::in(['fixed', 'percentage'])],
+            'items.*.discount_rate' => ['nullable', 'numeric', 'gte:0'],
+            'items.*.discount_amount' => ['nullable', 'numeric', 'gte:0'],
+
+            'items.*.tax_id' => ['nullable', 'integer', TenantRule::exists('taxes', 'id')],
+            'items.*.tax_uuid' => ['nullable', 'string', TenantRule::exists('taxes', 'uuid')],
+            'items.*.tax_rate' => ['nullable', 'numeric', 'gte:0'],
+            'items.*.tax_amount' => ['nullable', 'numeric', 'gte:0'],
+
+            'items.*.notes' => ['nullable', 'string', 'max:255'],
+        ];
+    }
 }

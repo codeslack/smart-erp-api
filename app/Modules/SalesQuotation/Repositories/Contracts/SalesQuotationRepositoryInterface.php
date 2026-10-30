@@ -2,26 +2,17 @@
 
 namespace App\Modules\SalesQuotation\Repositories\Contracts;
 
-interface SalesQuotationRepositoryInterface
+use App\Core\Repositories\Contracts\BaseRepositoryInterface;
+use App\Modules\SalesQuotation\Models\SalesQuotation;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+
+interface SalesQuotationRepositoryInterface extends BaseRepositoryInterface
 {
-    public function paginate(
-        int $perPage = 15
-    );
+    public function paginateWithFilters(array $filters = [], int $perPage = 15): LengthAwarePaginator;
 
-    public function find(
-        int $id
-    );
+    public function findByUuid(string $uuid): ?SalesQuotation;
 
-    public function create(
-        array $data
-    );
+    public function findByQuotationNo(string $quotationNo): ?SalesQuotation;
 
-    public function update(
-        int $id,
-        array $data
-    );
-
-    public function delete(
-        int $id
-    );
+    public function find(int|string $id): SalesQuotation;
 }
