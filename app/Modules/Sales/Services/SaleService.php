@@ -2,225 +2,97 @@
 
 namespace App\Modules\Sales\Services;
 
-use Illuminate\Support\Facades\DB;
 use App\Modules\Sales\Models\Sale;
-use App\Modules\Sales\Models\SaleItem;
-use App\Modules\Sales\Enums\SaleStatus;
-use App\Modules\Inventory\Services\InventoryService;
-use App\Modules\Inventory\Enums\StockTransactionType;
 use App\Modules\Sales\Repositories\Contracts\SaleRepositoryInterface;
-use App\Modules\Accounting\Services\Contracts\AccountingPostingServiceInterface;
-use App\Modules\AdvanceAllocation\Services\CustomerAdvanceAutoAdjustmentService;
-use App\Modules\Accounting\Services\Postings\CustomerAdvanceAdjustmentPostingService;
+use App\Modules\Sales\Services\Actions\CancelSaleAction;
+use App\Modules\Sales\Services\Actions\ConfirmSaleAction;
+use App\Modules\Sales\Services\Actions\CreateSaleAction;
+use App\Modules\Sales\Services\Actions\UpdateSaleAction;
+use App\Modules\Sales\Services\Validators\SaleValidator;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 
 class SaleService
 {
     public function __construct(
         protected SaleRepositoryInterface $repository,
-        protected InventoryService $inventoryService,
-        protected AccountingPostingServiceInterface $postingService,
-        protected CustomerAdvanceAutoAdjustmentService $customerAdvanceAutoAdjustmentService,
-        protected CustomerAdvanceAdjustmentPostingService $customerAdvanceAdjustmentPostingService,
+        protected CreateSaleAction $createAction,
+        protected UpdateSaleAction $updateAction,
+        protected ConfirmSaleAction $confirmAction,
+        protected CancelSaleAction $cancelAction,
+        protected SaleValidator $validator
     ) {}
 
-    public function getAll()
+    public function getAll(int $perPage = 15): LengthAwarePaginator
     {
-        return $this->repository->paginate();
+        return $this->repository->paginate($perPage);
     }
 
-    public function find(int $id)
+    public function paginate(array $filters = [], int $perPage = 15): LengthAwarePaginator
+    {
+        return $this->repository->paginateWithFilters($filters, $perPage);
+    }
+
+    public function find(int|string $id): Sale
     {
         return $this->repository->find($id);
     }
 
-    public function create(array $data)
+    public function findByUuid(string $uuid): ?Sale
     {
-        return DB::transaction(function () use ($data) {
+        return $this->repository->findByUuid($uuid);
+    }
 
-            $items = $data['items'];
+    public function create(array $data): Sale
+    {
+        return $this->createAction->execute($data);
+    }
 
-            unset($data['items']);
+    public function update(int|string|Sale $sale, array $data): Sale
+    {
+        $model = $sale instanceof Sale ? $sale : $this->find($sale);
 
-            $invoiceNo = nextDocumentNumber(
-                'sasale_invoicele',
-                'INV'
-            );
+        return $this->updateAction->execute($model, $data);
+    }
 
-            $sale = $this->repository->create([
-                ...$data,
-                'sale_no' => $invoiceNo,
-                'status' =>
-                    SaleStatus::DRAFT,
-            ]);
+    public function confirm(int|string|Sale $sale): Sale
+    {
+        $model = $sale instanceof Sale ? $sale : $this->find($sale);
 
-            $subtotal = 0;
+        return $this->confirmAction->execute($model);
+    }
 
-            foreach ($items as $item) {
+    public function approve(Sale $sale): Sale
+    {
+        return $this->confirm($sale);
+    }
 
-                $lineTotal =
-                    $item['quantity']
-                    *
-                    $item['unit_price'];
+    public function cancel(int|string|Sale $sale, ?string $reason = null): Sale
+    {
+        $model = $sale instanceof Sale ? $sale : $this->find($sale);
 
-                SaleItem::create([
-                    'sale_id' => $sale->id,
+        return $this->cancelAction->execute($model, $reason);
+    }
 
-                    'product_id' => $item['product_id'],
+    public function delete(int|string|Sale $sale): bool
+    {
+        $model = $sale instanceof Sale ? $sale : $this->find($sale);
+        $this->validator->validateForDeletion($model);
 
-                    'warehouse_id' => $item['warehouse_id'],
+        return DB::transaction(function () use ($model) {
+            $model->items()->delete();
 
-                    'quantity' => $item['quantity'],
-
-                    'unit_price' => $item['unit_price'],
-
-                    'cost_price'   => 0,
-
-                    'line_total' => $lineTotal,
-                ]);
-
-                $subtotal += $lineTotal;
-            }
-
-            $sale->update([
-                'subtotal' => $subtotal,
-                'grand_total' => $subtotal,
-                'paid_amount' => 0,
-                'due_amount'  => $subtotal,
-            ]);
-
-            return $sale
-                ->fresh()
-                ->load('items');
+            return (bool) $model->delete();
         });
     }
 
-    public function update(
-        int $id,
-        array $data
-    ) {
-        return $this->repository->update(
-            $id,
-            $data
-        );
-    }
+    public function getItems(string $uuid): Collection
+    {
+        $sale = $this->findByUuid($uuid) ?? $this->find($uuid);
 
-    public function approve(
-        Sale $sale
-    ) {
-        if (
-            $sale->status !== SaleStatus::DRAFT
-        ) {
-            abort(
-                422,
-                'Sale already approved.'
-            );
-        }
-
-        return DB::transaction(function () use ($sale) {
-
-            foreach ($sale->items as $item) {
-
-                $costPrice =
-                    $this->inventoryService->averageCost(
-                        $item->product_id,
-                        $item->warehouse_id
-                    );
-
-                $item->update([
-                    'cost_price' => $costPrice,
-                ]);
-
-                $this->inventoryService->stockOut(
-
-                    productId: $item->product_id,
-
-                    warehouseId: $item->warehouse_id,
-
-                    quantity: $item->quantity,
-
-                    transactionType: StockTransactionType::SALE,
-
-                    referenceType: Sale::class,
-
-                    referenceId: $sale->id,
-
-                    remarks: sprintf(
-                        'Sale %s',
-                        $sale->sale_no
-                    ),
-                );
-            }
-
-            $sale->update([
-                'status' => SaleStatus::CONFIRMED,
-            ]);
-
-            $sale = $sale
-                ->fresh()
-                ->load([
-                    'customer',
-                    'items',
-                ]);
-
-            /*
-            |--------------------------------------------------------------------------
-            | Post Sale Entry
-            |--------------------------------------------------------------------------
-            |
-            | Dr Accounts Receivable
-            | Cr Sales Revenue
-            |
-            */
-
-            $this->postingService
-                ->postSale(
-                    $sale
-                );
-
-            /*
-            |--------------------------------------------------------------------------
-            | Auto Adjust Customer Advance
-            |--------------------------------------------------------------------------
-            */
-
-            $adjustedAmount =
-                $this->customerAdvanceAutoAdjustmentService
-                    ->adjust(
-                        $sale
-                    );
-
-            /*
-            |--------------------------------------------------------------------------
-            | Post Advance Adjustment
-            |--------------------------------------------------------------------------
-            |
-            | Dr Customer Advances
-            | Cr Accounts Receivable
-            |
-            */
-
-            if (
-                $adjustedAmount > 0
-            ) {
-
-                $this->customerAdvanceAdjustmentPostingService
-                    ->post(
-
-                        $sale->fresh(),
-
-                        $adjustedAmount
-                    );
-            }
-
-            return $sale->fresh();
-        });
-    }
-
-    public function delete(
-        int $id
-    ) {
-        return $this->repository->delete(
-            $id
-        );
+        return $sale->items()
+            ->with(['product', 'variant', 'warehouse', 'unit', 'tax', 'batches', 'serials'])
+            ->get();
     }
 }

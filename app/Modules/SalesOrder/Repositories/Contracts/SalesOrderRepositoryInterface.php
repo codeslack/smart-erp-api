@@ -2,26 +2,17 @@
 
 namespace App\Modules\SalesOrder\Repositories\Contracts;
 
-interface SalesOrderRepositoryInterface
+use App\Core\Repositories\Contracts\BaseRepositoryInterface;
+use App\Modules\SalesOrder\Models\SalesOrder;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+
+interface SalesOrderRepositoryInterface extends BaseRepositoryInterface
 {
-    public function paginate(
-        int $perPage = 15
-    );
+    public function paginateWithFilters(array $filters = [], int $perPage = 15): LengthAwarePaginator;
 
-    public function find(
-        int $id
-    );
+    public function findByUuid(string $uuid): ?SalesOrder;
 
-    public function create(
-        array $data
-    );
+    public function findByOrderNumber(string $orderNumber): ?SalesOrder;
 
-    public function update(
-        int $id,
-        array $data
-    );
-
-    public function delete(
-        int $id
-    );
+    public function find(int|string $id): SalesOrder;
 }

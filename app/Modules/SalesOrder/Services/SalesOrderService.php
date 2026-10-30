@@ -2,287 +2,97 @@
 
 namespace App\Modules\SalesOrder\Services;
 
-use Illuminate\Support\Facades\DB;
-use App\Modules\Sales\Models\Sale;
-use App\Modules\Sales\Models\SaleItem;
-use App\Modules\Sales\Enums\SaleStatus;
-use App\Modules\Product\Models\Product;
 use App\Modules\SalesOrder\Models\SalesOrder;
-use App\Modules\SalesOrder\Models\SalesOrderItem;
-use App\Modules\DeliveryNote\Models\DeliveryNote;
-use App\Modules\SalesOrder\Enums\SalesOrderStatus;
-use App\Modules\DeliveryNote\Models\DeliveryNoteItem;
-use App\Modules\DeliveryNote\Enums\DeliveryNoteStatus;
 use App\Modules\SalesOrder\Repositories\Contracts\SalesOrderRepositoryInterface;
-
+use App\Modules\SalesOrder\Services\Actions\CancelSalesOrderAction;
+use App\Modules\SalesOrder\Services\Actions\ConfirmSalesOrderAction;
+use App\Modules\SalesOrder\Services\Actions\CreateSalesOrderAction;
+use App\Modules\SalesOrder\Services\Actions\UpdateSalesOrderAction;
+use App\Modules\SalesOrder\Services\Validators\SalesOrderValidator;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 
 class SalesOrderService
 {
     public function __construct(
-        protected SalesOrderRepositoryInterface $repository
+        protected SalesOrderRepositoryInterface $repository,
+        protected CreateSalesOrderAction $createAction,
+        protected UpdateSalesOrderAction $updateAction,
+        protected ConfirmSalesOrderAction $confirmAction,
+        protected CancelSalesOrderAction $cancelAction,
+        protected SalesOrderValidator $validator
     ) {}
 
-    public function getAll()
+    public function getAll(int $perPage = 15): LengthAwarePaginator
     {
-        return $this->repository->paginate();
+        return $this->repository->paginate($perPage);
     }
 
-    public function find(int $id)
+    public function paginate(array $filters = [], int $perPage = 15): LengthAwarePaginator
+    {
+        return $this->repository->paginateWithFilters($filters, $perPage);
+    }
+
+    public function find(int|string $id): SalesOrder
     {
         return $this->repository->find($id);
     }
 
-    public function create(array $data)
+    public function findByUuid(string $uuid): ?SalesOrder
     {
-        return DB::transaction(function () use ($data) {
-
-            $items = $data['items'];
-
-            unset($data['items']);
-
-            $nextId = (
-                SalesOrder::max('id') ?? 0
-            ) + 1;
-
-            $data['so_no'] = sprintf(
-                'SO-%06d',
-                $nextId
-            );
-
-            $data['status'] = SalesOrderStatus::DRAFT;
-
-            $salesOrder = $this->repository->create(
-                $data
-            );
-
-            $subtotal = 0;
-
-            foreach ($items as $item) {
-
-                $product = Product::find(
-                    $item['product_id']
-                );
-
-                abort_if(
-                    !$product,
-                    422,
-                    'Invalid product.'
-                );
-
-                $lineTotal =
-                    $item['quantity']
-                    *
-                    $item['unit_price'];
-
-                SalesOrderItem::create([
-                    'sales_order_id'     => $salesOrder->id,
-                    'product_id'         => $item['product_id'],
-                    'warehouse_id'       => $item['warehouse_id'],
-                    'quantity'           => $item['quantity'],
-                    'delivered_quantity' => 0,
-                    'pending_quantity'   => $item['quantity'],
-                    'unit_price'         => $item['unit_price'],
-                    'line_total'         => $lineTotal,
-                ]);
-
-                $subtotal += $lineTotal;
-            }
-
-            $salesOrder->update([
-                'subtotal'    => $subtotal,
-                'grand_total' => $subtotal,
-            ]);
-
-            return $salesOrder->load(
-                'items'
-            );
-        });
+        return $this->repository->findByUuid($uuid);
     }
 
-    public function update(
-        int $id,
-        array $data
-    ) {
-        $salesOrder = $this->find(
-            $id
-        );
-
-        abort_if(
-            $salesOrder->status !== SalesOrderStatus::DRAFT,
-            422,
-            'Only draft sales orders can be updated.'
-        );
-
-        return $this->repository->update(
-            $id,
-            $data
-        );
+    public function create(array $data): SalesOrder
+    {
+        return $this->createAction->execute($data);
     }
 
-    public function approve(
-        SalesOrder $salesOrder
-    ) {
-        abort_if(
-            $salesOrder->status !== SalesOrderStatus::DRAFT,
-            422,
-            'Sales Order already approved.'
-        );
+    public function update(int|string|SalesOrder $order, array $data): SalesOrder
+    {
+        $salesOrder = $order instanceof SalesOrder ? $order : $this->find($order);
 
-        $salesOrder->update([
-            'status' => SalesOrderStatus::APPROVED,
-        ]);
-
-        return $salesOrder->fresh();
+        return $this->updateAction->execute($salesOrder, $data);
     }
 
-    public function convertToDeliveryNote(
-        SalesOrder $salesOrder
-    ) {
+    public function confirm(int|string|SalesOrder $order): SalesOrder
+    {
+        $salesOrder = $order instanceof SalesOrder ? $order : $this->find($order);
+
+        return $this->confirmAction->execute($salesOrder);
+    }
+
+    public function approve(SalesOrder $order): SalesOrder
+    {
+        return $this->confirm($order);
+    }
+
+    public function cancel(int|string|SalesOrder $order, ?string $reason = null): SalesOrder
+    {
+        $salesOrder = $order instanceof SalesOrder ? $order : $this->find($order);
+
+        return $this->cancelAction->execute($salesOrder, $reason);
+    }
+
+    public function delete(int|string|SalesOrder $order): bool
+    {
+        $salesOrder = $order instanceof SalesOrder ? $order : $this->find($order);
+        $this->validator->validateForDeletion($salesOrder);
+
         return DB::transaction(function () use ($salesOrder) {
+            $salesOrder->items()->delete();
 
-            abort_if(
-                $salesOrder->status !== SalesOrderStatus::APPROVED,
-                422,
-                'Sales Order must be approved first.'
-            );
-
-            $salesOrder->loadMissing('items');
-
-            $nextId = (
-                DeliveryNote::max('id') ?? 0
-            ) + 1;
-
-            $grandTotal = 0;
-
-            $deliveryNote = DeliveryNote::create([
-                'tenant_id'      => tenant()->id,
-                'sales_order_id' => $salesOrder->id,
-                'customer_id'    => $salesOrder->customer_id,
-                'dn_no'          => sprintf(
-                    'DN-%06d',
-                    $nextId
-                ),
-                'delivery_date'  => now(),
-                'grand_total'    => 0,
-                'status'         => DeliveryNoteStatus::DRAFT,
-                'notes'          => sprintf(
-                    'Generated from %s',
-                    $salesOrder->so_no
-                ),
-            ]);
-
-            foreach ($salesOrder->items as $item) {
-
-                if ($item->pending_quantity <= 0) {
-                    continue;
-                }
-
-                $lineTotal =
-                    $item->pending_quantity
-                    *
-                    $item->unit_price;
-
-                DeliveryNoteItem::create([
-                    'delivery_note_id'   => $deliveryNote->id,
-                    'product_id'         => $item->product_id,
-                    'warehouse_id'       => $item->warehouse_id,
-                    'ordered_quantity'   => $item->quantity,
-                    'delivered_quantity' => 0,
-                    'pending_quantity'   => $item->pending_quantity,
-                    'unit_price'         => $item->unit_price,
-                    'line_total'         => $lineTotal,
-                ]);
-
-                $grandTotal += $lineTotal;
-            }
-
-            $deliveryNote->update([
-                'grand_total' => $grandTotal,
-            ]);
-
-            $salesOrder->update([
-                'status' => SalesOrderStatus::CONVERTED_TO_DELIVERY,
-            ]);
-
-            return $deliveryNote->load('items');
+            return (bool) $salesOrder->delete();
         });
     }
 
-    public function convertToSale(
-        SalesOrder $salesOrder
-    ) {
-        return DB::transaction(function () use ($salesOrder) {
+    public function getItems(string $uuid): Collection
+    {
+        $salesOrder = $this->findByUuid($uuid) ?? $this->find($uuid);
 
-            abort_if(
-                $salesOrder->status !== SalesOrderStatus::APPROVED,
-                422,
-                'Sales Order must be approved first.'
-            );
-
-            $salesOrder->loadMissing(
-                'items'
-            );
-
-            $nextId = (
-                Sale::max('id') ?? 0
-            ) + 1;
-
-            $sale = Sale::create([
-                'tenant_id'   => tenant()->id,
-                'customer_id' => $salesOrder->customer_id,
-                'sale_no'     => sprintf(
-                    'SAL-%06d',
-                    $nextId
-                ),
-                'sale_date'   => now(),
-                'subtotal'    => $salesOrder->subtotal,
-                'grand_total' => $salesOrder->grand_total,
-                'status'      => SaleStatus::DRAFT,
-                'notes'       => sprintf(
-                    'Generated from %s',
-                    $salesOrder->so_no
-                ),
-            ]);
-
-            foreach (
-                $salesOrder->items as $item
-            ) {
-
-                SaleItem::create([
-                    'sale_id'      => $sale->id,
-                    'product_id'   => $item->product_id,
-                    'warehouse_id' => $item->warehouse_id,
-                    'quantity'     => $item->quantity,
-                    'unit_price'   => $item->unit_price,
-                    'line_total'   => $item->line_total,
-                ]);
-            }
-
-            $salesOrder->update([
-                'status' => SalesOrderStatus::CONVERTED_TO_SALE,
-            ]);
-
-            return $sale->load(
-                'items'
-            );
-        });
-    }
-
-    public function delete(
-        int $id
-    ) {
-        $salesOrder = $this->find(
-            $id
-        );
-
-        abort_if(
-            $salesOrder->status !== SalesOrderStatus::DRAFT,
-            422,
-            'Only draft sales orders can be deleted.'
-        );
-
-        return $this->repository->delete(
-            $id
-        );
+        return $salesOrder->items()
+            ->with(['product', 'warehouse', 'unit', 'taxGroup'])
+            ->get();
     }
 }

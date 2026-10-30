@@ -53,7 +53,7 @@ class CustomerAdvanceAutoAdjustmentService
 
             ->where(
                 'receipt_type',
-                ReceiptTypeEnum::ADVANCE
+                ReceiptTypeEnum::CUSTOMER_ADVANCE
             )
 
             ->orderBy(
