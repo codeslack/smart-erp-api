@@ -17,13 +17,15 @@ class PermissionSeeder extends Seeder
 
         $registrar->forgetCachedPermissions();
 
-        foreach (ModuleRegistry::permissions() as $permission) {
-            Permission::firstOrCreate([
-                'name' => $permission,
-                'guard_name' => 'sanctum',
-            ]);
+        try {
+            foreach (ModuleRegistry::permissions() as $permission) {
+                Permission::firstOrCreate([
+                    'name' => $permission,
+                    'guard_name' => 'sanctum',
+                ]);
+            }
+        } finally {
+            $registrar->forgetCachedPermissions();
         }
-
-        $registrar->forgetCachedPermissions();
     }
 }

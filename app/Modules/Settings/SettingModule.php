@@ -18,10 +18,10 @@ class SettingModule implements ModuleInterface
     {
         return [
 
-            'Settings.view',
-            'Settings.create',
-            'Settings.update',
-            'Settings.delete',
+            'settings.view',
+            'settings.create',
+            'settings.update',
+            'settings.delete',
         ];
     }
 

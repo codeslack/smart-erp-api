@@ -2,39 +2,49 @@
 
 namespace App\Modules\Rbac\Controllers;
 
-use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
-use App\Modules\User\Models\User;
+use Illuminate\Http\JsonResponse;
 
-class UserRoleController extends Controller
+use App\Http\Controllers\ApiController;
+
+use App\Modules\Rbac\Requests\AssignRolesRequest;
+use App\Modules\Rbac\Resources\RoleResource;
+use App\Modules\Rbac\Services\UserRoleService;
+
+class UserRoleController extends ApiController
 {
-    /**
-     * GET /rbac/users/{user}/roles
-     */
-    public function show(User $user)
-    {
-        return response()->json([
-            'success' => true,
-            'data' => $user->roles,
-        ]);
+    public function __construct(
+        protected UserRoleService $userRoles
+    ) {}
+
+    public function show(
+        string $userUuid
+    ): JsonResponse {
+        $user = $this->userRoles->findUserRoles(
+            $userUuid
+        );
+
+        return $this->success(
+            RoleResource::collection(
+                $user->roles
+            ),
+            'User roles retrieved successfully.'
+        );
     }
 
-    /**
-     * POST /rbac/users/{user}/roles
-     */
-    public function sync(Request $request, User $user)
-    {
-        $validated = $request->validate([
-            'roles' => ['required', 'array'],
-            'roles.*' => ['string'],
-        ]);
+    public function sync(
+        AssignRolesRequest $request,
+        string $userUuid
+    ): JsonResponse {
+        $user = $this->userRoles->syncRoles(
+            $userUuid,
+            $request->validated('roles')
+        );
 
-        $user->syncRoles($validated['roles']);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Roles assigned successfully',
-            'data' => $user->fresh()->roles,
-        ]);
+        return $this->success(
+            RoleResource::collection(
+                $user->roles
+            ),
+            'User roles updated successfully.'
+        );
     }
 }

@@ -7,17 +7,19 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class RoleResource extends JsonResource
 {
-    public function toArray(Request $request): array
-    {
+    public function toArray(
+        Request $request
+    ): array {
         return [
-            'id' => $this->id,
-            'tenant_id' => $this->tenant_id,
+            'uuid' => $this->uuid,
+
             'name' => $this->name,
+
             'guard_name' => $this->guard_name,
 
-            'permissions' => $this->permissions
-                ->pluck('name')
-                ->values(),
+            'permissions' => PermissionResource::collection(
+                $this->whenLoaded('permissions')
+            ),
         ];
     }
 }

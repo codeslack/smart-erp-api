@@ -6,6 +6,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 use App\Core\Requests\BaseRequest;
+use App\Core\Validation\TenantRule;
 
 class UpdateUserRequest extends BaseRequest
 {
@@ -14,7 +15,6 @@ class UpdateUserRequest extends BaseRequest
         $user = $this->route('user');
 
         return [
-
             /*
             |--------------------------------------------------------------------------
             | Basic Information
@@ -36,6 +36,7 @@ class UpdateUserRequest extends BaseRequest
             ],
 
             'phone' => [
+                'sometimes',
                 'nullable',
                 'string',
                 'max:30',
@@ -55,24 +56,26 @@ class UpdateUserRequest extends BaseRequest
 
             /*
             |--------------------------------------------------------------------------
-            | Roles
+            | Tenant Roles
             |--------------------------------------------------------------------------
             */
 
-            'role_ids' => [
+            'role_uuids' => [
                 'sometimes',
                 'array',
                 'min:1',
-                'distinct',
             ],
 
-            'role_ids.*' => [
-                'integer',
-                Rule::exists('roles', 'id')
-                    ->where(
-                        'tenant_id',
-                        tenantId()
-                    ),
+            'role_uuids.*' => [
+                'required',
+                'string',
+                'uuid',
+                'distinct:strict',
+
+                TenantRule::exists(
+                    'roles',
+                    'uuid'
+                )->where('guard_name', 'sanctum'),
             ],
 
             /*
@@ -91,9 +94,8 @@ class UpdateUserRequest extends BaseRequest
     public function attributes(): array
     {
         return [
-
-            'role_ids'   => 'roles',
-            'role_ids.*' => 'role',
+            'role_uuids' => 'roles',
+            'role_uuids.*' => 'role',
         ];
     }
 }

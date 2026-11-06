@@ -4,6 +4,8 @@ namespace App\Modules\Tenant\Services;
 
 use Illuminate\Support\Facades\DB;
 
+use App\Core\Tenant\TenantManager;
+
 use App\Modules\Tenant\Models\Tenant;
 use App\Modules\User\Services\UserService;
 
@@ -17,11 +19,14 @@ class TenantService
         protected TenantRepositoryInterface $repository,
         protected TenantSetupService $setup,
         protected UserService $users,
+        protected TenantManager $tenantManager,
     ) {}
 
     public function create(array $data): Tenant
     {
         return DB::transaction(function () use ($data) {
+
+            $previousTenant = $this->tenantManager->getTenant();
 
             $data['code'] = nextSystemNumber(
                 SystemNumberTypeEnum::COMPANY
@@ -29,27 +34,49 @@ class TenantService
 
             logger()->info('Creating Tenant');
 
-            $tenant = $this->repository->create(
-                $data
-            );
+            $tenantData = collect($data)
+                ->only([
+                    'name',
+                    'slug',
+                    'domain',
+                    'business_type',
+                    'is_active',
+                ])
+                ->all();
+
+            $tenantData['code'] = $data['code'];
+
+            $tenant = $this->repository->create($tenantData);
 
             $tenant->refresh();
 
-            logger()->info('Running Tenant Setup');
+            $this->tenantManager->setTenant($tenant);
 
-            $this->setup->setup(
-                $tenant
-            );
+            try {
 
-            logger()->info('Admin User Setup');
-            $this->users->createAdmin(
-                $tenant,
-                $data
-            );
+                logger()->info('Running Tenant Setup');
 
-            logger()->info('Admin User Setup Complete');
+                $this->setup->setup($tenant);
 
-            return $tenant;
+                logger()->info('Admin User Setup');
+
+                $this->users->createAdmin(
+                    $tenant,
+                    $data
+                );
+
+                logger()->info('Admin User Setup Complete');
+
+                return $tenant;
+
+            } finally {
+
+                if ($previousTenant) {
+                    $this->tenantManager->setTenant($previousTenant);
+                } else {
+                    $this->tenantManager->clear();
+                }
+            }
         });
     }
 }

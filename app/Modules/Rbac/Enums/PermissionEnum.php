@@ -10,13 +10,10 @@ enum PermissionEnum: string
     |--------------------------------------------------------------------------
     */
 
-    case USERS_VIEW = 'users.view';
-
-    case USERS_CREATE = 'users.create';
-
-    case USERS_UPDATE = 'users.update';
-
-    case USERS_DELETE = 'users.delete';
+    case USER_VIEW = 'user.view';
+    case USER_CREATE = 'user.create';
+    case USER_UPDATE = 'user.update';
+    case USER_DELETE = 'user.delete';
 
     /*
     |--------------------------------------------------------------------------
@@ -24,13 +21,11 @@ enum PermissionEnum: string
     |--------------------------------------------------------------------------
     */
 
-    case ROLES_VIEW = 'roles.view';
-
-    case ROLES_CREATE = 'roles.create';
-
-    case ROLES_UPDATE = 'roles.update';
-
-    case ROLES_DELETE = 'roles.delete';
+    case ROLE_VIEW = 'role.view';
+    case ROLE_CREATE = 'role.create';
+    case ROLE_UPDATE = 'role.update';
+    case ROLE_DELETE = 'role.delete';
+    case ROLE_ASSIGN = 'role.assign';
 
     /*
     |--------------------------------------------------------------------------
@@ -38,9 +33,8 @@ enum PermissionEnum: string
     |--------------------------------------------------------------------------
     */
 
-    case PERMISSIONS_VIEW = 'permissions.view';
-
-    case PERMISSIONS_ASSIGN = 'permissions.assign';
+    case PERMISSION_VIEW = 'permission.view';
+    case PERMISSION_ASSIGN = 'permission.assign';
 
     /*
     |--------------------------------------------------------------------------
@@ -48,19 +42,10 @@ enum PermissionEnum: string
     |--------------------------------------------------------------------------
     */
 
-    case TENANTS_VIEW = 'tenants.view';
-
-    case TENANTS_CREATE = 'tenants.create';
-
-    case TENANTS_UPDATE = 'tenants.update';
-
-    /*
-    |--------------------------------------------------------------------------
-    | Dashboard
-    |--------------------------------------------------------------------------
-    */
-
-    case DASHBOARD_VIEW = 'dashboard.view';
+    case TENANT_VIEW = 'tenant.view';
+    case TENANT_CREATE = 'tenant.create';
+    case TENANT_UPDATE = 'tenant.update';
+    case TENANT_DELETE = 'tenant.delete';
 
     public static function values(): array
     {

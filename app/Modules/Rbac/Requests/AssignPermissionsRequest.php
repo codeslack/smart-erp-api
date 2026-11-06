@@ -2,26 +2,23 @@
 
 namespace App\Modules\Rbac\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
+use App\Core\Requests\BaseRequest;
 
-class AssignPermissionsRequest extends FormRequest
+class AssignPermissionsRequest extends BaseRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     public function rules(): array
     {
         return [
             'permissions' => [
-                'required',
+                'present',
                 'array',
             ],
 
             'permissions.*' => [
+                'required',
                 'string',
-                'exists:permissions,name',
+                'uuid',
+                'distinct:strict',
             ],
         ];
     }

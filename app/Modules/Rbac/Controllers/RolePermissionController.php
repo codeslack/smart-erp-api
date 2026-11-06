@@ -2,72 +2,60 @@
 
 namespace App\Modules\Rbac\Controllers;
 
-use App\Http\Controllers\Controller;
-use App\Modules\Rbac\Models\Role;
-use App\Modules\Rbac\Models\Permission;
-use App\Modules\Rbac\Requests\AssignPermissionsRequest;
-use App\Modules\Rbac\Resources\PermissionResource;
 use Illuminate\Http\JsonResponse;
 
-class RolePermissionController extends Controller
+use App\Http\Controllers\ApiController;
+
+use App\Modules\Rbac\Requests\AssignPermissionsRequest;
+
+use App\Modules\Rbac\Resources\RoleResource;
+use App\Modules\Rbac\Resources\PermissionResource;
+
+use App\Modules\Rbac\Services\RolePermissionService;
+
+class RolePermissionController extends ApiController
 {
-    /**
-     * GET /rbac/permissions
-     */
+    public function __construct(
+        protected RolePermissionService $permissions
+    ) {}
+
     public function index(): JsonResponse
     {
-        $permissions = Permission::query()
-            ->orderBy('name')
-            ->get();
+        $permissions = $this->permissions
+            ->paginatePermissions(
+                request('per_page', 15)
+            );
 
-        return response()->json([
-            'success' => true,
-            'data' => PermissionResource::collection($permissions),
-        ]);
-    }
-
-    /**
-     * GET /rbac/roles/{role}/permissions
-     */
-    public function show(Role $role): JsonResponse
-    {
-        abort_if(
-            $role->tenant_id !== tenant()->id,
-            403
+        return $this->success(
+            PermissionResource::collection($permissions),
+            'Permissions retrieved successfully.'
         );
-
-        $permissions = $role->permissions()
-            ->orderBy('name')
-            ->get();
-
-        return response()->json([
-            'success' => true,
-            'data' => PermissionResource::collection($permissions),
-        ]);
     }
 
-    /**
-     * POST /rbac/roles/{role}/permissions
-     */
+    public function show(
+        string $uuid
+    ): JsonResponse {
+        $role = $this->permissions
+            ->findRolePermissions($uuid);
+
+        return $this->success(
+            new RoleResource($role),
+            'Role permissions retrieved successfully.'
+        );
+    }
+
     public function sync(
         AssignPermissionsRequest $request,
-        Role $role
+        string $uuid
     ): JsonResponse {
-        abort_if(
-            $role->tenant_id !== tenant()->id,
-            403
-        );
-
-        $role->syncPermissions(
+        $role = $this->permissions->syncPermissions(
+            $uuid,
             $request->validated('permissions')
         );
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Permissions assigned successfully.',
-            'data' => PermissionResource::collection(
-                $role->permissions()->orderBy('name')->get()
-            ),
-        ]);
+        return $this->success(
+            new RoleResource($role),
+            'Role permissions updated successfully.'
+        );
     }
 }

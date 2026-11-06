@@ -7,7 +7,7 @@ use App\Core\Scopes\TenantScope;
 use App\Core\Traits\HasUuidPrimaryKey;
 
 abstract class TenantAuthenticatable
-extends BaseAuthenticatable
+    extends BaseAuthenticatable
 {
     use HasUuidPrimaryKey;
 

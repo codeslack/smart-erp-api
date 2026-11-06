@@ -147,9 +147,10 @@ class ModuleRegistry
         string $module
     ): bool {
 
-        return is_subclass_of(
-            $module,
-            ModuleInterface::class
-        );
+        return class_exists($module)
+            && is_subclass_of(
+                $module,
+                ModuleInterface::class
+            );
     }
 }

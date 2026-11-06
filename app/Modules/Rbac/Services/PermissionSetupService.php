@@ -2,100 +2,56 @@
 
 namespace App\Modules\Rbac\Services;
 
+use Spatie\Permission\PermissionRegistrar;
+
 use App\Modules\Tenant\Models\Tenant;
-
-use App\Modules\Rbac\Models\Role;
-use App\Modules\Rbac\Models\Permission;
-
-use App\Modules\Rbac\Enums\RoleEnum;
-
 use App\Modules\Tenant\Contracts\TenantSetupInterface;
 
-class PermissionSetupService
-    implements TenantSetupInterface
+use App\Modules\Rbac\Models\Permission;
+use App\Modules\Rbac\Enums\RoleEnum;
+
+use App\Modules\Rbac\Services\Setup\DefaultRolePermissionMap;
+use App\Modules\Rbac\Services\Setup\RolePermissionSynchronizer;
+
+class PermissionSetupService implements TenantSetupInterface
 {
-    public function setup(
-        Tenant $tenant
-    ): void {
+    private const GUARD_NAME = 'sanctum';
 
-        $this->setupAdministrator(
-            $tenant
-        );
+    public function __construct(
+        protected PermissionRegistrar $registrar,
+        protected DefaultRolePermissionMap $permissionMap,
+        protected RolePermissionSynchronizer $synchronizer
+    ) {}
 
-        $this->setupViewer(
-            $tenant
-        );
-    }
+    public function setup(Tenant $tenant): void
+    {
+        $this->registrar->setPermissionsTeamId($tenant->id);
 
-    protected function setupAdministrator(
-        Tenant $tenant
-    ): void {
+        try {
+            $availablePermissions = Permission::query()
+                ->where('guard_name', self::GUARD_NAME)
+                ->pluck('name')
+                ->all();
 
-        $role =
-            $this->findRole(
+            $this->synchronizer->sync(
                 $tenant,
-                RoleEnum::ADMINISTRATOR
+                RoleEnum::ADMINISTRATOR,
+                $availablePermissions,
+                $availablePermissions
             );
 
-        if (! $role) {
-            return;
-        }
-
-        $role->syncPermissions(
-            Permission::query()
-                ->pluck('name')
-                ->toArray()
-        );
-    }
-
-    protected function setupViewer(
-        Tenant $tenant
-    ): void {
-
-        $role =
-            $this->findRole(
-                $tenant,
-                RoleEnum::VIEWER
+            foreach ($this->permissionMap->all() as $role => $permissions) {
+                $this->synchronizer->sync(
+                    $tenant,
+                    RoleEnum::from($role),
+                    $permissions,
+                    $availablePermissions
+                );
+            }
+        } finally {
+            $this->registrar->setPermissionsTeamId(
+                null
             );
-
-        if (! $role) {
-            return;
         }
-
-        $permissions =
-            Permission::query()
-
-                ->where(
-                    'name',
-                    'like',
-                    '%.view'
-                )
-
-                ->pluck('name')
-                ->toArray();
-
-        $role->syncPermissions(
-            $permissions
-        );
-    }
-
-    protected function findRole(
-        Tenant $tenant,
-        RoleEnum $role
-    ): ?Role {
-
-        return Role::query()
-
-            ->where(
-                'tenant_id',
-                $tenant->id
-            )
-
-            ->where(
-                'name',
-                $role->value
-            )
-
-            ->first();
     }
 }

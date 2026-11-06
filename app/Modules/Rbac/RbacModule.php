@@ -14,7 +14,16 @@ class RbacModule implements ModuleInterface
 
     public static function permissions(): array
     {
-        return [];
+        return [
+            'role.view',
+            'role.create',
+            'role.update',
+            'role.delete',
+            'role.assign',
+
+            'permission.view',
+            'permission.assign',
+        ];
     }
 
     public static function serviceProviders(): array

@@ -2,15 +2,11 @@
 
 namespace App\Modules\Rbac\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
+use App\Core\Requests\BaseRequest;
+use App\Core\Validation\TenantRule;
 
-class StoreRoleRequest extends FormRequest
+class StoreRoleRequest extends BaseRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     public function rules(): array
     {
         return [
@@ -18,6 +14,10 @@ class StoreRoleRequest extends FormRequest
                 'required',
                 'string',
                 'max:255',
+                TenantRule::unique(
+                    'roles',
+                    'name'
+                )->where('guard_name', 'sanctum'),
             ],
         ];
     }

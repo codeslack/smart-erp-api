@@ -80,6 +80,8 @@ class SettingsSetupService
                     $previousTenant
                 );
 
+            } else {
+                $this->tenantManager->clear();
             }
         }
     }
