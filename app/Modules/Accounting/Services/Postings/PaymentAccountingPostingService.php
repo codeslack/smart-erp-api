@@ -9,6 +9,7 @@ use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Customer\Models\Customer;
 use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
+use App\Modules\Payment\Enums\PaymentPurposeEnum;
 use App\Modules\Payment\Enums\PaymentTypeEnum;
 use App\Modules\Payment\Models\Payment;
 use App\Modules\Accounting\Services\JournalEntry\JournalEntryService;
@@ -28,119 +29,279 @@ class PaymentAccountingPostingService extends BasePostingService
     public function post(Payment $payment): void
     {
         $this->validateAmount((string) $payment->amount);
-        $this->validateParty($payment);
+
+        $purpose = $payment->purpose;
+
+        if (! $purpose instanceof PaymentPurposeEnum) {
+            throw new BusinessException('Invalid payment purpose.');
+        }
+
+        $this->validatePurposeDirection($payment, $purpose);
+        $this->validateParty($payment, $purpose);
 
         $cashAccount = $this->getPaymentAccount($payment);
+
         $allocated = '0.0000';
 
         foreach ($payment->allocations as $allocation) {
+            if (! $this->allowsAllocations($purpose)) {
+                throw new BusinessException(
+                    'Allocations are not allowed for this payment purpose.'
+                );
+            }
+
             $this->allocationValidator->validate($payment, $allocation);
 
-            $amount = bcadd((string) $allocation->allocated_amount, '0', self::SCALE);
+            $amount = bcadd(
+                (string) $allocation->allocated_amount,
+                '0',
+                self::SCALE
+            );
+
             $this->validateAmount($amount);
 
             $allocated = bcadd($allocated, $amount, self::SCALE);
         }
 
-        $paymentAmount = bcadd((string) $payment->amount, '0', self::SCALE);
+        $paymentAmount = bcadd(
+            (string) $payment->amount,
+            '0',
+            self::SCALE
+        );
 
         if (bccomp($allocated, $paymentAmount, self::SCALE) > 0) {
-            throw new BusinessException('Payment allocations cannot exceed payment amount.');
+            throw new BusinessException(
+                'Payment allocations cannot exceed payment amount.'
+            );
         }
 
-        $remaining = bcsub($paymentAmount, $allocated, self::SCALE);
+        $remaining = bcsub(
+            $paymentAmount,
+            $allocated,
+            self::SCALE
+        );
 
-        if ($payment->payment_type === PaymentTypeEnum::RECEIPT) {
-            $this->postReceipt($payment, $cashAccount, $allocated, $remaining, $paymentAmount);
+        $lines = match ($purpose) {
+            PaymentPurposeEnum::CUSTOMER_PAYMENT =>
+                $this->customerPaymentLines(
+                    $cashAccount,
+                    $allocated,
+                    $remaining,
+                    $paymentAmount
+                ),
 
-            return;
-        }
+            PaymentPurposeEnum::CUSTOMER_ADVANCE,
+            PaymentPurposeEnum::CUSTOMER_OPENING_BALANCE_ADJUSTMENT =>
+                [
+                    $this->accountDebit($cashAccount, $paymentAmount),
+                    $this->credit(
+                        AccountingAccounts::CUSTOMER_ADVANCES,
+                        $paymentAmount
+                    ),
+                ],
 
-        if ($payment->payment_type === PaymentTypeEnum::PAYMENT) {
-            $this->postPayment($payment, $cashAccount, $allocated, $remaining, $paymentAmount);
+            PaymentPurposeEnum::CUSTOMER_REFUND =>
+                [
+                    $this->debit(
+                        AccountingAccounts::CUSTOMER_ADVANCES,
+                        $paymentAmount
+                    ),
+                    $this->accountCredit($cashAccount, $paymentAmount),
+                ],
 
-            return;
-        }
+            PaymentPurposeEnum::SUPPLIER_PAYMENT =>
+                $this->supplierPaymentLines(
+                    $cashAccount,
+                    $allocated,
+                    $remaining,
+                    $paymentAmount
+                ),
 
-        throw new BusinessException('Unsupported payment type for accounting posting.');
+            PaymentPurposeEnum::SUPPLIER_ADVANCE =>
+                [
+                    $this->debit(
+                        AccountingAccounts::SUPPLIER_ADVANCES,
+                        $paymentAmount
+                    ),
+                    $this->accountCredit($cashAccount, $paymentAmount),
+                ],
+
+            PaymentPurposeEnum::SUPPLIER_REFUND =>
+                [
+                    $this->accountDebit($cashAccount, $paymentAmount),
+                    $this->credit(
+                        AccountingAccounts::SUPPLIER_ADVANCES,
+                        $paymentAmount
+                    ),
+                ],
+
+            PaymentPurposeEnum::OTHER_RECEIPT =>
+                $this->otherReceiptLines($payment, $cashAccount, $paymentAmount),
+
+            PaymentPurposeEnum::OTHER_PAYMENT =>
+                $this->otherPaymentLines($payment, $cashAccount, $paymentAmount),
+        };
+
+        $voucherType = $purpose->isReceipt()
+            ? JournalVoucherTypeEnum::RECEIPT
+            : JournalVoucherTypeEnum::PAYMENT;
+
+        $this->createJournalEntry(
+            entryDate: $payment->payment_date->toDateString(),
+            voucherType: $voucherType->value,
+            referenceType: Payment::class,
+            referenceId: $payment->id,
+            description: $purpose->isReceipt()
+                ? "Receipt {$payment->payment_no}"
+                : "Payment {$payment->payment_no}",
+            lines: $lines
+        );
     }
 
-    protected function postReceipt(
-        Payment $payment,
+    protected function customerPaymentLines(
         ChartOfAccount $cashAccount,
         string $allocated,
         string $remaining,
         string $paymentAmount
-    ): void {
+    ): array {
         $lines = [
             $this->accountDebit($cashAccount, $paymentAmount),
         ];
 
         if (bccomp($allocated, '0', self::SCALE) > 0) {
-            $lines[] = $this->credit(AccountingAccounts::ACCOUNTS_RECEIVABLE, $allocated);
+            $lines[] = $this->credit(
+                AccountingAccounts::ACCOUNTS_RECEIVABLE,
+                $allocated
+            );
         }
 
         if (bccomp($remaining, '0', self::SCALE) > 0) {
-            $lines[] = $this->credit(AccountingAccounts::CUSTOMER_ADVANCES, $remaining);
+            $lines[] = $this->credit(
+                AccountingAccounts::CUSTOMER_ADVANCES,
+                $remaining
+            );
         }
 
-        $this->createJournalEntry(
-            entryDate: $payment->payment_date->toDateString(),
-            voucherType: JournalVoucherTypeEnum::RECEIPT->value,
-            referenceType: Payment::class,
-            referenceId: $payment->id,
-            description: "Receipt {$payment->payment_no}",
-            lines: $lines
-        );
+        return $lines;
     }
 
-    protected function postPayment(
-        Payment $payment,
+    protected function supplierPaymentLines(
         ChartOfAccount $cashAccount,
         string $allocated,
         string $remaining,
         string $paymentAmount
-    ): void {
+    ): array {
         $lines = [];
 
         if (bccomp($allocated, '0', self::SCALE) > 0) {
-            $lines[] = $this->debit(AccountingAccounts::ACCOUNTS_PAYABLE, $allocated);
+            $lines[] = $this->debit(
+                AccountingAccounts::ACCOUNTS_PAYABLE,
+                $allocated
+            );
         }
 
         if (bccomp($remaining, '0', self::SCALE) > 0) {
-            $lines[] = $this->debit(AccountingAccounts::SUPPLIER_ADVANCES, $remaining);
+            $lines[] = $this->debit(
+                AccountingAccounts::SUPPLIER_ADVANCES,
+                $remaining
+            );
         }
 
-        $lines[] = $this->accountCredit($cashAccount, $paymentAmount);
-
-        $this->createJournalEntry(
-            entryDate: $payment->payment_date->toDateString(),
-            voucherType: JournalVoucherTypeEnum::PAYMENT->value,
-            referenceType: Payment::class,
-            referenceId: $payment->id,
-            description: "Payment {$payment->payment_no}",
-            lines: $lines
+        $lines[] = $this->accountCredit(
+            $cashAccount,
+            $paymentAmount
         );
+
+        return $lines;
     }
 
-    protected function validateParty(Payment $payment): void
-    {
+    protected function otherReceiptLines(
+        Payment $payment,
+        ChartOfAccount $cashAccount,
+        string $paymentAmount
+    ): array {
+        $offsetAccount = $this->getOffsetAccount($payment, $cashAccount);
+
+        return [
+            $this->accountDebit($cashAccount, $paymentAmount),
+            $this->accountCredit($offsetAccount, $paymentAmount),
+        ];
+    }
+
+    protected function otherPaymentLines(
+        Payment $payment,
+        ChartOfAccount $cashAccount,
+        string $paymentAmount
+    ): array {
+        $offsetAccount = $this->getOffsetAccount($payment, $cashAccount);
+
+        return [
+            $this->accountDebit($offsetAccount, $paymentAmount),
+            $this->accountCredit($cashAccount, $paymentAmount),
+        ];
+    }
+
+    protected function validatePurposeDirection(
+        Payment $payment,
+        PaymentPurposeEnum $purpose
+    ): void {
         if (
-            $payment->payment_type === PaymentTypeEnum::RECEIPT
-            && $payment->party_type !== PaymentPartyTypeEnum::CUSTOMER
+            $purpose->isReceipt()
+            && $payment->payment_type !== PaymentTypeEnum::RECEIPT
         ) {
-            throw new BusinessException('Receipt must belong to a customer.');
+            throw new BusinessException(
+                'This payment purpose requires a receipt transaction.'
+            );
         }
 
         if (
-            $payment->payment_type === PaymentTypeEnum::PAYMENT
-            && $payment->party_type !== PaymentPartyTypeEnum::SUPPLIER
+            $purpose->isPayment()
+            && $payment->payment_type !== PaymentTypeEnum::PAYMENT
         ) {
-            throw new BusinessException('Payment must belong to a supplier.');
+            throw new BusinessException(
+                'This payment purpose requires a payment transaction.'
+            );
+        }
+    }
+
+    protected function validateParty(
+        Payment $payment,
+        PaymentPurposeEnum $purpose
+    ): void {
+        if (
+            $purpose->isOtherReceipt()
+            || $purpose->isOtherPayment()
+        ) {
+            if (
+                $payment->party_type !== PaymentPartyTypeEnum::OTHER
+                || $payment->party_id !== null
+            ) {
+                throw new BusinessException(
+                    'Other transactions must not have a customer or supplier.'
+                );
+            }
+
+            return;
         }
 
-        if ($payment->party_type === PaymentPartyTypeEnum::CUSTOMER) {
-            $exists = Customer::query()->whereKey($payment->party_id)->exists();
+        if (
+            $purpose->isCustomerPayment()
+            || $purpose->isCustomerAdvance()
+            || $purpose->isCustomerOpeningBalanceAdjustment()
+            || $purpose->isCustomerRefund()
+        ) {
+            if (
+                $payment->party_type !== PaymentPartyTypeEnum::CUSTOMER
+                || ! $payment->party_id
+            ) {
+                throw new BusinessException(
+                    'This payment purpose requires a customer.'
+                );
+            }
+
+            $exists = Customer::query()
+                ->whereKey($payment->party_id)
+                ->exists();
 
             if (! $exists) {
                 throw new BusinessException('Customer not found.');
@@ -149,8 +310,23 @@ class PaymentAccountingPostingService extends BasePostingService
             return;
         }
 
-        if ($payment->party_type === PaymentPartyTypeEnum::SUPPLIER) {
-            $exists = Supplier::query()->whereKey($payment->party_id)->exists();
+        if (
+            $purpose->isSupplierPayment()
+            || $purpose->isSupplierAdvance()
+            || $purpose->isSupplierRefund()
+        ) {
+            if (
+                $payment->party_type !== PaymentPartyTypeEnum::SUPPLIER
+                || ! $payment->party_id
+            ) {
+                throw new BusinessException(
+                    'This payment purpose requires a supplier.'
+                );
+            }
+
+            $exists = Supplier::query()
+                ->whereKey($payment->party_id)
+                ->exists();
 
             if (! $exists) {
                 throw new BusinessException('Supplier not found.');
@@ -159,7 +335,14 @@ class PaymentAccountingPostingService extends BasePostingService
             return;
         }
 
-        throw new BusinessException('Unsupported payment party.');
+        throw new BusinessException('Unsupported payment purpose.');
+    }
+
+    protected function allowsAllocations(
+        PaymentPurposeEnum $purpose
+    ): bool {
+        return $purpose->isCustomerPayment()
+            || $purpose->isSupplierPayment();
     }
 
     protected function getPaymentAccount(Payment $payment): ChartOfAccount
@@ -183,8 +366,45 @@ class PaymentAccountingPostingService extends BasePostingService
         return $account;
     }
 
-    protected function accountDebit(ChartOfAccount $account, string $amount): array
-    {
+    protected function getOffsetAccount(
+        Payment $payment,
+        ChartOfAccount $cashAccount
+    ): ChartOfAccount {
+        $tenantId = tenantId();
+
+        if (! $tenantId) {
+            throw new BusinessException('Active tenant not found.');
+        }
+
+        if (! $payment->offset_account_id) {
+            throw new BusinessException(
+                'Offset account is required for this transaction.'
+            );
+        }
+
+        $account = ChartOfAccount::query()
+            ->where('tenant_id', $tenantId)
+            ->whereKey($payment->offset_account_id)
+            ->where('is_active', true)
+            ->first();
+
+        if (! $account) {
+            throw new BusinessException('Offset account not found.');
+        }
+
+        if ($account->is($cashAccount)) {
+            throw new BusinessException(
+                'Payment account and offset account must be different.'
+            );
+        }
+
+        return $account;
+    }
+
+    protected function accountDebit(
+        ChartOfAccount $account,
+        string $amount
+    ): array {
         return [
             'chart_of_account_uuid' => $account->uuid,
             'debit' => $this->decimal($amount),
@@ -193,8 +413,10 @@ class PaymentAccountingPostingService extends BasePostingService
         ];
     }
 
-    protected function accountCredit(ChartOfAccount $account, string $amount): array
-    {
+    protected function accountCredit(
+        ChartOfAccount $account,
+        string $amount
+    ): array {
         return [
             'chart_of_account_uuid' => $account->uuid,
             'debit' => '0.0000',

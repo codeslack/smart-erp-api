@@ -16,6 +16,7 @@ use App\Modules\Payment\Models\PaymentAllocation;
 use App\Modules\Payment\Enums\PaymentTypeEnum;
 use App\Modules\Payment\Enums\PaymentMethodEnum;
 use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
+use App\Modules\Payment\Enums\PaymentPurposeEnum;
 use App\Modules\Payment\Services\Contracts\PaymentServiceInterface;
 use App\Modules\Payment\Services\Contracts\PaymentAllocationServiceInterface;
 
@@ -55,6 +56,7 @@ class PaymentFoundationTest extends TestCase
         return array_merge([
             'payment_no' => 'REC-0001',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => null,

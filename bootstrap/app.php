@@ -7,6 +7,9 @@ use Illuminate\Foundation\Configuration\Middleware;
 
 use App\Core\Exceptions\BaseApiException;
 use App\Core\Exceptions\ApiExceptionHandler;
+use App\Core\Tenant\Middleware\TenantBootstrapMiddleware;
+
+use Spatie\Permission\Middleware\PermissionMiddleware;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -18,8 +21,21 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'tenant' => \App\Core\Tenant\TenantMiddleware::class,
+            'tenant.bootstrap' => \App\Core\Tenant\Middleware\TenantBootstrapMiddleware::class,
             'permission.tenant' => \App\Core\Tenant\Middleware\SetPermissionTenant::class,
+            'permission' => PermissionMiddleware::class,
         ]);
+
+        $middleware->api(
+            prepend: [
+                TenantBootstrapMiddleware::class,
+            ]
+        );
+
+        $middleware->prependToPriorityList(
+            \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            \App\Core\Tenant\Middleware\TenantBootstrapMiddleware::class
+        );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

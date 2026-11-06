@@ -39,6 +39,7 @@ class PaymentAccountingRules
         return match ($purpose) {
             PaymentPurposeEnum::CUSTOMER_PAYMENT,
             PaymentPurposeEnum::CUSTOMER_ADVANCE,
+            PaymentPurposeEnum::CUSTOMER_OPENING_BALANCE_ADJUSTMENT,
             PaymentPurposeEnum::CUSTOMER_REFUND,
 
             PaymentPurposeEnum::SUPPLIER_PAYMENT,

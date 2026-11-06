@@ -28,6 +28,7 @@ use App\Modules\SupplierOpeningBill\Models\SupplierOpeningBill;
 use App\Modules\Payment\Enums\PaymentTypeEnum;
 use App\Modules\Payment\Enums\PaymentMethodEnum;
 use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
+use App\Modules\Payment\Enums\PaymentPurposeEnum;
 
 use App\Modules\Payment\Services\Contracts\PaymentServiceInterface;
 
@@ -95,6 +96,7 @@ class PaymentAllocationBalanceTest extends TestCase
                 'tenant_id' => $this->tenant->id,
                 'payment_no' => 'REC-BAL-001',
                 'payment_type' => PaymentTypeEnum::RECEIPT->value,
+                'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT->value,
                 'payment_date' => '2026-01-10',
                 'party_type' => PaymentPartyTypeEnum::CUSTOMER->value,
                 'party_id' => $this->customer->id,
@@ -213,6 +215,7 @@ class PaymentAllocationBalanceTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'PAY-BAL-001',
             'payment_type' => PaymentTypeEnum::PAYMENT->value,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT->value,
             'payment_date' => '2026-01-10',
             'party_type' => PaymentPartyTypeEnum::SUPPLIER->value,
             'party_id' => $this->supplier->id,
@@ -314,6 +317,7 @@ class PaymentAllocationBalanceTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'REC-MULTI-001',
             'payment_type' => PaymentTypeEnum::RECEIPT->value,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT->value,
             'payment_date' => '2026-01-10',
             'party_type' => PaymentPartyTypeEnum::CUSTOMER->value,
             'party_id' => $this->customer->id,
@@ -418,6 +422,7 @@ class PaymentAllocationBalanceTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'PAY-MULTI-001',
             'payment_type' => PaymentTypeEnum::PAYMENT->value,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT->value,
             'payment_date' => '2026-01-10',
             'party_type' => PaymentPartyTypeEnum::SUPPLIER->value,
             'party_id' => $this->supplier->id,
@@ -509,6 +514,7 @@ class PaymentAllocationBalanceTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'PAY-ROLLBACK-001',
             'payment_type' => PaymentTypeEnum::PAYMENT->value,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT->value,
             'payment_date' => '2026-01-10',
             'party_type' => PaymentPartyTypeEnum::SUPPLIER->value,
             'party_id' => $this->supplier->id,
@@ -587,6 +593,7 @@ class PaymentAllocationBalanceTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'PAY-OVER-001',
             'payment_type' => PaymentTypeEnum::PAYMENT->value,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT->value,
             'payment_date' => '2026-01-10',
             'party_type' => PaymentPartyTypeEnum::SUPPLIER->value,
             'party_id' => $this->supplier->id,
@@ -655,6 +662,7 @@ class PaymentAllocationBalanceTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'PAY-BALANCE-001',
             'payment_type' => PaymentTypeEnum::PAYMENT->value,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT->value,
             'payment_date' => '2026-01-10',
             'party_type' => PaymentPartyTypeEnum::SUPPLIER->value,
             'party_id' => $this->supplier->id,
@@ -712,6 +720,7 @@ class PaymentAllocationBalanceTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'REC-BALANCE-001',
             'payment_type' => PaymentTypeEnum::RECEIPT->value,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT->value,
             'payment_date' => '2026-01-10',
             'party_type' => PaymentPartyTypeEnum::CUSTOMER->value,
             'party_id' => $this->customer->id,
@@ -777,6 +786,7 @@ class PaymentAllocationBalanceTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'PAY-PARTY-001',
             'payment_type' => PaymentTypeEnum::PAYMENT->value,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT->value,
             'payment_date' => '2026-01-10',
             'party_type' => PaymentPartyTypeEnum::SUPPLIER->value,
             'party_id' => $this->supplier->id,
@@ -842,6 +852,7 @@ class PaymentAllocationBalanceTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'REC-PARTY-001',
             'payment_type' => PaymentTypeEnum::RECEIPT->value,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT->value,
             'payment_date' => '2026-01-10',
             'party_type' => PaymentPartyTypeEnum::CUSTOMER->value,
             'party_id' => $this->customer->id,
@@ -899,6 +910,7 @@ class PaymentAllocationBalanceTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'REC-TYPE-001',
             'payment_type' => PaymentTypeEnum::RECEIPT->value,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT->value,
             'payment_date' => '2026-01-10',
             'party_type' => PaymentPartyTypeEnum::CUSTOMER->value,
             'party_id' => $this->customer->id,
@@ -967,6 +979,7 @@ class PaymentAllocationBalanceTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'PAY-DERIVED-001',
             'payment_type' => PaymentTypeEnum::PAYMENT->value,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT->value,
             'payment_date' => '2026-01-10',
             'party_type' => PaymentPartyTypeEnum::SUPPLIER->value,
             'party_id' => $this->supplier->id,

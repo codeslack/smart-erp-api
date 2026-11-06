@@ -1,42 +1,73 @@
 <?php
 
-// filename: app/Modules/User/Routes/api.php
-
 use Illuminate\Support\Facades\Route;
-use App\Modules\User\Controllers\UserController;
+
 use App\Modules\User\Controllers\AuthController;
+use App\Modules\User\Controllers\UserController;
 
+Route::prefix('auth')->name('auth.')->group(function () {
 
-Route::prefix('auth')
-    ->group(function () {
+    Route::post(
+        '/login',
+        [AuthController::class, 'login']
+    )->name('login');
+
+    Route::middleware([
+        'auth:sanctum',
+        'tenant',
+    ])->group(function () {
+
+        Route::get(
+            '/me',
+            [AuthController::class, 'me']
+        )->name('me');
 
         Route::post(
-            '/login',
-            [AuthController::class, 'login']
-        );
-
-        Route::middleware('auth:sanctum')
-            ->group(function () {
-
-                Route::get(
-                    '/me',
-                    [AuthController::class, 'me']
-                );
-
-                Route::post(
-                    '/logout',
-                    [AuthController::class, 'logout']
-                );
-            });
+            '/logout',
+            [AuthController::class, 'logout']
+        )->name('logout');
     });
+});
 
 Route::middleware([
     'auth:sanctum',
     'tenant',
-])->group(function () {
+    'permission.tenant',
+])->prefix('users')->name('users.')->group(function () {
 
-    Route::apiResource(
-        'users',
-        UserController::class
-    );
+    Route::get(
+        '/',
+        [UserController::class, 'index']
+    )->middleware('permission:user.view')
+        ->name('index');
+
+    Route::post(
+        '/',
+        [UserController::class, 'store']
+    )->middleware('permission:user.create')
+        ->name('store');
+
+    Route::get(
+        '/{user}',
+        [UserController::class, 'show']
+    )->middleware('permission:user.view')
+        ->name('show');
+
+    Route::put(
+        '/{user}',
+        [UserController::class, 'update']
+    )->middleware('permission:user.update')
+        ->name('update');
+
+    Route::patch(
+        '/{user}',
+        [UserController::class, 'update']
+    )->middleware('permission:user.update')
+        ->name('update.patch');
+
+    Route::delete(
+        '/{user}',
+        [UserController::class, 'destroy']
+    )->middleware('permission:user.delete')
+        ->name('destroy');
 });

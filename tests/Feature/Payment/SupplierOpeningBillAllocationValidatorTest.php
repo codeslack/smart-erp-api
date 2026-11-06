@@ -17,10 +17,13 @@ use App\Core\Tenant\TenantManager;
 use App\Modules\Payment\Enums\PaymentMethodEnum;
 use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
 use App\Modules\Payment\Enums\PaymentTypeEnum;
+use App\Modules\Payment\Enums\PaymentPurposeEnum;
 use App\Modules\Payment\Models\Payment;
 use App\Modules\Payment\Models\PaymentAllocation;
 use App\Modules\Payment\Services\Validation\Contracts\SupplierOpeningBillAllocationValidatorInterface;
+use App\Modules\Supplier\Models\Supplier;
 use App\Modules\SupplierOpeningBill\Models\SupplierOpeningBill;
+use App\Modules\Tenant\Models\Tenant;
 
 class SupplierOpeningBillAllocationValidatorTest extends TestCase
 {
@@ -28,9 +31,9 @@ class SupplierOpeningBillAllocationValidatorTest extends TestCase
     use CreatesTenant;
     use CreatesSupplier;
 
-    protected $tenant;
-    protected $supplier;
-    protected $payment;
+    protected Tenant $tenant;
+    protected Supplier $supplier;
+    protected Payment $payment;
 
     protected function setUp(): void
     {
@@ -45,6 +48,7 @@ class SupplierOpeningBillAllocationValidatorTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'PAY-ALLOC-001',
             'payment_type' => PaymentTypeEnum::PAYMENT,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::SUPPLIER,
             'party_id' => $this->supplier->id,

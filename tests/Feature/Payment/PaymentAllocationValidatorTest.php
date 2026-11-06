@@ -17,6 +17,7 @@ use App\Core\Tenant\TenantManager;
 use App\Modules\CustomerOpeningBill\Models\CustomerOpeningBill;
 use App\Modules\Payment\Enums\PaymentMethodEnum;
 use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
+use App\Modules\Payment\Enums\PaymentPurposeEnum;
 use App\Modules\Payment\Enums\PaymentTypeEnum;
 use App\Modules\Payment\Models\Payment;
 use App\Modules\Payment\Models\PaymentAllocation;
@@ -45,6 +46,7 @@ class PaymentAllocationValidatorTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'RCT-ALLOC-001',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,

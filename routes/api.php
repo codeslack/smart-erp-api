@@ -16,7 +16,3 @@ Route::get(
             \App\Core\Modules\ModuleRegistry::setupServices(),
     ]
 );
-
-// require base_path(
-//     'app/Modules/Tenant/Routes/api.php'
-// );

@@ -8,6 +8,8 @@ use App\Modules\User\Models\User;
 
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
+use App\Core\Scopes\TenantScope;
+
 use App\Modules\User\Repositories\Contracts\UserRepositoryInterface;
 
 class UserRepository
@@ -33,10 +35,27 @@ class UserRepository
 
     public function findByEmail(
         string $email
-    ): ?User
-    {
+    ): ?User {
+
         return $this->model
             ->newQuery()
+            ->where('email', $email)
+            ->first();
+    }
+
+    /**
+     * Authentication lookup before tenant initialization.
+     *
+     * Only TenantScope is bypassed.
+     * SoftDeletes and other model behavior remain active.
+     */
+    public function findByEmailForAuthentication(
+        string $email
+    ): ?User {
+
+        return $this->model
+            ->newQuery()
+            ->withoutGlobalScope(TenantScope::class)
             ->where('email', $email)
             ->first();
     }

@@ -3,7 +3,6 @@
 namespace App\Modules\Payment\Domain;
 
 use App\Core\Exceptions\BusinessException;
-
 use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
 use App\Modules\Payment\Enums\PaymentPurposeEnum;
 use App\Modules\Payment\Enums\PaymentTypeEnum;
@@ -52,7 +51,8 @@ class PaymentTransactionRules
     ): bool {
         return match ($purpose) {
             PaymentPurposeEnum::CUSTOMER_PAYMENT,
-            PaymentPurposeEnum::CUSTOMER_ADVANCE =>
+            PaymentPurposeEnum::CUSTOMER_ADVANCE,
+            PaymentPurposeEnum::CUSTOMER_OPENING_BALANCE_ADJUSTMENT =>
                 $type->isReceipt(),
 
             PaymentPurposeEnum::CUSTOMER_REFUND =>

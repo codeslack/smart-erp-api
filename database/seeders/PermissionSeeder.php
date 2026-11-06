@@ -5,26 +5,25 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 
 use App\Core\Modules\ModuleRegistry;
-
 use App\Modules\Rbac\Models\Permission;
+
+use Spatie\Permission\PermissionRegistrar;
 
 class PermissionSeeder extends Seeder
 {
     public function run(): void
     {
-        foreach (
-            array_unique(
-                ModuleRegistry::permissions()
-            )
-            as $permission
-        ) {
+        $registrar = app(PermissionRegistrar::class);
 
-            Permission::firstOrCreate(
-                [
-                    'name' => $permission,
-                    'guard_name' => 'sanctum',
-                ]
-            );
+        $registrar->forgetCachedPermissions();
+
+        foreach (ModuleRegistry::permissions() as $permission) {
+            Permission::firstOrCreate([
+                'name' => $permission,
+                'guard_name' => 'sanctum',
+            ]);
         }
+
+        $registrar->forgetCachedPermissions();
     }
 }

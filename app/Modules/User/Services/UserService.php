@@ -90,59 +90,55 @@ class UserService
                     $this->repository->create([
 
                         'tenant_id' =>
-                            $tenant->id,
+                        $tenant->id,
 
                         'code' =>
-                            nextSystemNumber(
-                                SystemNumberTypeEnum::USER,
-                                $tenant->id
-                            ),
+                        nextSystemNumber(
+                            SystemNumberTypeEnum::USER,
+                            $tenant->id
+                        ),
 
                         'name' =>
-                            $data['admin_name'],
+                        $data['admin_name'],
 
                         'email' =>
-                            $data['admin_email'],
+                        $data['admin_email'],
 
                         'password' =>
-                            $data['admin_password'],
+                        $data['admin_password'],
 
                         'is_active' =>
-                            true,
+                        true,
                     ]);
 
                 $administratorRole =
                     Role::query()
 
-                        ->where(
-                            'tenant_id',
-                            $tenant->id
-                        )
-
-                        ->where(
-                            'name',
-                            RoleEnum::ADMINISTRATOR->value
-                        )
-
-                        ->firstOrFail();
-
-                app( PermissionRegistrar::class )
-                    ->setPermissionsTeamId(
+                    ->where(
+                        'tenant_id',
                         $tenant->id
+                    )
+
+                    ->where(
+                        'name',
+                        RoleEnum::ADMINISTRATOR->value
+                    )
+
+                    ->firstOrFail();
+
+                $registrar = app(PermissionRegistrar::class);
+
+                $registrar->setPermissionsTeamId(
+                    $tenant->id
+                );
+
+                try {
+                    $user->assignRole(
+                        $administratorRole
                     );
-
-                logger()->info(
-                    'Spatie Team ID',
-                    [
-                        'team_id' => app(
-                            PermissionRegistrar::class
-                        )->getPermissionsTeamId(),
-                    ]
-                );
-
-                $user->assignRole(
-                    $administratorRole
-                );
+                } finally {
+                    $registrar->setPermissionsTeamId(null);
+                }
 
                 return $user->fresh();
             }
@@ -173,9 +169,7 @@ class UserService
                         $data
                     )
                     &&
-                    empty(
-                        $data['password']
-                    )
+                    empty($data['password'])
                 ) {
 
                     unset(

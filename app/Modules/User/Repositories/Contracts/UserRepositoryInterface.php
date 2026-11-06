@@ -18,4 +18,14 @@ interface UserRepositoryInterface
     public function findByEmail(
         string $email
     ): ?User;
+
+    /**
+     * Find a user during authentication.
+     *
+     * Bypasses only the tenant global scope.
+     * Soft-delete filtering remains active.
+     */
+    public function findByEmailForAuthentication(
+        string $email
+    ): ?User;
 }

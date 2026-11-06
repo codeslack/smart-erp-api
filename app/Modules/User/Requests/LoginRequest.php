@@ -17,15 +17,6 @@ class LoginRequest extends FormRequest
 
             /**
              * The user's email address used for login.
-             * @example demo-company
-             */
-            'tenant' => [
-                'required',
-                'string',
-            ],
-
-            /**
-             * The user's email address used for login.
              * @example admin@erp.com
              */
             'email' => [

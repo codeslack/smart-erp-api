@@ -12,13 +12,22 @@ class SetPermissionTenant
         Request $request,
         Closure $next
     ) {
-        if (tenant()) {
-            app(PermissionRegistrar::class)
-                ->setPermissionsTeamId(
-                    tenant()->id
-                );
+        $tenantId = tenant()?->id;
+
+        if (! $tenantId) {
+            return $next($request);
         }
 
-        return $next($request);
+        $registrar = app(PermissionRegistrar::class);
+
+        $registrar->setPermissionsTeamId($tenantId);
+
+        try {
+            return $next($request);
+        } finally {
+            // Clear explicit team context.
+            // TenantTeamResolver will fall back to tenant().
+            $registrar->setPermissionsTeamId(null);
+        }
     }
 }

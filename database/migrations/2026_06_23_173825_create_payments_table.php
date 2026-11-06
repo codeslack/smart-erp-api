@@ -11,7 +11,6 @@ return new class extends Migration
         Schema::create('payments', function (
             Blueprint $table
         ) {
-
             $table->id();
 
             $table->uuid('uuid')->unique();
@@ -30,7 +29,11 @@ return new class extends Migration
 
             $table->unsignedBigInteger('party_id')->nullable();
 
+            $table->string('purpose', 50);
+
             $table->unsignedBigInteger('account_id');
+
+            $table->unsignedBigInteger('offset_account_id')->nullable();
 
             $table->decimal('amount', 18, 4);
 
@@ -74,6 +77,11 @@ return new class extends Migration
             $table->index(
                 ['tenant_id', 'account_id'],
                 'payments_tenant_account_index'
+            );
+
+            $table->index(
+                ['tenant_id', 'purpose'],
+                'payments_tenant_purpose_index'
             );
         });
     }

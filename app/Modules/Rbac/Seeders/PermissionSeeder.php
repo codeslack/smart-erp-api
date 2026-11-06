@@ -3,38 +3,26 @@
 namespace App\Modules\Rbac\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Modules\Rbac\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
+
+use App\Core\Modules\ModuleRegistry;
+use App\Modules\Rbac\Models\Permission;
 
 class PermissionSeeder extends Seeder
 {
     public function run(): void
     {
-        app()[PermissionRegistrar::class]->forgetCachedPermissions();
+        $registrar = app(PermissionRegistrar::class);
 
-        $actions = [
-            'view',
-            'create',
-            'update',
-            'delete',
-            'approve',
-            'export',
-            'print',
-        ];
+        $registrar->forgetCachedPermissions();
 
-        $modules = config('erp_permissions', []);
-
-        foreach ($modules as $module) {
-
-            foreach ($actions as $action) {
-
-                Permission::firstOrCreate([
-                    'name'       => "{$module}.{$action}",
-                    'guard_name' => 'sanctum',
-                ]);
-            }
+        foreach (ModuleRegistry::permissions() as $permission) {
+            Permission::firstOrCreate([
+                'name' => $permission,
+                'guard_name' => 'sanctum',
+            ]);
         }
 
-        app()[PermissionRegistrar::class]->forgetCachedPermissions();
+        $registrar->forgetCachedPermissions();
     }
 }

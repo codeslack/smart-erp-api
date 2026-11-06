@@ -20,6 +20,7 @@ use App\Modules\Payment\Models\Payment;
 use App\Modules\Payment\Models\PaymentAllocation;
 use App\Modules\Payment\Enums\PaymentTypeEnum;
 use App\Modules\Payment\Enums\PaymentMethodEnum;
+use App\Modules\Payment\Enums\PaymentPurposeEnum;
 use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
 
 use App\Modules\Customer\Models\Customer;
@@ -77,6 +78,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'RCT-VALIDATION-001',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,
@@ -128,6 +130,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'RCT-VALIDATION-002',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,
@@ -179,6 +182,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'RCT-VALIDATION-003',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,
@@ -216,6 +220,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'RCT-VALIDATION-004',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::SUPPLIER,
             'party_id' => $this->supplier->id,
@@ -227,7 +232,7 @@ class PaymentConfirmationValidationTest extends TestCase
 
         $this->expectException(BusinessException::class);
         $this->expectExceptionMessage(
-            'Receipt must belong to a customer.'
+            'This payment purpose requires a customer.'
         );
 
         app(PaymentPostingServiceInterface::class)
@@ -253,6 +258,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'RCT-VALIDATION-017',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => 999999,
@@ -306,6 +312,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'RCT-VALIDATION-019',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $otherCustomer->id,
@@ -359,6 +366,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'PAY-VALIDATION-020',
             'payment_type' => PaymentTypeEnum::PAYMENT,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::SUPPLIER,
             'party_id' => $otherSupplier->id,
@@ -402,6 +410,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'PAY-VALIDATION-005',
             'payment_type' => PaymentTypeEnum::PAYMENT,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,
@@ -413,7 +422,7 @@ class PaymentConfirmationValidationTest extends TestCase
 
         $this->expectException(BusinessException::class);
         $this->expectExceptionMessage(
-            'Payment must belong to a supplier.'
+            'This payment purpose requires a supplier.'
         );
 
         app(PaymentPostingServiceInterface::class)
@@ -439,6 +448,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'PAY-VALIDATION-018',
             'payment_type' => PaymentTypeEnum::PAYMENT,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::SUPPLIER,
             'party_id' => 999999,
@@ -482,6 +492,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'RCT-VALIDATION-006',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,
@@ -552,6 +563,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'RCT-VALIDATION-007',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,
@@ -598,6 +610,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'RCT-VALIDATION-008',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,
@@ -635,6 +648,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'RCT-VALIDATION-009',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,
@@ -672,6 +686,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'RCT-VALIDATION-010',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,
@@ -742,6 +757,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'PAY-VALIDATION-011',
             'payment_type' => PaymentTypeEnum::PAYMENT,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::SUPPLIER,
             'party_id' => $this->supplier->id,
@@ -812,6 +828,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'RCT-VALIDATION-012',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,
@@ -900,6 +917,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'PAY-VALIDATION-013',
             'payment_type' => PaymentTypeEnum::PAYMENT,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::SUPPLIER,
             'party_id' => $this->supplier->id,
@@ -988,6 +1006,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'RCT-VALIDATION-014',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,
@@ -1055,6 +1074,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'RCT-VALIDATION-014',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,
@@ -1106,6 +1126,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'RCT-VALIDATION-015',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,
@@ -1143,6 +1164,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'RCT-VALIDATION-021',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,
@@ -1188,6 +1210,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'RCT-VALIDATION-021',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,
@@ -1252,6 +1275,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'RCT-VALIDATION-022',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,
@@ -1304,6 +1328,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'PAY-VALIDATION-023',
             'payment_type' => PaymentTypeEnum::PAYMENT,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::SUPPLIER,
             'party_id' => $this->supplier->id,
@@ -1368,6 +1393,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'PAY-VALIDATION-024',
             'payment_type' => PaymentTypeEnum::PAYMENT,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::SUPPLIER,
             'party_id' => $this->supplier->id,
@@ -1430,6 +1456,7 @@ class PaymentConfirmationValidationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'PAY-VALIDATION-025',
             'payment_type' => PaymentTypeEnum::PAYMENT,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::SUPPLIER,
             'party_id' => $this->supplier->id,
@@ -1474,5 +1501,4 @@ class PaymentConfirmationValidationTest extends TestCase
             'reference_id' => $payment->id,
         ]);
     }
-
 }

@@ -2,19 +2,25 @@
 
 namespace App\Modules\Sales\Models;
 
-use App\Core\Models\TenantModel;
-use App\Modules\Accounting\Models\JournalEntry;
-use App\Modules\AdvanceAllocation\Models\AdvanceAllocation;
-use App\Modules\Customer\Models\Customer;
-use App\Modules\PaymentTerm\Models\PaymentTerm;
-use App\Modules\Receipt\Models\ReceiptAllocation;
-use App\Modules\Sales\Enums\SaleStatusEnum;
-use App\Modules\SalesOrder\Models\SalesOrder;
-use App\Modules\User\Models\User;
-use App\Modules\Warehouse\Models\Warehouse;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+
+use App\Core\Models\TenantModel;
+
+use App\Modules\Customer\Models\Customer;
+
+use App\Modules\PaymentTerm\Models\PaymentTerm;
+use App\Modules\Payment\Models\PaymentAllocation;
+
+use App\Modules\Sales\Enums\SaleStatusEnum;
+use App\Modules\SalesOrder\Models\SalesOrder;
+
+use App\Modules\User\Models\User;
+use App\Modules\Warehouse\Models\Warehouse;
+
+use App\Modules\Accounting\Models\JournalEntry;
+use App\Modules\AdvanceAllocation\Models\AdvanceAllocation;
 
 class Sale extends TenantModel
 {
@@ -138,7 +144,7 @@ class Sale extends TenantModel
 
     public function receiptAllocations(): HasMany
     {
-        return $this->hasMany(ReceiptAllocation::class, 'document_id')
+        return $this->hasMany(PaymentAllocation::class, 'document_id')
             ->where(function ($query) {
                 $query->where('document_type', self::class)
                     ->orWhere('document_type', 'sale')

@@ -6,6 +6,7 @@ enum PaymentPurposeEnum: string
 {
     case CUSTOMER_PAYMENT = 'customer_payment';
     case CUSTOMER_ADVANCE = 'customer_advance';
+    case CUSTOMER_OPENING_BALANCE_ADJUSTMENT = 'customer_opening_balance_adjustment';
     case CUSTOMER_REFUND = 'customer_refund';
 
     case SUPPLIER_PAYMENT = 'supplier_payment';
@@ -23,6 +24,11 @@ enum PaymentPurposeEnum: string
     public function isCustomerAdvance(): bool
     {
         return $this === self::CUSTOMER_ADVANCE;
+    }
+
+    public function isCustomerOpeningBalanceAdjustment(): bool
+    {
+        return $this === self::CUSTOMER_OPENING_BALANCE_ADJUSTMENT;
     }
 
     public function isCustomerRefund(): bool
@@ -60,6 +66,7 @@ enum PaymentPurposeEnum: string
         return match ($this) {
             self::CUSTOMER_PAYMENT,
             self::CUSTOMER_ADVANCE,
+            self::CUSTOMER_OPENING_BALANCE_ADJUSTMENT,
             self::SUPPLIER_REFUND,
             self::OTHER_RECEIPT => true,
 

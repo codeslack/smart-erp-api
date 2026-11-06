@@ -21,6 +21,7 @@ use App\Modules\SupplierOpeningBill\Models\SupplierOpeningBill;
 use App\Modules\Payment\Models\Payment;
 use App\Modules\Payment\Enums\PaymentMethodEnum;
 use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
+use App\Modules\Payment\Enums\PaymentPurposeEnum;
 use App\Modules\Payment\Enums\PaymentTypeEnum;
 use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Models\ChartOfAccount;
@@ -98,8 +99,8 @@ class PaymentReversalTest extends TestCase
             route('payments.store'),
             [
                 'payment_no' => 'PAY-REV-' . uniqid(),
-                'payment_type' =>
-                PaymentTypeEnum::PAYMENT->value,
+                'payment_type' => PaymentTypeEnum::PAYMENT,
+                'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT,
                 'payment_date' => '2026-09-28',
                 'party_type' =>
                 PaymentPartyTypeEnum::SUPPLIER->value,
@@ -206,8 +207,8 @@ class PaymentReversalTest extends TestCase
             route('payments.store'),
             [
                 'payment_no' => 'PAY-REV-002-' . uniqid(),
-                'payment_type' =>
-                PaymentTypeEnum::PAYMENT->value,
+                'payment_type' => PaymentTypeEnum::PAYMENT,
+                'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT,
                 'payment_date' => '2026-09-28',
                 'party_type' =>
                 PaymentPartyTypeEnum::SUPPLIER->value,

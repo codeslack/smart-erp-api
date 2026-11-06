@@ -18,6 +18,7 @@ use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Tenant\Models\Tenant;
 use App\Modules\Payment\Models\Payment;
 use App\Modules\Payment\Enums\PaymentTypeEnum;
+use App\Modules\Payment\Enums\PaymentPurposeEnum;
 use App\Modules\Payment\Enums\PaymentMethodEnum;
 use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
 
@@ -68,6 +69,7 @@ class PaymentConfirmationTest extends TestCase
         $payment = Payment::create([
             'payment_no' => 'REC-0001',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,
@@ -104,6 +106,7 @@ class PaymentConfirmationTest extends TestCase
         $payment = Payment::create([
             'payment_no' => 'REC-0002',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,
@@ -179,6 +182,7 @@ class PaymentConfirmationTest extends TestCase
         $payment = Payment::create([
             'payment_no' => 'REC-0003',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,
@@ -287,6 +291,7 @@ class PaymentConfirmationTest extends TestCase
         $payment = Payment::create([
             'payment_no' => 'PAY-0001',
             'payment_type' => PaymentTypeEnum::PAYMENT,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::SUPPLIER,
             'party_id' => $this->supplier->id,
@@ -362,6 +367,7 @@ class PaymentConfirmationTest extends TestCase
         $payment = Payment::create([
             'payment_no' => 'PAY-0002',
             'payment_type' => PaymentTypeEnum::PAYMENT,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::SUPPLIER,
             'party_id' => $this->supplier->id,

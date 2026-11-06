@@ -14,6 +14,7 @@ use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Payment\Enums\PaymentTypeEnum;
 use App\Modules\Payment\Enums\PaymentMethodEnum;
 use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
+use App\Modules\Payment\Enums\PaymentPurposeEnum;
 
 class Payment extends TenantModel
 {
@@ -29,7 +30,9 @@ class Payment extends TenantModel
         'payment_date',
         'party_type',
         'party_id',
+        'purpose',
         'account_id',
+        'offset_account_id',
         'amount',
         'payment_method',
         'reference_no',
@@ -42,6 +45,7 @@ class Payment extends TenantModel
         'amount' => 'decimal:4',
         'payment_type' => PaymentTypeEnum::class,
         'party_type' => PaymentPartyTypeEnum::class,
+        'purpose' => PaymentPurposeEnum::class,
         'payment_method' => PaymentMethodEnum::class,
     ];
 
@@ -52,17 +56,34 @@ class Payment extends TenantModel
 
     public function paymentAccount(): BelongsTo
     {
-        return $this->belongsTo(ChartOfAccount::class, 'account_id');
+        return $this->belongsTo(
+            ChartOfAccount::class,
+            'account_id'
+        );
+    }
+
+    public function offsetAccount(): BelongsTo
+    {
+        return $this->belongsTo(
+            ChartOfAccount::class,
+            'offset_account_id'
+        );
     }
 
     public function supplier(): BelongsTo
     {
-        return $this->belongsTo(Supplier::class, 'party_id');
+        return $this->belongsTo(
+            Supplier::class,
+            'party_id'
+        );
     }
 
     public function customer(): BelongsTo
     {
-        return $this->belongsTo(Customer::class, 'party_id');
+        return $this->belongsTo(
+            Customer::class,
+            'party_id'
+        );
     }
 
     public function isReceipt(): bool

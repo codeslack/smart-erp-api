@@ -23,6 +23,7 @@ use App\Modules\Payment\Enums\PaymentStatusEnum;
 use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Services\AccountingSetupService;
+use App\Modules\Payment\Enums\PaymentPurposeEnum;
 
 class AccountingStatementsTest extends TestCase
 {
@@ -92,6 +93,7 @@ class AccountingStatementsTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'PAY-001',
             'payment_type' => PaymentTypeEnum::PAYMENT,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT,
             'party_type' => PaymentPartyTypeEnum::SUPPLIER,
             'party_id' => $this->supplier->id,
             'payment_date' => now()->toDateString(),
@@ -114,6 +116,7 @@ class AccountingStatementsTest extends TestCase
     {
         Sale::query()->create([
             'tenant_id' => $this->tenant->id,
+            'warehouse_id' => $this->customer->id,
             'customer_id' => $this->customer->id,
             'sale_no' => 'INV-001',
             'sale_date' => now()->toDateString(),
@@ -132,6 +135,7 @@ class AccountingStatementsTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'REC-001',
             'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
             'party_type' => PaymentPartyTypeEnum::CUSTOMER,
             'party_id' => $this->customer->id,
             'payment_date' => now()->toDateString(),

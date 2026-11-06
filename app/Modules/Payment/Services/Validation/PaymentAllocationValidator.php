@@ -13,7 +13,7 @@ use App\Modules\Payment\Services\Validation\Contracts\PaymentAllocationValidator
 use App\Modules\Payment\Services\Validation\Contracts\SupplierOpeningBillAllocationValidatorInterface;
 
 class PaymentAllocationValidator
-implements PaymentAllocationValidatorInterface
+    implements PaymentAllocationValidatorInterface
 {
     private const CUSTOMER_OPENING_BILL = 'customer_opening_bill';
     private const SUPPLIER_OPENING_BILL = 'supplier_opening_bill';

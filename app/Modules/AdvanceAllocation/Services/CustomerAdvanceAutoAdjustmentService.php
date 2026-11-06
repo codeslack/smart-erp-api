@@ -4,10 +4,12 @@ namespace App\Modules\AdvanceAllocation\Services;
 
 use App\Modules\Sales\Models\Sale;
 
-use App\Modules\Receipt\Models\Receipt;
+use App\Modules\Payment\Models\Payment;
 
-use App\Modules\Receipt\Enums\ReceiptStatusEnum;
-use App\Modules\Receipt\Enums\ReceiptTypeEnum;
+use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
+use App\Modules\Payment\Enums\PaymentPurposeEnum;
+use App\Modules\Payment\Enums\PaymentStatusEnum;
+use App\Modules\Payment\Enums\PaymentTypeEnum;
 
 class CustomerAdvanceAutoAdjustmentService
 {
@@ -34,7 +36,7 @@ class CustomerAdvanceAutoAdjustmentService
         }
 
         $advances =
-            Receipt::query()
+            Payment::query()
 
             ->where(
                 'tenant_id',
@@ -42,22 +44,32 @@ class CustomerAdvanceAutoAdjustmentService
             )
 
             ->where(
-                'customer_id',
+                'party_type',
+                PaymentPartyTypeEnum::CUSTOMER
+            )
+
+            ->where(
+                'party_id',
                 $sale->customer_id
             )
 
             ->where(
                 'status',
-                ReceiptStatusEnum::CONFIRMED
+                PaymentStatusEnum::CONFIRMED
             )
 
             ->where(
-                'receipt_type',
-                ReceiptTypeEnum::CUSTOMER_ADVANCE
+                'payment_type',
+                PaymentTypeEnum::RECEIPT
+            )
+
+            ->where(
+                'purpose',
+                PaymentPurposeEnum::CUSTOMER_ADVANCE
             )
 
             ->orderBy(
-                'receipt_date'
+                'payment_date'
             )
 
             ->orderBy(
@@ -99,7 +111,7 @@ class CustomerAdvanceAutoAdjustmentService
             $this->allocationService
                 ->allocateCustomerAdvance(
 
-                    receipt: $advance,
+                    payment: $advance,
 
                     sale: $sale,
 

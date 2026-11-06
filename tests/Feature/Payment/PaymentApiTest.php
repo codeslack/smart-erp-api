@@ -20,6 +20,7 @@ use App\Modules\Payment\Models\Payment;
 use App\Modules\Payment\Models\PaymentAllocation;
 use App\Modules\Payment\Enums\PaymentMethodEnum;
 use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
+use App\Modules\Payment\Enums\PaymentPurposeEnum;
 use App\Modules\Payment\Enums\PaymentTypeEnum;
 use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Models\ChartOfAccount;
@@ -76,6 +77,7 @@ class PaymentApiTest extends TestCase
         return array_merge([
             'payment_no' => 'REC-' . uniqid(),
             'payment_type' => PaymentTypeEnum::RECEIPT->value,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT->value,
             'payment_date' => '2026-09-28',
             'party_type' => PaymentPartyTypeEnum::CUSTOMER->value,
             'party_id' => $customer->id,
@@ -215,8 +217,8 @@ class PaymentApiTest extends TestCase
             ),
             [
                 'payment_no' => 'REC-UPDATED',
-                'payment_type' =>
-                PaymentTypeEnum::RECEIPT->value,
+                'payment_type' => PaymentTypeEnum::RECEIPT->value,
+                'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT->value,
                 'payment_date' => '2026-09-29',
                 'party_type' =>
                 PaymentPartyTypeEnum::CUSTOMER->value,
@@ -420,8 +422,8 @@ class PaymentApiTest extends TestCase
             ),
             [
                 'payment_no' => $payment->payment_no,
-                'payment_type' =>
-                PaymentTypeEnum::RECEIPT->value,
+                'payment_type' => PaymentTypeEnum::RECEIPT->value,
+                'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT->value,
                 'payment_date' =>
                 $payment->payment_date->toDateString(),
                 'party_type' =>
@@ -521,8 +523,8 @@ class PaymentApiTest extends TestCase
             ),
             [
                 'payment_no' => $payment->payment_no,
-                'payment_type' =>
-                PaymentTypeEnum::RECEIPT->value,
+                'payment_type' => PaymentTypeEnum::RECEIPT->value,
+                'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT->value,
                 'payment_date' =>
                 $payment->payment_date->toDateString(),
                 'party_type' =>
@@ -580,8 +582,8 @@ class PaymentApiTest extends TestCase
             ),
             [
                 'payment_no' => $payment->payment_no,
-                'payment_type' =>
-                PaymentTypeEnum::RECEIPT->value,
+                'payment_type' => PaymentTypeEnum::RECEIPT->value,
+                'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT->value,
                 'payment_date' =>
                 $payment->payment_date->toDateString(),
                 'party_type' =>

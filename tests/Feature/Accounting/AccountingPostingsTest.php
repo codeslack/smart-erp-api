@@ -19,17 +19,14 @@ use App\Modules\Payment\Models\Payment;
 use App\Modules\Payment\Enums\PaymentTypeEnum;
 use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
 use App\Modules\Payment\Enums\PaymentMethodEnum;
-use App\Modules\Receipt\Models\Receipt;
-use App\Modules\Receipt\Enums\ReceiptTypeEnum;
+use App\Modules\Payment\Enums\PaymentPurposeEnum;
 use App\Modules\Accounting\Models\ChartOfAccount;
-use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
 use App\Modules\Accounting\Services\AccountingSetupService;
 use App\Modules\Accounting\Services\Postings\SalesPostingService;
 use App\Modules\Accounting\Services\Postings\SalesReturnPostingService;
 use App\Modules\Accounting\Services\Postings\PaymentPostingService;
-use App\Modules\Accounting\Services\Postings\ReceiptPostingService;
 
 class AccountingPostingsTest extends TestCase
 {
@@ -79,6 +76,7 @@ class AccountingPostingsTest extends TestCase
     {
         $sale = Sale::query()->create([
             'tenant_id' => $this->tenant->id,
+            'warehouse_id' => $this->customer->id,
             'customer_id' => $this->customer->id,
             'sale_no' => 'SALE-101',
             'sale_date' => now()->toDateString(),
@@ -103,6 +101,7 @@ class AccountingPostingsTest extends TestCase
     {
         $sale = Sale::query()->create([
             'tenant_id' => $this->tenant->id,
+            'warehouse_id' => $this->customer->id,
             'customer_id' => $this->customer->id,
             'sale_no' => 'SALE-102',
             'sale_date' => now()->toDateString(),
@@ -115,6 +114,7 @@ class AccountingPostingsTest extends TestCase
 
         $salesReturn = SalesReturn::query()->create([
             'tenant_id' => $this->tenant->id,
+            'warehouse_id' => $this->customer->id,
             'customer_id' => $this->customer->id,
             'sale_id' => $sale->id,
             'return_no' => 'SR-101',
@@ -143,6 +143,7 @@ class AccountingPostingsTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'PAY-201',
             'payment_type' => PaymentTypeEnum::PAYMENT,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT,
             'party_type' => PaymentPartyTypeEnum::SUPPLIER,
             'party_id' => $this->supplier->id,
             'payment_date' => now()->toDateString(),
@@ -162,29 +163,32 @@ class AccountingPostingsTest extends TestCase
         ]);
     }
 
-    public function test_receipt_posting_creates_posted_journal_entry(): void
+    public function test_customer_receipt_posting_creates_posted_journal_entry(): void
     {
         $cashAccount = ChartOfAccount::query()
             ->where('account_code', AccountingAccounts::CASH)
             ->firstOrFail();
 
-        $receipt = Receipt::query()->create([
+        $payment = Payment::query()->create([
             'tenant_id' => $this->tenant->id,
-            'customer_id' => $this->customer->id,
-            'receipt_no' => 'REC-201',
-            'receipt_date' => now()->toDateString(),
-            'receipt_type' => ReceiptTypeEnum::CUSTOMER_PAYMENT,
-            'payment_account_id' => $cashAccount->id,
+            'payment_no' => 'PAY-202',
+            'payment_type' => PaymentTypeEnum::RECEIPT,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT,
+            'party_type' => PaymentPartyTypeEnum::CUSTOMER,
+            'party_id' => $this->customer->id,
+            'payment_date' => now()->toDateString(),
+            'account_id' => $cashAccount->id,
             'amount' => 800,
+            'payment_method' => PaymentMethodEnum::CASH,
             'status' => 'confirmed',
         ]);
 
-        app(ReceiptPostingService::class)->post($receipt);
+        app(PaymentPostingService::class)->post($payment);
 
         $this->assertDatabaseHas('journal_entries', [
             'tenant_id' => $this->tenant->id,
-            'reference_type' => Receipt::class,
-            'reference_id' => $receipt->id,
+            'reference_type' => Payment::class,
+            'reference_id' => $payment->id,
             'status' => JournalEntryStatusEnum::POSTED->value,
         ]);
     }

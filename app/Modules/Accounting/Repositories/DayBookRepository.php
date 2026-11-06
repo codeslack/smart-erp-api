@@ -3,12 +3,16 @@
 namespace App\Modules\Accounting\Repositories;
 
 use Illuminate\Support\Collection;
+
 use App\Modules\Sales\Models\Sale;
 use App\Modules\SalesReturn\Models\SalesReturn;
+
 use App\Modules\Purchase\Models\Purchase;
 use App\Modules\PurchaseReturn\Models\PurchaseReturn;
-use App\Modules\Receipt\Models\Receipt;
+
 use App\Modules\Payment\Models\Payment;
+use App\Modules\Payment\Enums\PaymentTypeEnum;
+
 use App\Modules\Accounting\Repositories\Contracts\DayBookRepositoryInterface;
 
 class DayBookRepository implements DayBookRepositoryInterface
@@ -128,16 +132,21 @@ class DayBookRepository implements DayBookRepositoryInterface
         ?string $fromDate,
         ?string $toDate
     ): void {
-        Receipt::query()
-            ->with('customer')
-            ->when($fromDate, fn($q) => $q->whereDate('receipt_date', '>=', $fromDate))
-            ->when($toDate, fn($q) => $q->whereDate('receipt_date', '<=', $toDate))
+        Payment::query()
+            ->with(['customer', 'supplier'])
+            ->where('payment_type', PaymentTypeEnum::RECEIPT)
+            ->when($fromDate, fn($q) => $q->whereDate('payment_date', '>=', $fromDate))
+            ->when($toDate, fn($q) => $q->whereDate('payment_date', '<=', $toDate))
             ->get()
             ->each(function ($receipt) use (&$transactions) {
+                $partyName = $receipt->party_type?->isSupplier()
+                    ? $receipt->supplier?->name
+                    : $receipt->customer?->name;
+
                 $transactions->push([
-                    'date' => $receipt->receipt_date,
-                    'voucher_no' => $receipt->receipt_no,
-                    'party' => $receipt->customer?->name,
+                    'date' => $receipt->payment_date,
+                    'voucher_no' => $receipt->payment_no,
+                    'party' => $partyName,
                     'type' => 'receipt',
                     'description' => 'Receipt',
                     'amount' => (float) $receipt->amount,
@@ -152,6 +161,7 @@ class DayBookRepository implements DayBookRepositoryInterface
     ): void {
         Payment::query()
             ->with(['supplier', 'customer'])
+            ->where('payment_type', PaymentTypeEnum::PAYMENT)
             ->when($fromDate, fn($q) => $q->whereDate('payment_date', '>=', $fromDate))
             ->when($toDate, fn($q) => $q->whereDate('payment_date', '<=', $toDate))
             ->get()

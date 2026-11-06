@@ -4,11 +4,13 @@ namespace App\Modules\AdvanceAllocation\Services;
 
 use Illuminate\Support\Facades\DB;
 
+use App\Core\Exceptions\BusinessException;
+
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Purchase\Models\Purchase;
 
-use App\Modules\Receipt\Models\Receipt;
 use App\Modules\Payment\Models\Payment;
+use App\Modules\Payment\Enums\PaymentPurposeEnum;
 
 use App\Modules\AdvanceAllocation\Models\AdvanceAllocation;
 
@@ -27,19 +29,25 @@ class AdvanceAllocationService
     */
 
     public function getAvailableCustomerAdvance(
-        Receipt $receipt
+        Payment $payment
     ): float {
 
-        $allocated =
-            $this->repository
-            ->totalAllocatedFromSource(
-                Receipt::class,
-                $receipt->id
+        $this->ensureCustomerAdvance($payment);
+
+        $advanceAllocated =
+            $this->repository->totalAllocatedFromSource(
+                Payment::class,
+                $payment->id
             );
+
+        $directAllocated = (float) $payment
+            ->allocations()
+            ->sum('allocated_amount');
 
         return max(
             0,
-            (float) $receipt->amount - $allocated
+            (float) $payment->amount
+                - ($advanceAllocated + $directAllocated)
         );
     }
 
@@ -53,18 +61,22 @@ class AdvanceAllocationService
         Payment $payment
     ): float {
 
-        $allocated =
-            $this->repository
-            ->totalAllocatedFromSource(
+        $this->ensureSupplierAdvance($payment);
+
+        $advanceAllocated =
+            $this->repository->totalAllocatedFromSource(
                 Payment::class,
                 $payment->id
             );
 
-        $directAllocated = (float) $payment->allocations()->sum('allocated_amount');
+        $directAllocated = (float) $payment
+            ->allocations()
+            ->sum('allocated_amount');
 
         return max(
             0,
-            (float) $payment->amount - ($allocated + $directAllocated)
+            (float) $payment->amount
+                - ($advanceAllocated + $directAllocated)
         );
     }
 
@@ -75,71 +87,56 @@ class AdvanceAllocationService
     */
 
     public function allocateCustomerAdvance(
-        Receipt $receipt,
+        Payment $payment,
         Sale $sale,
         float $amount
     ): AdvanceAllocation {
 
         return DB::transaction(
             function () use (
-                $receipt,
+                $payment,
                 $sale,
                 $amount
             ) {
 
                 $availableAdvance =
                     $this->getAvailableCustomerAdvance(
-                        $receipt
+                        $payment
                     );
 
-                if (
-                    $amount > $availableAdvance
-                ) {
-                    abort(
-                        422,
+                if ($amount <= 0 || $amount > $availableAdvance) {
+                    throw new BusinessException(
                         'Customer advance balance is insufficient.'
                     );
                 }
 
                 $sale->refresh();
 
-                if (
-                    $amount > $sale->due_amount
-                ) {
-                    abort(
-                        422,
+                if ($amount > $sale->due_amount) {
+                    throw new BusinessException(
                         'Allocation exceeds sale due amount.'
                     );
                 }
 
                 return AdvanceAllocation::create([
 
-                    'tenant_id' =>
-                    tenantId(),
+                    'tenant_id' => tenantId(),
 
-                    'allocation_type' =>
-                    'customer',
+                    'allocation_type' => 'customer',
 
-                    'source_type' =>
-                    Receipt::class,
+                    'source_type' => Payment::class,
 
-                    'source_id' =>
-                    $receipt->id,
+                    'source_id' => $payment->id,
 
-                    'target_type' =>
-                    Sale::class,
+                    'target_type' => Sale::class,
 
-                    'target_id' =>
-                    $sale->id,
+                    'target_id' => $sale->id,
 
-                    'allocated_amount' =>
-                    $amount,
+                    'allocated_amount' => $amount,
 
-                    'allocated_at' =>
-                    now(),
+                    'allocated_at' => now(),
 
-                    'created_by' =>
-                    auth()->id(),
+                    'created_by' => auth()->id(),
                 ]);
             }
         );
@@ -169,57 +166,76 @@ class AdvanceAllocationService
                         $payment
                     );
 
-                if (
-                    $amount > $availableAdvance
-                ) {
-                    abort(
-                        422,
+                if ($amount <= 0 || $amount > $availableAdvance) {
+                    throw new BusinessException(
                         'Supplier advance balance is insufficient.'
                     );
                 }
 
                 $purchase->refresh();
 
-                if (
-                    $amount > $purchase->due_amount
-                ) {
-                    abort(
-                        422,
+                if ($amount > $purchase->due_amount) {
+                    throw new BusinessException(
                         'Allocation exceeds purchase due amount.'
                     );
                 }
 
                 return AdvanceAllocation::create([
 
-                    'tenant_id' =>
-                    tenantId(),
+                    'tenant_id' => tenantId(),
 
-                    'allocation_type' =>
-                    'supplier',
+                    'allocation_type' => 'supplier',
 
-                    'source_type' =>
-                    Payment::class,
+                    'source_type' => Payment::class,
 
-                    'source_id' =>
-                    $payment->id,
+                    'source_id' => $payment->id,
 
-                    'target_type' =>
-                    Purchase::class,
+                    'target_type' => Purchase::class,
 
-                    'target_id' =>
-                    $purchase->id,
+                    'target_id' => $purchase->id,
 
-                    'allocated_amount' =>
-                    $amount,
+                    'allocated_amount' => $amount,
 
-                    'allocated_at' =>
-                    now(),
+                    'allocated_at' => now(),
 
-                    'created_by' =>
-                    auth()->id(),
+                    'created_by' => auth()->id(),
                 ]);
             }
         );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Advance Purpose Validation
+    |--------------------------------------------------------------------------
+    */
+
+    protected function ensureCustomerAdvance(
+        Payment $payment
+    ): void {
+
+        if (
+            $payment->purpose !==
+            PaymentPurposeEnum::CUSTOMER_ADVANCE
+        ) {
+            throw new BusinessException(
+                'Payment is not a customer advance.'
+            );
+        }
+    }
+
+    protected function ensureSupplierAdvance(
+        Payment $payment
+    ): void {
+
+        if (
+            $payment->purpose !==
+            PaymentPurposeEnum::SUPPLIER_ADVANCE
+        ) {
+            throw new BusinessException(
+                'Payment is not a supplier advance.'
+            );
+        }
     }
 
     /*

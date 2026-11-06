@@ -14,6 +14,7 @@ use App\Modules\Purchase\Models\Purchase;
 use App\Modules\Payment\Models\Payment;
 use App\Modules\Payment\Enums\PaymentTypeEnum;
 use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
+use App\Modules\Payment\Enums\PaymentPurposeEnum;
 use App\Modules\Payment\Enums\PaymentMethodEnum;
 use App\Modules\Payment\Enums\PaymentStatusEnum;
 use App\Modules\Accounting\Models\ChartOfAccount;
@@ -185,6 +186,7 @@ class PurchaseDirectConfirmationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'PAY-ADV-001',
             'payment_type' => PaymentTypeEnum::PAYMENT,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_ADVANCE,
             'payment_date' => now()->toDateString(),
             'party_type' => PaymentPartyTypeEnum::SUPPLIER,
             'party_id' => $this->supplier->id,
@@ -215,6 +217,7 @@ class PurchaseDirectConfirmationTest extends TestCase
 
         // Confirm Purchase Bill -> Should auto-adjust 100 from advance
         $response = $this->postJson("/api/purchases/{$uuid}/confirm");
+
         $response->assertOk()
             ->assertJsonPath('data.grand_total', 300)
             ->assertJsonPath('data.paid_amount', 100)
