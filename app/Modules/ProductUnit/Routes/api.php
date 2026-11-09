@@ -7,6 +7,8 @@ use App\Modules\ProductUnit\Controllers\ProductUnitController;
 Route::middleware([
     'auth:sanctum',
     'tenant',
+    'permission.tenant',
+    'permission.auto',
 ])
     ->prefix('product-units')
     ->group(function () {

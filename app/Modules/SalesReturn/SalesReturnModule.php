@@ -15,13 +15,13 @@ class SalesReturnModule implements ModuleInterface
     public static function permissions(): array
     {
         return [
-            'sales_return.view',
-            'sales_return.create',
-            'sales_return.update',
-            'sales_return.delete',
-            'sales_return.approve',
-            'sales_return.confirm',
-            'sales_return.cancel',
+            'sales-return.view',
+            'sales-return.create',
+            'sales-return.update',
+            'sales-return.delete',
+            'sales-return.approve',
+            'sales-return.confirm',
+            'sales-return.cancel',
         ];
     }
 

@@ -18,10 +18,10 @@ class PaymentTermModule implements ModuleInterface
     public static function permissions(): array
     {
         return [
-            'payment_term.view',
-            'payment_term.create',
-            'payment_term.update',
-            'payment_term.delete',
+            'payment-term.view',
+            'payment-term.create',
+            'payment-term.update',
+            'payment-term.delete',
         ];
     }
 

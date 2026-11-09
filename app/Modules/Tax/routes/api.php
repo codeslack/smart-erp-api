@@ -13,8 +13,14 @@ use App\Modules\Tax\Controllers\TaxRegistrationController;
 Route::middleware([
     'auth:sanctum',
     'tenant',
+    'permission.tenant',
+    'permission.auto',
 ])->group(function () {
-    Route::apiResource('taxes', TaxController::class);
+
+    Route::apiResource(
+        'taxes',
+        TaxController::class
+    );
 
     Route::apiResource(
         'tax-components',

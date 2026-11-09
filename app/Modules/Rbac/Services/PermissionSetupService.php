@@ -33,13 +33,6 @@ class PermissionSetupService implements TenantSetupInterface
                 ->pluck('name')
                 ->all();
 
-            $this->synchronizer->sync(
-                $tenant,
-                RoleEnum::ADMINISTRATOR,
-                $availablePermissions,
-                $availablePermissions
-            );
-
             foreach ($this->permissionMap->all() as $role => $permissions) {
                 $this->synchronizer->sync(
                     $tenant,

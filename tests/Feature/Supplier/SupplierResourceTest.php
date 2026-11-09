@@ -13,6 +13,10 @@ use Laravel\Sanctum\Sanctum;
 use App\Core\Enums\OpeningBalanceTypeEnum;
 use App\Core\Tenant\TenantManager;
 
+use App\Modules\Rbac\Models\Permission;
+use App\Modules\Rbac\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
+
 use App\Modules\Tenant\Models\Tenant;
 use App\Modules\User\Models\User;
 use App\Modules\Supplier\Models\Supplier;
@@ -49,7 +53,47 @@ class SupplierResourceTest extends TestCase
             'is_active' => true,
         ]);
 
+        $this->grantSupplierViewPermission(
+            $this->user,
+            $this->tenant
+        );
+
         Sanctum::actingAs($this->user);
+    }
+
+    protected function grantSupplierViewPermission(
+        User $user,
+        Tenant $tenant
+    ): void {
+        $registrar = app(PermissionRegistrar::class);
+
+        app(TenantManager::class)
+            ->setTenant($tenant);
+
+        $registrar->setPermissionsTeamId(
+            $tenant->id
+        );
+
+        try {
+            $role = Role::firstOrCreate([
+                'tenant_id' => $tenant->id,
+                'name' => 'Supplier Resource Test Role',
+                'guard_name' => 'sanctum',
+            ]);
+
+            $permission = Permission::firstOrCreate([
+                'name' => 'supplier.view',
+                'guard_name' => 'sanctum',
+            ]);
+
+            $role->givePermissionTo($permission);
+
+            $user->assignRole($role);
+        } finally {
+            $registrar->setPermissionsTeamId(null);
+
+            $registrar->forgetCachedPermissions();
+        }
     }
 
     protected function createSupplier(): Supplier
@@ -205,6 +249,11 @@ class SupplierResourceTest extends TestCase
             'password' => 'password',
             'is_active' => true,
         ]);
+
+        $this->grantSupplierViewPermission(
+            $otherUser,
+            $otherTenant
+        );
 
         Sanctum::actingAs($otherUser);
 

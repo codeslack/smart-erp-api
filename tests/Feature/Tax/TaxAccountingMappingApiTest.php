@@ -7,6 +7,11 @@ use Tests\TestCase;
 use Laravel\Sanctum\Sanctum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
+use App\Core\Tenant\TenantManager;
+use App\Modules\Rbac\Models\Permission;
+use App\Modules\Rbac\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
+
 use Tests\Support\CreatesUser;
 use Tests\Support\CreatesTenant;
 
@@ -69,7 +74,51 @@ class TaxAccountingMappingApiTest extends TestCase
 
         $this->user = $this->createTestUser();
 
+        $this->grantCrudPermissions();
+
         Sanctum::actingAs($this->user);
+    }
+
+    protected function grantCrudPermissions(): void
+    {
+        $registrar = app(PermissionRegistrar::class);
+
+        app(TenantManager::class)
+            ->setTenant($this->tenant);
+
+        $registrar->setPermissionsTeamId(
+            $this->tenant->id
+        );
+
+        try {
+            $role = Role::firstOrCreate([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Tax Accounting Mapping Test Role',
+                'guard_name' => 'sanctum',
+            ]);
+
+            foreach ([
+                'tax-accounting-mapping.view',
+                'tax-accounting-mapping.create',
+                'tax-accounting-mapping.update',
+                'tax-accounting-mapping.delete',
+            ] as $permissionName) {
+
+                $permission = Permission::firstOrCreate([
+                    'name' => $permissionName,
+                    'guard_name' => 'sanctum',
+                ]);
+
+                $role->givePermissionTo($permission);
+            }
+
+            $this->user->assignRole($role);
+
+        } finally {
+            $registrar->setPermissionsTeamId(null);
+
+            $registrar->forgetCachedPermissions();
+        }
     }
 
     public function test_mapping_can_be_created_through_api(): void

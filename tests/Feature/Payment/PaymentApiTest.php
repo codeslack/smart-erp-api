@@ -13,6 +13,10 @@ use Laravel\Sanctum\Sanctum;
 use App\Core\Enums\DocumentStatusEnum;
 use App\Core\Tenant\TenantManager;
 
+use App\Modules\Rbac\Models\Permission;
+use App\Modules\Rbac\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
+
 use App\Modules\Tenant\Models\Tenant;
 use App\Modules\User\Models\User;
 use App\Modules\Customer\Models\Customer;
@@ -58,7 +62,51 @@ class PaymentApiTest extends TestCase
 
         $this->user = $this->createTestUser();
 
+        $this->grantPaymentPermissions();
+
         Sanctum::actingAs($this->user);
+    }
+
+    protected function grantPaymentPermissions(): void
+    {
+        $registrar = app(PermissionRegistrar::class);
+
+        app(TenantManager::class)
+            ->setTenant($this->tenant);
+
+        $registrar->setPermissionsTeamId(
+            $this->tenant->id
+        );
+
+        try {
+            $role = Role::firstOrCreate([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Payment API Test Role',
+                'guard_name' => 'sanctum',
+            ]);
+
+            foreach ([
+                'payment.view',
+                'payment.create',
+                'payment.update',
+                'payment.delete',
+            ] as $permissionName) {
+
+                $permission = Permission::firstOrCreate([
+                    'name' => $permissionName,
+                    'guard_name' => 'sanctum',
+                ]);
+
+                $role->givePermissionTo($permission);
+            }
+
+            $this->user->assignRole($role);
+
+        } finally {
+            $registrar->setPermissionsTeamId(null);
+
+            $registrar->forgetCachedPermissions();
+        }
     }
 
     protected function createCustomer(): Customer

@@ -17,12 +17,12 @@ class GoodsReceiptNoteModule implements ModuleInterface
     {
         return [
 
-            'goods_receipt_note.view',
-            'goods_receipt_note.create',
-            'goods_receipt_note.update',
-            'goods_receipt_note.delete',
-            'goods_receipt_note.confirm',
-            'goods_receipt_note.cancel',
+            'goods-receipt-note.view',
+            'goods-receipt-note.create',
+            'goods-receipt-note.update',
+            'goods-receipt-note.delete',
+            'goods-receipt-note.confirm',
+            'goods-receipt-note.cancel',
         ];
     }
 

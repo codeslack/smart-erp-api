@@ -92,7 +92,7 @@ class RoleService extends BaseService
                 ['name' => $name]
             );
 
-            return $role->load('permissions');
+            return $role->refresh()->load('permissions');
         });
     }
 

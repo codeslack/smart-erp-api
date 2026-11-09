@@ -14,6 +14,10 @@ use App\Core\Enums\DocumentStatusEnum;
 use App\Core\Enums\OpeningBalanceTypeEnum;
 use App\Core\Tenant\TenantManager;
 
+use App\Modules\Rbac\Models\Permission;
+use App\Modules\Rbac\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
+
 use App\Modules\Tenant\Models\Tenant;
 use App\Modules\User\Models\User;
 use App\Modules\Supplier\Models\Supplier;
@@ -66,6 +70,8 @@ class PaymentReversalTest extends TestCase
             'is_active' => true,
         ]);
 
+        $this->grantPaymentPermissions();
+
         Sanctum::actingAs($this->user);
     }
 
@@ -76,6 +82,47 @@ class PaymentReversalTest extends TestCase
             'code' => 'SUP-' . uniqid(),
             'is_active' => true,
         ]);
+    }
+
+    protected function grantPaymentPermissions(): void
+    {
+        $registrar = app(PermissionRegistrar::class);
+
+        app(TenantManager::class)
+            ->setTenant($this->tenant);
+
+        $registrar->setPermissionsTeamId(
+            $this->tenant->id
+        );
+
+        try {
+            $role = Role::firstOrCreate([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Payment Reversal Test Role',
+                'guard_name' => 'sanctum',
+            ]);
+
+            foreach ([
+                'payment.create',
+                'payment.confirm',
+                'payment.reverse',
+            ] as $permissionName) {
+
+                $permission = Permission::firstOrCreate([
+                    'name' => $permissionName,
+                    'guard_name' => 'sanctum',
+                ]);
+
+                $role->givePermissionTo($permission);
+            }
+
+            $this->user->assignRole($role);
+
+        } finally {
+            $registrar->setPermissionsTeamId(null);
+
+            $registrar->forgetCachedPermissions();
+        }
     }
 
     public function test_payment_can_be_confirmed_and_reversed_through_api(): void

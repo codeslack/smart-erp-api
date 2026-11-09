@@ -21,6 +21,10 @@ class PaymentModule implements ModuleInterface
             'payment.create',
             'payment.update',
             'payment.delete',
+
+            'payment.confirm',
+            'payment.cancel',
+            'payment.reverse',
         ];
     }
 

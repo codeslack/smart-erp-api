@@ -13,6 +13,8 @@ use App\Core\Services\BaseService;
 use App\Modules\Customer\Models\Customer;
 use App\Modules\Customer\Repositories\Contracts\CustomerRepositoryInterface;
 
+use App\Modules\SystemNumber\Enums\SystemNumberTypeEnum;
+
 use App\Modules\CustomerOpeningBill\Services\CustomerOpeningBillService;
 use App\Modules\CustomerOpeningBill\Services\CustomerOpeningBillPostingService;
 
@@ -37,6 +39,10 @@ class CustomerService extends BaseService
             $openingBills = $data['opening_bills'] ?? null;
 
             unset($data['opening_bills']);
+
+            $data['code'] = nextSystemNumber(
+                SystemNumberTypeEnum::CUSTOMER
+            );
 
             $customer = $this->repository->create($data);
 

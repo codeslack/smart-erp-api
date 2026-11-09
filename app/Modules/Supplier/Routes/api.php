@@ -6,6 +6,8 @@ use App\Modules\Supplier\Controllers\SupplierController;
 Route::middleware([
     'auth:sanctum',
     'tenant',
+    'permission.tenant',
+    'permission.auto',
 ])->group(function () {
 
     Route::apiResource(

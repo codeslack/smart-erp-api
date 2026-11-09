@@ -10,6 +10,10 @@ use Laravel\Sanctum\Sanctum;
 
 use App\Core\Tenant\TenantManager;
 
+use App\Modules\Rbac\Models\Permission;
+use App\Modules\Rbac\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
+
 use App\Modules\Tenant\Models\Tenant;
 use App\Modules\User\Models\User;
 use App\Modules\Tax\Models\Tax;
@@ -41,7 +45,51 @@ class TaxApiTest extends TestCase
             'is_active' => true,
         ]);
 
+        $this->grantCrudPermissions();
+
         Sanctum::actingAs($this->user);
+    }
+
+    protected function grantCrudPermissions(): void
+    {
+        $registrar = app(PermissionRegistrar::class);
+
+        app(TenantManager::class)
+            ->setTenant($this->tenant);
+
+        $registrar->setPermissionsTeamId(
+            $this->tenant->id
+        );
+
+        try {
+            $role = Role::firstOrCreate([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Tax API Test Role',
+                'guard_name' => 'sanctum',
+            ]);
+
+            foreach ([
+                'tax.view',
+                'tax.create',
+                'tax.update',
+                'tax.delete',
+            ] as $permissionName) {
+
+                $permission = Permission::firstOrCreate([
+                    'name' => $permissionName,
+                    'guard_name' => 'sanctum',
+                ]);
+
+                $role->givePermissionTo($permission);
+            }
+
+            $this->user->assignRole($role);
+
+        } finally {
+            $registrar->setPermissionsTeamId(null);
+
+            $registrar->forgetCachedPermissions();
+        }
     }
 
     public function test_tax_can_be_created(): void

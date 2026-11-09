@@ -13,6 +13,8 @@ use App\Core\Services\BaseService;
 use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Supplier\Repositories\Contracts\SupplierRepositoryInterface;
 
+use App\Modules\SystemNumber\Enums\SystemNumberTypeEnum;
+
 use App\Modules\SupplierOpeningBill\Services\SupplierOpeningBillService;
 use App\Modules\SupplierOpeningBill\Services\SupplierOpeningBillPostingService;
 
@@ -34,6 +36,10 @@ class SupplierService extends BaseService
         $supplier = DB::transaction(function () use ($data) {
             $openingBills = $data['opening_bills'] ?? null;
             unset($data['opening_bills']);
+
+            $data['code'] = nextSystemNumber(
+                SystemNumberTypeEnum::SUPPLIER
+            );
 
             $supplier = $this->repository->create($data);
 

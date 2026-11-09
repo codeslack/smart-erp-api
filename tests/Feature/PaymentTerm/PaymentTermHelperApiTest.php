@@ -9,6 +9,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\CreatesUser;
 use Tests\Support\CreatesTenant;
 
+use App\Core\Tenant\TenantManager;
+use App\Modules\Rbac\Models\Permission;
+use App\Modules\Rbac\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
+
 use App\Modules\Tenant\Models\Tenant;
 use App\Modules\PaymentTerm\Models\PaymentTerm;
 use App\Modules\User\Models\User;
@@ -33,12 +38,54 @@ class PaymentTermHelperApiTest extends TestCase
 
     protected function authenticate(): void
     {
-        $user = $this->tenant->users()->first();
+        $this->grantCrudPermissions();
 
         $this->actingAs(
-            $user,
+            $this->user,
             'sanctum'
         );
+    }
+
+    protected function grantCrudPermissions(): void
+    {
+        $registrar = app(PermissionRegistrar::class);
+
+        app(TenantManager::class)
+            ->setTenant($this->tenant);
+
+        $registrar->setPermissionsTeamId(
+            $this->tenant->id
+        );
+
+        try {
+            $role = Role::firstOrCreate([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Payment Term Helper Test Role',
+                'guard_name' => 'sanctum',
+            ]);
+
+            foreach ([
+                'payment-term.view',
+                'payment-term.create',
+                'payment-term.update',
+                'payment-term.delete',
+            ] as $permissionName) {
+
+                $permission = Permission::firstOrCreate([
+                    'name' => $permissionName,
+                    'guard_name' => 'sanctum',
+                ]);
+
+                $role->givePermissionTo($permission);
+            }
+
+            $this->user->assignRole($role);
+
+        } finally {
+            $registrar->setPermissionsTeamId(null);
+
+            $registrar->forgetCachedPermissions();
+        }
     }
 
     public function test_payment_term_can_be_created(): void

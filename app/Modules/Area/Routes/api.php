@@ -6,7 +6,8 @@ use App\Modules\Area\Controllers\AreaController;
 Route::middleware([
     'auth:sanctum',
     'tenant',
-    // 'permission.tenant',
+    'permission.tenant',
+    'permission.auto',
 ])->group(function () {
 
     Route::apiResource(

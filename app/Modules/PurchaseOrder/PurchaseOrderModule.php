@@ -17,12 +17,12 @@ class PurchaseOrderModule implements ModuleInterface
     {
         return [
 
-            'purchase_order.view',
-            'purchase_order.create',
-            'purchase_order.update',
-            'purchase_order.delete',
-            'purchase_order.confirm',
-            'purchase_order.cancel',
+            'purchase-order.view',
+            'purchase-order.create',
+            'purchase-order.update',
+            'purchase-order.delete',
+            'purchase-order.confirm',
+            'purchase-order.cancel',
         ];
     }
 

@@ -12,6 +12,12 @@ use App\Modules\Tenant\Models\Tenant;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
+use App\Modules\User\Models\User;
+use App\Core\Tenant\TenantManager;
+use App\Modules\Rbac\Models\Permission;
+use App\Modules\Rbac\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
+
 use App\Core\Enums\OpeningBalanceTypeEnum;
 use App\Modules\Accounting\Services\AccountingSetupService;
 use App\Modules\Supplier\Models\Supplier;
@@ -20,7 +26,7 @@ use App\Modules\SupplierOpeningBill\Models\SupplierOpeningBill;
 class SupplierOpeningBalanceApiTest extends TestCase
 {
     protected Tenant $tenant;
-    
+
     use RefreshDatabase;
     use CreatesTenant;
     use CreatesUser;
@@ -31,10 +37,56 @@ class SupplierOpeningBalanceApiTest extends TestCase
         parent::setUp();
 
         $this->tenant = $this->createTestTenant();
-        $this->actingAs($this->createTestUser(), 'sanctum');
+
+        $user = $this->createTestUser();
+
+        $this->grantSupplierPermissions($user);
+
+        $this->actingAs($user, 'sanctum');
 
         app(AccountingSetupService::class)
             ->setup($this->tenant);
+    }
+
+    protected function grantSupplierPermissions(User $user): void
+    {
+        $registrar = app(PermissionRegistrar::class);
+
+        app(TenantManager::class)
+            ->setTenant($this->tenant);
+
+        $registrar->setPermissionsTeamId(
+            $this->tenant->id
+        );
+
+        try {
+            $role = Role::firstOrCreate([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Supplier Opening Balance Test Role',
+                'guard_name' => 'sanctum',
+            ]);
+
+            foreach (
+                [
+                    'supplier.create',
+                    'supplier.update',
+                ] as $permissionName
+            ) {
+
+                $permission = Permission::firstOrCreate([
+                    'name' => $permissionName,
+                    'guard_name' => 'sanctum',
+                ]);
+
+                $role->givePermissionTo($permission);
+            }
+
+            $user->assignRole($role);
+        } finally {
+            $registrar->setPermissionsTeamId(null);
+
+            $registrar->forgetCachedPermissions();
+        }
     }
 
     public function test_create_supplier_with_opening_bill(): void

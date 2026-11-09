@@ -8,6 +8,8 @@ use App\Modules\Product\Controllers\ProductVariantController;
 Route::middleware([
     'auth:sanctum',
     'tenant',
+    'permission.tenant',
+    'permission.auto',
 ])->group(function () {
 
     /*

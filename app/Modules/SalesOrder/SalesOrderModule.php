@@ -15,12 +15,12 @@ class SalesOrderModule implements ModuleInterface
     public static function permissions(): array
     {
         return [
-            'sales_order.view',
-            'sales_order.create',
-            'sales_order.update',
-            'sales_order.delete',
-            'sales_order.confirm',
-            'sales_order.cancel',
+            'sales-order.view',
+            'sales-order.create',
+            'sales-order.update',
+            'sales-order.delete',
+            'sales-order.confirm',
+            'sales-order.cancel',
         ];
     }
 

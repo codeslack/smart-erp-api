@@ -13,6 +13,10 @@ use Laravel\Sanctum\Sanctum;
 use App\Core\Enums\OpeningBalanceTypeEnum;
 use App\Core\Tenant\TenantManager;
 
+use App\Modules\Rbac\Models\Permission;
+use App\Modules\Rbac\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
+
 use App\Modules\Tenant\Models\Tenant;
 use App\Modules\User\Models\User;
 use App\Modules\Customer\Models\Customer;
@@ -49,7 +53,47 @@ class CustomerResourceTest extends TestCase
             'is_active' => true,
         ]);
 
+        $this->grantCustomerViewPermission(
+            $this->user,
+            $this->tenant
+        );
+
         Sanctum::actingAs($this->user);
+    }
+
+    protected function grantCustomerViewPermission(
+        User $user,
+        Tenant $tenant
+    ): void {
+        $registrar = app(PermissionRegistrar::class);
+
+        app(TenantManager::class)
+            ->setTenant($tenant);
+
+        $registrar->setPermissionsTeamId(
+            $tenant->id
+        );
+
+        try {
+            $permission = Permission::firstOrCreate([
+                'name' => 'customer.view',
+                'guard_name' => 'sanctum',
+            ]);
+
+            $role = Role::firstOrCreate([
+                'tenant_id' => $tenant->id,
+                'name' => 'Customer Resource Test Role',
+                'guard_name' => 'sanctum',
+            ]);
+
+            $role->givePermissionTo($permission);
+
+            $user->assignRole($role);
+        } finally {
+            $registrar->setPermissionsTeamId(null);
+
+            $registrar->forgetCachedPermissions();
+        }
     }
 
     protected function createCustomer(): Customer
@@ -205,6 +249,11 @@ class CustomerResourceTest extends TestCase
             'password' => 'password',
             'is_active' => true,
         ]);
+
+        $this->grantCustomerViewPermission(
+            $otherUser,
+            $otherTenant
+        );
 
         Sanctum::actingAs($otherUser);
 

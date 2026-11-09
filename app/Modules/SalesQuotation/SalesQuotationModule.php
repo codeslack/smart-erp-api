@@ -15,15 +15,15 @@ class SalesQuotationModule implements ModuleInterface
     public static function permissions(): array
     {
         return [
-            'sales_quotation.view',
-            'sales_quotation.create',
-            'sales_quotation.update',
-            'sales_quotation.delete',
-            'sales_quotation.send',
-            'sales_quotation.accept',
-            'sales_quotation.reject',
-            'sales_quotation.cancel',
-            'sales_quotation.convert',
+            'sales-quotation.view',
+            'sales-quotation.create',
+            'sales-quotation.update',
+            'sales-quotation.delete',
+            'sales-quotation.send',
+            'sales-quotation.accept',
+            'sales-quotation.reject',
+            'sales-quotation.cancel',
+            'sales-quotation.convert',
         ];
     }
 

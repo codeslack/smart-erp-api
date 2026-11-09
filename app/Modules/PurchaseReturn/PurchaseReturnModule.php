@@ -15,13 +15,13 @@ class PurchaseReturnModule implements ModuleInterface
     public static function permissions(): array
     {
         return [
-            'purchase_return.view',
-            'purchase_return.create',
-            'purchase_return.update',
-            'purchase_return.delete',
-            'purchase_return.approve',
-            'purchase_return.confirm',
-            'purchase_return.cancel',
+            'purchase-return.view',
+            'purchase-return.create',
+            'purchase-return.update',
+            'purchase-return.delete',
+            'purchase-return.approve',
+            'purchase-return.confirm',
+            'purchase-return.cancel',
         ];
     }
 

@@ -33,41 +33,9 @@ Route::middleware([
     'auth:sanctum',
     'tenant',
     'permission.tenant',
-])->prefix('users')->name('users.')->group(function () {
+    'permission.auto',
+])->group(function () {
 
-    Route::get(
-        '/',
-        [UserController::class, 'index']
-    )->middleware('permission:user.view')
-        ->name('index');
-
-    Route::post(
-        '/',
-        [UserController::class, 'store']
-    )->middleware('permission:user.create')
-        ->name('store');
-
-    Route::get(
-        '/{user}',
-        [UserController::class, 'show']
-    )->middleware('permission:user.view')
-        ->name('show');
-
-    Route::put(
-        '/{user}',
-        [UserController::class, 'update']
-    )->middleware('permission:user.update')
-        ->name('update');
-
-    Route::patch(
-        '/{user}',
-        [UserController::class, 'update']
-    )->middleware('permission:user.update')
-        ->name('update.patch');
-
-    Route::delete(
-        '/{user}',
-        [UserController::class, 'destroy']
-    )->middleware('permission:user.delete')
-        ->name('destroy');
+    Route::apiResource('users', UserController::class)
+        ->names('users');
 });

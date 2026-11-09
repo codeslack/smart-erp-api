@@ -11,6 +11,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\CreatesUser;
 use Tests\Support\CreatesTenant;
 
+use App\Core\Tenant\TenantManager;
+use App\Modules\Rbac\Models\Permission;
+use App\Modules\Rbac\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
+
 use App\Modules\User\Models\User;
 use App\Modules\Tenant\Models\Tenant;
 
@@ -34,7 +39,51 @@ class TaxRegistrationApiTest extends TestCase
 
         $this->user = $this->createTestUser();
 
+        $this->grantCrudPermissions();
+
         Sanctum::actingAs($this->user);
+    }
+
+    protected function grantCrudPermissions(): void
+    {
+        $registrar = app(PermissionRegistrar::class);
+
+        app(TenantManager::class)
+            ->setTenant($this->tenant);
+
+        $registrar->setPermissionsTeamId(
+            $this->tenant->id
+        );
+
+        try {
+            $role = Role::firstOrCreate([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Tax Registration Test Role',
+                'guard_name' => 'sanctum',
+            ]);
+
+            foreach ([
+                'tax-registration.view',
+                'tax-registration.create',
+                'tax-registration.update',
+                'tax-registration.delete',
+            ] as $permissionName) {
+
+                $permission = Permission::firstOrCreate([
+                    'name' => $permissionName,
+                    'guard_name' => 'sanctum',
+                ]);
+
+                $role->givePermissionTo($permission);
+            }
+
+            $this->user->assignRole($role);
+
+        } finally {
+            $registrar->setPermissionsTeamId(null);
+
+            $registrar->forgetCachedPermissions();
+        }
     }
 
     public function test_registration_can_be_created(): void

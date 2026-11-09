@@ -16,10 +16,10 @@ class ProductUnitModule implements ModuleInterface
     public static function permissions(): array
     {
         return [
-            'product_unit.view',
-            'product_unit.create',
-            'product_unit.update',
-            'product_unit.delete',
+            'product-unit.view',
+            'product-unit.create',
+            'product-unit.update',
+            'product-unit.delete',
         ];
     }
 

@@ -4,14 +4,22 @@ use Illuminate\Http\Request;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 
 use App\Core\Exceptions\BaseApiException;
 use App\Core\Exceptions\ApiExceptionHandler;
+
+use App\Core\Tenant\TenantMiddleware;
 use App\Core\Tenant\Middleware\TenantBootstrapMiddleware;
+use App\Core\Tenant\Middleware\SetPermissionTenant;
+
+use App\Core\Middleware\AutoPermissionMiddleware;
 
 use Spatie\Permission\Middleware\PermissionMiddleware;
 
-return Application::configure(basePath: dirname(__DIR__))
+return Application::configure(
+    basePath: dirname(__DIR__)
+)
     ->withRouting(
         web: __DIR__ . '/../routes/web.php',
         api: __DIR__ . '/../routes/api.php',
@@ -19,12 +27,26 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+
+        /*
+        |--------------------------------------------------------------------------
+        | Middleware Aliases
+        |--------------------------------------------------------------------------
+        */
+
         $middleware->alias([
-            'tenant' => \App\Core\Tenant\TenantMiddleware::class,
-            'tenant.bootstrap' => \App\Core\Tenant\Middleware\TenantBootstrapMiddleware::class,
-            'permission.tenant' => \App\Core\Tenant\Middleware\SetPermissionTenant::class,
+            'tenant' => TenantMiddleware::class,
+            'tenant.bootstrap' => TenantBootstrapMiddleware::class,
+            'permission.tenant' => SetPermissionTenant::class,
             'permission' => PermissionMiddleware::class,
+            'permission.auto' => AutoPermissionMiddleware::class,
         ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | API Middleware
+        |--------------------------------------------------------------------------
+        */
 
         $middleware->api(
             prepend: [
@@ -32,14 +54,21 @@ return Application::configure(basePath: dirname(__DIR__))
             ]
         );
 
+        /*
+        |--------------------------------------------------------------------------
+        | Middleware Priority
+        |--------------------------------------------------------------------------
+        */
+
         $middleware->prependToPriorityList(
-            \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
-            \App\Core\Tenant\Middleware\TenantBootstrapMiddleware::class
+            AuthenticatesRequests::class,
+            TenantBootstrapMiddleware::class
         );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+
         $exceptions->shouldRenderJsonWhen(
-            fn(Request $request) => $request->is('api/*'),
+            fn (Request $request) => $request->is('api/*'),
         );
 
         $exceptions->dontReport([
@@ -48,14 +77,18 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $exceptions->render(
             function (
-                \Throwable $exception,
+                Throwable $exception,
                 Request $request
             ) {
-                if ($request->is('api/*') || $request->expectsJson()) {
+                if (
+                    $request->is('api/*')
+                    || $request->expectsJson()
+                ) {
                     return app(
                         ApiExceptionHandler::class
                     )->render($exception);
                 }
             }
         );
-    })->create();
+    })
+    ->create();
