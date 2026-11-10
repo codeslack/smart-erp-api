@@ -10,6 +10,15 @@ class Setting extends TenantModel
 {
     protected $table = 'settings';
 
+    protected $fillable = [
+        'group',
+        'key',
+        'value',
+        'description',
+        'created_by',
+        'updated_by',
+    ];
+
     public const GROUP_COMPANY = 'company';
 
     public const GROUP_INVENTORY = 'inventory';
