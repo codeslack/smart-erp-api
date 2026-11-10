@@ -18,6 +18,15 @@ class ProductStock extends TenantModel
 
     protected $table = 'product_stocks';
 
+    protected $fillable = [
+        'product_id',
+        'product_variant_id',
+        'warehouse_id',
+        'quantity',
+        'average_cost',
+        'last_movement_at',
+    ];
+
     /**
      * Casts
      */
