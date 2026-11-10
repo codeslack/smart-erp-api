@@ -8,6 +8,10 @@ use App\Modules\Payment\Models\Payment;
 use App\Modules\Payment\Models\PaymentAllocation;
 use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
 
+use App\Modules\Sales\Repositories\Contracts\SaleRepositoryInterface;
+
+use App\Modules\Purchase\Repositories\Contracts\PurchaseRepositoryInterface;
+
 use App\Modules\CustomerOpeningBill\Repositories\Contracts\CustomerOpeningBillRepositoryInterface;
 use App\Modules\SupplierOpeningBill\Repositories\Contracts\SupplierOpeningBillRepositoryInterface;
 
@@ -23,9 +27,17 @@ class PaymentAllocationPostingService
 
     private const SUPPLIER_OPENING_BILL = 'supplier_opening_bill';
 
+    private const SALES_INVOICE = 'sales_invoice';
+
+    private const PURCHASE_BILL = 'purchase_bill';
+
+    private const SCALE = 4;
+
     public function __construct(
         protected CustomerOpeningBillRepositoryInterface $customerOpeningBills,
         protected SupplierOpeningBillRepositoryInterface $supplierOpeningBills,
+        protected SaleRepositoryInterface $sales,
+        protected PurchaseRepositoryInterface $purchases,
         protected PaymentAllocationValidatorInterface $customerValidator,
         protected SupplierOpeningBillAllocationValidatorInterface $supplierValidator,
     ) {}
@@ -47,9 +59,7 @@ class PaymentAllocationPostingService
     ): void {
         $documentType = $allocation->document_type;
 
-        if (
-            $documentType === self::CUSTOMER_OPENING_BILL
-        ) {
+        if ($documentType === self::CUSTOMER_OPENING_BILL) {
             if (
                 $payment->party_type
                 !== PaymentPartyTypeEnum::CUSTOMER
@@ -82,9 +92,7 @@ class PaymentAllocationPostingService
             return;
         }
 
-        if (
-            $documentType === self::SUPPLIER_OPENING_BILL
-        ) {
+        if ($documentType === self::SUPPLIER_OPENING_BILL) {
             if (
                 $payment->party_type
                 !== PaymentPartyTypeEnum::SUPPLIER
@@ -116,5 +124,123 @@ class PaymentAllocationPostingService
 
             return;
         }
+
+        if ($documentType === self::SALES_INVOICE) {
+            $this->postSalesInvoice(
+                $payment,
+                $allocation
+            );
+
+            return;
+        }
+
+        if ($documentType === self::PURCHASE_BILL) {
+            $this->postPurchaseBill(
+                $payment,
+                $allocation
+            );
+
+            return;
+        }
+
+        throw new BusinessException(
+            'Unsupported payment allocation document type.'
+        );
+    }
+
+    protected function postSalesInvoice(
+        Payment $payment,
+        PaymentAllocation $allocation
+    ): void {
+        if (
+            $payment->party_type
+            !== PaymentPartyTypeEnum::CUSTOMER
+        ) {
+            throw new BusinessException(
+                'Sales invoice allocation requires a customer payment.'
+            );
+        }
+
+        $this->customerValidator->validate(
+            $payment,
+            $allocation
+        );
+
+        $sale = $this->sales->findByIdForUpdate(
+            (int) $allocation->document_id
+        );
+
+        if (! $sale) {
+            throw new BusinessException(
+                'Sales invoice not found.'
+            );
+        }
+
+        $allocatedAmount = (string) $allocation->allocated_amount;
+
+        $paidAmount = bcadd(
+            (string) $sale->paid_amount,
+            $allocatedAmount,
+            self::SCALE
+        );
+
+        $dueAmount = bcsub(
+            (string) $sale->due_amount,
+            $allocatedAmount,
+            self::SCALE
+        );
+
+        $this->sales->update($sale, [
+            'paid_amount' => $paidAmount,
+            'due_amount' => $dueAmount,
+        ]);
+    }
+
+    protected function postPurchaseBill(
+        Payment $payment,
+        PaymentAllocation $allocation
+    ): void {
+        if (
+            $payment->party_type
+            !== PaymentPartyTypeEnum::SUPPLIER
+        ) {
+            throw new BusinessException(
+                'Purchase bill allocation requires a supplier payment.'
+            );
+        }
+
+        $this->customerValidator->validate(
+            $payment,
+            $allocation
+        );
+
+        $purchase = $this->purchases->findByIdForUpdate(
+            (int) $allocation->document_id
+        );
+
+        if (! $purchase) {
+            throw new BusinessException(
+                'Purchase bill not found.'
+            );
+        }
+
+        $allocatedAmount = (string) $allocation->allocated_amount;
+
+        $paidAmount = bcadd(
+            (string) $purchase->paid_amount,
+            $allocatedAmount,
+            self::SCALE
+        );
+
+        $dueAmount = bcsub(
+            (string) $purchase->due_amount,
+            $allocatedAmount,
+            self::SCALE
+        );
+
+        $this->purchases->update($purchase, [
+            'paid_amount' => $paidAmount,
+            'due_amount' => $dueAmount,
+        ]);
     }
 }

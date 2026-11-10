@@ -10,6 +10,15 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\CreatesTenant;
 use Tests\Support\CreatesSupplier;
 use Tests\Support\CreatesCustomer;
+use Tests\Support\CreatesWarehouse;
+
+use App\Modules\Warehouse\Models\Warehouse;
+
+use App\Modules\Sales\Models\Sale;
+use App\Modules\Sales\Enums\SaleStatusEnum;
+
+use App\Modules\Purchase\Models\Purchase;
+use App\Modules\Purchase\Enums\PurchaseStatusEnum;
 
 use App\Core\Enums\DocumentStatusEnum;
 use App\Core\Exceptions\BusinessException;
@@ -40,10 +49,12 @@ class PaymentConfirmationValidationTest extends TestCase
 {
     use RefreshDatabase;
     use CreatesTenant;
+    use CreatesWarehouse;
     use CreatesSupplier;
     use CreatesCustomer;
 
     protected Tenant $tenant;
+    protected Warehouse $warehouse;
     protected ChartOfAccount $cashAccount;
 
     protected Customer $customer;
@@ -65,6 +76,8 @@ class PaymentConfirmationValidationTest extends TestCase
             ->where('tenant_id', $this->tenant->id)
             ->where('account_code', AccountingAccounts::CASH)
             ->firstOrFail();
+
+        $this->warehouse = $this->createWarehouse();
 
         $this->customer = $this->createCustomer();
 
@@ -696,12 +709,14 @@ class PaymentConfirmationValidationTest extends TestCase
             'status' => DocumentStatusEnum::DRAFT->value,
         ]);
 
+        $invoice = $this->createConfirmedSalesInvoice('1000.0000');
+
         PaymentAllocation::create([
             'uuid' => (string) Str::uuid(),
             'tenant_id' => $this->tenant->id,
             'payment_id' => $payment->id,
             'document_type' => 'sales_invoice',
-            'document_id' => 1010,
+            'document_id' => $invoice->id,
             'allocated_amount' => 1000,
         ]);
 
@@ -767,12 +782,14 @@ class PaymentConfirmationValidationTest extends TestCase
             'status' => DocumentStatusEnum::DRAFT->value,
         ]);
 
+        $invoice = $this->createConfirmedPurchaseBill('1000.0000');
+
         PaymentAllocation::create([
             'uuid' => (string) Str::uuid(),
             'tenant_id' => $this->tenant->id,
             'payment_id' => $payment->id,
             'document_type' => 'purchase_bill',
-            'document_id' => 1011,
+            'document_id' => $invoice->id,
             'allocated_amount' => 1000,
         ]);
 
@@ -848,12 +865,14 @@ class PaymentConfirmationValidationTest extends TestCase
             'balance_type' => OpeningBalanceTypeEnum::DEBIT->value,
         ]);
 
+        $invoice = $this->createConfirmedSalesInvoice('400.0000');
+
         PaymentAllocation::create([
             'uuid' => (string) Str::uuid(),
             'tenant_id' => $this->tenant->id,
             'payment_id' => $payment->id,
             'document_type' => 'sales_invoice',
-            'document_id' => 1012,
+            'document_id' => $invoice->id,
             'allocated_amount' => 400,
         ]);
 
@@ -937,12 +956,14 @@ class PaymentConfirmationValidationTest extends TestCase
             'balance_type' => OpeningBalanceTypeEnum::CREDIT->value,
         ]);
 
+        $invoice = $this->createConfirmedPurchaseBill('400.0000');
+
         PaymentAllocation::create([
             'uuid' => (string) Str::uuid(),
             'tenant_id' => $this->tenant->id,
             'payment_id' => $payment->id,
             'document_type' => 'purchase_bill',
-            'document_id' => 1013,
+            'document_id' => $invoice->id,
             'allocated_amount' => 400,
         ]);
 
@@ -1016,12 +1037,14 @@ class PaymentConfirmationValidationTest extends TestCase
             'status' => DocumentStatusEnum::DRAFT->value,
         ]);
 
+        $invoice = $this->createConfirmedSalesInvoice('1200.0000');
+
         $allocation = PaymentAllocation::create([
             'uuid' => (string) Str::uuid(),
             'tenant_id' => $this->tenant->id,
             'payment_id' => $payment->id,
             'document_type' => 'sales_invoice',
-            'document_id' => 1015,
+            'document_id' => $invoice->id,
             'allocated_amount' => 1200,
         ]);
 
@@ -1084,12 +1107,14 @@ class PaymentConfirmationValidationTest extends TestCase
             'status' => DocumentStatusEnum::DRAFT->value,
         ]);
 
+        $invoice = $this->createConfirmedSalesInvoice('1000.0000');
+
         PaymentAllocation::create([
             'uuid' => (string) Str::uuid(),
             'tenant_id' => $this->tenant->id,
             'payment_id' => $payment->id,
             'document_type' => 'sales_invoice',
-            'document_id' => 1014,
+            'document_id' => $invoice->id,
             'allocated_amount' => 1000,
         ]);
 
@@ -1499,6 +1524,38 @@ class PaymentConfirmationValidationTest extends TestCase
         $this->assertDatabaseMissing('journal_entries', [
             'reference_type' => Payment::class,
             'reference_id' => $payment->id,
+        ]);
+    }
+
+    protected function createConfirmedSalesInvoice(
+        string $amount
+    ): Sale {
+        return Sale::create([
+            'tenant_id' => $this->tenant->id,
+            'sale_no' => 'SALE-PAY-' . Str::upper(Str::random(12)),
+            'sale_date' => now()->toDateString(),
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'status' => SaleStatusEnum::CONFIRMED->value,
+            'grand_total' => $amount,
+            'paid_amount' => '0.0000',
+            'due_amount' => $amount,
+        ]);
+    }
+
+    protected function createConfirmedPurchaseBill(
+        string $amount
+    ): Purchase {
+        return Purchase::create([
+            'tenant_id' => $this->tenant->id,
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'purchase_no' => 'PUR-PAY-' . Str::upper(Str::random(12)),
+            'purchase_date' => now()->toDateString(),
+            'status' => PurchaseStatusEnum::CONFIRMED->value,
+            'grand_total' => $amount,
+            'paid_amount' => '0.0000',
+            'due_amount' => $amount,
         ]);
     }
 }

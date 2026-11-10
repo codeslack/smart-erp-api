@@ -50,7 +50,14 @@ class PaymentAccountingPostingService extends BasePostingService
                 );
             }
 
-            $this->allocationValidator->validate($payment, $allocation);
+            $this->validateAmount(
+                $allocation->allocated_amount
+            );
+
+            $this->allocationValidator->validate(
+                $payment,
+                $allocation
+            );
 
             $amount = bcadd(
                 (string) $allocation->allocated_amount,

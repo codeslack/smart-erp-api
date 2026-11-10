@@ -90,7 +90,7 @@ class CreatePurchaseReturnAction
             ]);
 
             foreach ($batches as $batch) {
-                $batchId = $batch['product_batch_id'] ?? ProductBatch::query()
+                $batchId = ProductBatch::query()
                     ->where('batch_no', $batch['batch_no'])
                     ->where('product_id', $returnItem->product_id)
                     ->where('warehouse_id', $returnItem->warehouse_id)
@@ -108,9 +108,10 @@ class CreatePurchaseReturnAction
             foreach ($serials as $serial) {
                 $serialNo = is_array($serial) ? ($serial['serial_number'] ?? $serial['serial_no'] ?? '') : (string) $serial;
                 $serialNo = trim($serialNo);
-                $serialId = is_array($serial) && isset($serial['product_serial_id'])
-                    ? $serial['product_serial_id']
-                    : ProductSerial::query()->where('serial_number', $serialNo)->where('product_id', $returnItem->product_id)->value('id');
+                $serialId = ProductSerial::query()
+                    ->where('serial_number', $serialNo)
+                    ->where('product_id', $returnItem->product_id)
+                    ->value('id');
 
                 $returnItem->serials()->create([
                     'tenant_id' => $purchaseReturn->tenant_id,

@@ -107,6 +107,15 @@ class SaleRepository extends BaseRepository implements SaleRepositoryInterface
             ->first();
     }
 
+    public function findByIdForUpdate(int $id): ?Sale
+    {
+        return $this->model
+            ->newQuery()
+            ->whereKey($id)
+            ->lockForUpdate()
+            ->first();
+    }
+
     public function find(int|string $id): Sale
     {
         return $this->model

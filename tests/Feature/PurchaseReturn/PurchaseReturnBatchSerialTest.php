@@ -12,6 +12,8 @@ use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 use App\Modules\Product\Enums\ProductTypeEnum;
 use App\Modules\Product\Models\Product;
 use App\Modules\Purchase\Models\Purchase;
+use App\Modules\PurchaseReturn\Models\PurchaseReturnItemBatch;
+use App\Modules\PurchaseReturn\Models\PurchaseReturnItemSerial;
 use App\Modules\Purchase\Services\PurchaseService;
 use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Tenant\Models\Tenant;
@@ -206,5 +208,350 @@ class PurchaseReturnBatchSerialTest extends TestCase
             ->where('warehouse_id', $this->warehouse->id)
             ->first();
         $this->assertEquals(1, (float) $stock->quantity);
+    }
+
+    public function test_create_ignores_forged_product_batch_id(): void
+    {
+        $purchaseService = app(PurchaseService::class);
+
+        $purchase = $purchaseService->create([
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [
+                [
+                    'product_uuid' => $this->batchProduct->uuid,
+                    'quantity' => 20,
+                    'unit_cost' => 120,
+                    'batches' => [
+                        [
+                            'batch_no' => 'LOT-INTENDED',
+                            'quantity' => 10,
+                        ],
+                        [
+                            'batch_no' => 'LOT-DECOY',
+                            'quantity' => 10,
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $purchase = $purchaseService->confirm($purchase);
+
+        $intendedBatch = ProductBatch::query()
+            ->where('batch_no', 'LOT-INTENDED')
+            ->firstOrFail();
+
+        $decoyBatch = ProductBatch::query()
+            ->where('batch_no', 'LOT-DECOY')
+            ->firstOrFail();
+
+        $purchaseItem = $purchase->items->first();
+
+        $response = $this->postJson('/api/purchase-returns', [
+            'purchase_uuid' => $purchase->uuid,
+            'return_date' => now()->toDateString(),
+            'return_reason' => 'Forged batch ID security test',
+            'items' => [
+                [
+                    'purchase_item_uuid' => $purchaseItem->uuid,
+                    'returned_quantity' => 4,
+                    'unit_cost' => 120,
+                    'batches' => [
+                        [
+                            'batch_no' => 'LOT-INTENDED',
+                            'quantity' => 4,
+
+                            // Deliberately supply the wrong batch ID.
+                            'product_batch_id' => $decoyBatch->id,
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $response->assertStatus(201);
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $savedBatch = PurchaseReturnItemBatch::query()
+            ->where('batch_no', 'LOT-INTENDED')
+            ->firstOrFail();
+
+        $this->assertEquals(
+            $intendedBatch->id,
+            $savedBatch->product_batch_id
+        );
+
+        $this->assertNotEquals(
+            $decoyBatch->id,
+            $savedBatch->product_batch_id
+        );
+    }
+
+    public function test_create_ignores_forged_product_serial_id(): void
+    {
+        $purchaseService = app(PurchaseService::class);
+
+        $purchase = $purchaseService->create([
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [
+                [
+                    'product_uuid' => $this->serialProduct->uuid,
+                    'quantity' => 3,
+                    'unit_cost' => 500,
+                    'serials' => [
+                        'SR-SEC-001',
+                        'SR-SEC-002',
+                        'SR-SEC-003',
+                    ],
+                ],
+            ],
+        ]);
+
+        $purchase = $purchaseService->confirm($purchase);
+
+        $intendedSerial = ProductSerial::query()
+            ->where('serial_number', 'SR-SEC-001')
+            ->firstOrFail();
+
+        $decoySerial = ProductSerial::query()
+            ->where('serial_number', 'SR-SEC-002')
+            ->firstOrFail();
+
+        $purchaseItem = $purchase->items->first();
+
+        $response = $this->postJson('/api/purchase-returns', [
+            'purchase_uuid' => $purchase->uuid,
+            'return_date' => now()->toDateString(),
+            'return_reason' => 'Forged serial ID security test',
+            'items' => [
+                [
+                    'purchase_item_uuid' => $purchaseItem->uuid,
+                    'returned_quantity' => 1,
+                    'unit_cost' => 500,
+                    'serials' => [
+                        [
+                            'serial_number' => 'SR-SEC-001',
+                            'product_serial_id' => $decoySerial->id,
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $response->assertStatus(201);
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $savedSerial = PurchaseReturnItemSerial::query()
+            ->where('serial_number', 'SR-SEC-001')
+            ->firstOrFail();
+
+        $this->assertEquals(
+            $intendedSerial->id,
+            $savedSerial->product_serial_id
+        );
+
+        $this->assertNotEquals(
+            $decoySerial->id,
+            $savedSerial->product_serial_id
+        );
+    }
+
+    public function test_update_ignores_forged_product_batch_id(): void
+    {
+        $purchaseService = app(PurchaseService::class);
+
+        $purchase = $purchaseService->create([
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [
+                [
+                    'product_uuid' => $this->batchProduct->uuid,
+                    'quantity' => 20,
+                    'unit_cost' => 120,
+                    'batches' => [
+                        [
+                            'batch_no' => 'LOT-UPDATE-INTENDED',
+                            'quantity' => 10,
+                        ],
+                        [
+                            'batch_no' => 'LOT-UPDATE-DECOY',
+                            'quantity' => 10,
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $purchase = $purchaseService->confirm($purchase);
+
+        $intendedBatch = ProductBatch::query()
+            ->where('batch_no', 'LOT-UPDATE-INTENDED')
+            ->firstOrFail();
+
+        $decoyBatch = ProductBatch::query()
+            ->where('batch_no', 'LOT-UPDATE-DECOY')
+            ->firstOrFail();
+
+        $purchaseItem = $purchase->items->first();
+
+        // Create the initial draft return.
+        $createResponse = $this->postJson('/api/purchase-returns', [
+            'purchase_uuid' => $purchase->uuid,
+            'return_date' => now()->toDateString(),
+            'return_reason' => 'Initial draft',
+            'items' => [
+                [
+                    'purchase_item_uuid' => $purchaseItem->uuid,
+                    'returned_quantity' => 1,
+                    'unit_cost' => 120,
+                    'batches' => [
+                        [
+                            'batch_no' => 'LOT-UPDATE-INTENDED',
+                            'quantity' => 1,
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $createResponse->assertStatus(201);
+
+        $returnUuid = $createResponse->json('data.uuid');
+
+        // Update the draft with a deliberately forged batch ID.
+        $updateResponse = $this->putJson(
+            "/api/purchase-returns/{$returnUuid}",
+            [
+                'items' => [
+                    [
+                        'purchase_item_uuid' => $purchaseItem->uuid,
+                        'returned_quantity' => 2,
+                        'unit_cost' => 120,
+                        'batches' => [
+                            [
+                                'batch_no' => 'LOT-UPDATE-INTENDED',
+                                'quantity' => 2,
+                                'product_batch_id' => $decoyBatch->id,
+                            ],
+                        ],
+                    ],
+                ],
+            ]
+        );
+
+        $updateResponse->assertStatus(200);
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $savedBatch = PurchaseReturnItemBatch::query()
+            ->where('batch_no', 'LOT-UPDATE-INTENDED')
+            ->firstOrFail();
+
+        $this->assertEquals(
+            $intendedBatch->id,
+            $savedBatch->product_batch_id
+        );
+
+        $this->assertNotEquals(
+            $decoyBatch->id,
+            $savedBatch->product_batch_id
+        );
+    }
+
+    public function test_update_ignores_forged_product_serial_id(): void
+    {
+        $purchaseService = app(PurchaseService::class);
+
+        $purchase = $purchaseService->create([
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [
+                [
+                    'product_uuid' => $this->serialProduct->uuid,
+                    'quantity' => 3,
+                    'unit_cost' => 500,
+                    'serials' => [
+                        'SR-UPD-001',
+                        'SR-UPD-002',
+                        'SR-UPD-003',
+                    ],
+                ],
+            ],
+        ]);
+
+        $purchase = $purchaseService->confirm($purchase);
+
+        $intendedSerial = ProductSerial::query()
+            ->where('serial_number', 'SR-UPD-001')
+            ->firstOrFail();
+
+        $decoySerial = ProductSerial::query()
+            ->where('serial_number', 'SR-UPD-002')
+            ->firstOrFail();
+
+        $purchaseItem = $purchase->items->first();
+
+        $createResponse = $this->postJson('/api/purchase-returns', [
+            'purchase_uuid' => $purchase->uuid,
+            'return_date' => now()->toDateString(),
+            'return_reason' => 'Initial draft',
+            'items' => [
+                [
+                    'purchase_item_uuid' => $purchaseItem->uuid,
+                    'returned_quantity' => 1,
+                    'unit_cost' => 500,
+                    'serials' => ['SR-UPD-001'],
+                ],
+            ],
+        ]);
+
+        $createResponse->assertStatus(201);
+
+        $returnUuid = $createResponse->json('data.uuid');
+
+        $updateResponse = $this->putJson(
+            "/api/purchase-returns/{$returnUuid}",
+            [
+                'items' => [
+                    [
+                        'purchase_item_uuid' => $purchaseItem->uuid,
+                        'returned_quantity' => 1,
+                        'unit_cost' => 500,
+                        'serials' => [
+                            [
+                                'serial_number' => 'SR-UPD-001',
+                                'product_serial_id' => $decoySerial->id,
+                            ],
+                        ],
+                    ],
+                ],
+            ]
+        );
+
+        $updateResponse->assertStatus(200);
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $savedSerial = PurchaseReturnItemSerial::query()
+            ->where('serial_number', 'SR-UPD-001')
+            ->firstOrFail();
+
+        $this->assertEquals(
+            $intendedSerial->id,
+            $savedSerial->product_serial_id
+        );
+
+        $this->assertNotEquals(
+            $decoySerial->id,
+            $savedSerial->product_serial_id
+        );
     }
 }

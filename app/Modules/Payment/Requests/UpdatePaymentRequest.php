@@ -14,6 +14,7 @@ use App\Modules\Payment\Enums\PaymentTypeEnum;
 use App\Modules\Payment\Enums\PaymentPurposeEnum;
 
 use App\Modules\Payment\Models\Payment;
+use App\Modules\Payment\Validation\PaymentRequestValidator;
 
 class UpdatePaymentRequest extends BaseRequest
 {
@@ -168,152 +169,9 @@ class UpdatePaymentRequest extends BaseRequest
     {
         return [
             function (Validator $validator) {
-                $this->validatePurposeCompatibility($validator);
-                $this->validateAllocations($validator);
+                app(PaymentRequestValidator::class)
+                    ->validate($validator);
             },
         ];
-    }
-
-    protected function validatePurposeCompatibility(
-        Validator $validator
-    ): void {
-        $purposeValue = $this->input('purpose');
-
-        if (! is_string($purposeValue)) {
-            return;
-        }
-
-        $purpose = PaymentPurposeEnum::tryFrom($purposeValue);
-
-        if (! $purpose) {
-            return;
-        }
-
-        $paymentTypeValue = $this->input('payment_type');
-
-        if (! is_string($paymentTypeValue)) {
-            return;
-        }
-
-        $paymentType = PaymentTypeEnum::tryFrom($paymentTypeValue);
-
-        if (! $paymentType) {
-            return;
-        }
-
-        if (
-            $purpose->isReceipt()
-            && $paymentType !== PaymentTypeEnum::RECEIPT
-        ) {
-            $validator->errors()->add(
-                'payment_type',
-                'The selected purpose requires a receipt transaction.'
-            );
-        }
-
-        if (
-            $purpose->isPayment()
-            && $paymentType !== PaymentTypeEnum::PAYMENT
-        ) {
-            $validator->errors()->add(
-                'payment_type',
-                'The selected purpose requires a payment transaction.'
-            );
-        }
-
-        $partyTypeValue = $this->input('party_type');
-
-        if (! is_string($partyTypeValue)) {
-            return;
-        }
-
-        $partyType = PaymentPartyTypeEnum::tryFrom($partyTypeValue);
-
-        if (! $partyType) {
-            return;
-        }
-
-        $requiresCustomer = match ($purpose) {
-            PaymentPurposeEnum::CUSTOMER_PAYMENT,
-            PaymentPurposeEnum::CUSTOMER_ADVANCE,
-            PaymentPurposeEnum::CUSTOMER_OPENING_BALANCE_ADJUSTMENT,
-            PaymentPurposeEnum::CUSTOMER_REFUND => true,
-
-            default => false,
-        };
-
-        $requiresSupplier = match ($purpose) {
-            PaymentPurposeEnum::SUPPLIER_PAYMENT,
-            PaymentPurposeEnum::SUPPLIER_ADVANCE,
-            PaymentPurposeEnum::SUPPLIER_REFUND => true,
-
-            default => false,
-        };
-
-        $requiresOther = match ($purpose) {
-            PaymentPurposeEnum::OTHER_RECEIPT,
-            PaymentPurposeEnum::OTHER_PAYMENT => true,
-
-            default => false,
-        };
-
-        if ($requiresCustomer && ! $partyType->isCustomer()) {
-            $validator->errors()->add(
-                'party_type',
-                'The selected purpose requires a customer party.'
-            );
-        }
-
-        if ($requiresSupplier && ! $partyType->isSupplier()) {
-            $validator->errors()->add(
-                'party_type',
-                'The selected purpose requires a supplier party.'
-            );
-        }
-
-        if ($requiresOther && ! $partyType->isOther()) {
-            $validator->errors()->add(
-                'party_type',
-                'The selected purpose requires an other party type.'
-            );
-        }
-
-        if (
-            $purpose->isOtherReceipt()
-            || $purpose->isOtherPayment()
-        ) {
-            if (! $this->filled('offset_account_id')) {
-                $validator->errors()->add(
-                    'offset_account_id',
-                    'Offset account is required for this payment purpose.'
-                );
-            }
-        }
-    }
-
-    protected function validateAllocations(
-        Validator $validator
-    ): void {
-        $amount = $this->input('amount');
-
-        if ($amount === null) {
-            return;
-        }
-
-        $allocatedAmount = collect(
-            $this->input('allocations', [])
-        )->sum(
-            fn ($allocation) =>
-                isset($allocation['allocated_amount'])
-                    ? (float) $allocation['allocated_amount']
-                    : 0
-        );
-
-        if ($allocatedAmount > (float) $amount) {
-            $validator->errors()->add(
-                'allocations',
-                'The total allocated amount cannot exceed the payment amount.'
-            );
-        }
     }
 }

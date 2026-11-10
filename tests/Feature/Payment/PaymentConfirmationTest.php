@@ -9,11 +9,19 @@ use Illuminate\Support\Str;
 use Tests\Support\CreatesTenant;
 use Tests\Support\CreatesSupplier;
 use Tests\Support\CreatesCustomer;
+use Tests\Support\CreatesWarehouse;
 
 use App\Core\Enums\DocumentStatusEnum;
 
 use App\Modules\Customer\Models\Customer;
 use App\Modules\Supplier\Models\Supplier;
+use App\Modules\Warehouse\Models\Warehouse;
+
+use App\Modules\Sales\Models\Sale;
+use App\Modules\Sales\Enums\SaleStatusEnum;
+
+use App\Modules\Purchase\Models\Purchase;
+use App\Modules\Purchase\Enums\PurchaseStatusEnum;
 
 use App\Modules\Tenant\Models\Tenant;
 use App\Modules\Payment\Models\Payment;
@@ -35,12 +43,17 @@ class PaymentConfirmationTest extends TestCase
     use CreatesTenant;
     use CreatesCustomer;
     use CreatesSupplier;
+    use CreatesWarehouse;
 
     protected Tenant $tenant;
+
     protected ChartOfAccount $cashAccount;
 
     protected Customer $customer;
+
     protected Supplier $supplier;
+
+    protected Warehouse $warehouse;
 
     protected function setUp(): void
     {
@@ -59,9 +72,43 @@ class PaymentConfirmationTest extends TestCase
             )
             ->firstOrFail();
 
+        $this->warehouse = $this->createWarehouse();
+
         $this->customer = $this->createCustomer();
 
         $this->supplier = $this->createSupplier();
+    }
+
+    protected function createConfirmedSalesInvoice(
+        string $amount
+    ): Sale {
+        return Sale::create([
+            'tenant_id' => $this->tenant->id,
+            'sale_no' => 'SALE-PAY-' . Str::upper(Str::random(12)),
+            'sale_date' => now()->toDateString(),
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'status' => SaleStatusEnum::CONFIRMED->value,
+            'grand_total' => $amount,
+            'paid_amount' => '0.0000',
+            'due_amount' => $amount,
+        ]);
+    }
+
+    protected function createConfirmedPurchaseBill(
+        string $amount
+    ): Purchase {
+        return Purchase::create([
+            'tenant_id' => $this->tenant->id,
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'purchase_no' => 'PUR-PAY-' . Str::upper(Str::random(12)),
+            'purchase_date' => now()->toDateString(),
+            'status' => PurchaseStatusEnum::CONFIRMED->value,
+            'grand_total' => $amount,
+            'paid_amount' => '0.0000',
+            'due_amount' => $amount,
+        ]);
     }
 
     public function test_receipt_confirmation_posts_accounting_and_confirms_payment(): void
@@ -179,6 +226,10 @@ class PaymentConfirmationTest extends TestCase
 
     public function test_partially_allocated_receipt_credits_receivable_and_remaining_customer_advance(): void
     {
+        $invoice = $this->createConfirmedSalesInvoice(
+            '1000.0000'
+        );
+
         $payment = Payment::create([
             'payment_no' => 'REC-0003',
             'payment_type' => PaymentTypeEnum::RECEIPT,
@@ -196,7 +247,7 @@ class PaymentConfirmationTest extends TestCase
             'uuid' => (string) Str::uuid(),
             'tenant_id' => $this->tenant->id,
             'document_type' => 'sales_invoice',
-            'document_id' => 1001,
+            'document_id' => $invoice->id,
             'allocated_amount' => '700.0000',
         ]);
 
@@ -208,6 +259,13 @@ class PaymentConfirmationTest extends TestCase
             DocumentStatusEnum::CONFIRMED->value,
             $confirmed->status
         );
+
+        $this->assertDatabaseHas('sales', [
+            'id' => $invoice->id,
+            'tenant_id' => $this->tenant->id,
+            'paid_amount' => '700.0000',
+            'due_amount' => '300.0000',
+        ]);
 
         $journalEntry = JournalEntry::query()
             ->where('tenant_id', $this->tenant->id)
@@ -364,6 +422,10 @@ class PaymentConfirmationTest extends TestCase
 
     public function test_partially_allocated_payment_debits_payable_and_remaining_supplier_advance(): void
     {
+        $invoice = $this->createConfirmedPurchaseBill(
+            '1000.0000'
+        );
+
         $payment = Payment::create([
             'payment_no' => 'PAY-0002',
             'payment_type' => PaymentTypeEnum::PAYMENT,
@@ -381,7 +443,7 @@ class PaymentConfirmationTest extends TestCase
             'uuid' => (string) Str::uuid(),
             'tenant_id' => $this->tenant->id,
             'document_type' => 'purchase_bill',
-            'document_id' => 1001,
+            'document_id' => $invoice->id,
             'allocated_amount' => '700.0000',
         ]);
 
@@ -393,6 +455,13 @@ class PaymentConfirmationTest extends TestCase
             DocumentStatusEnum::CONFIRMED->value,
             $confirmed->status
         );
+
+        $this->assertDatabaseHas('purchases', [
+            'id' => $invoice->id,
+            'tenant_id' => $this->tenant->id,
+            'paid_amount' => '700.0000',
+            'due_amount' => '300.0000',
+        ]);
 
         $journalEntry = JournalEntry::query()
             ->where('tenant_id', $this->tenant->id)

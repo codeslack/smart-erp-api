@@ -2,10 +2,11 @@
 
 namespace App\Core\Validation;
 
+use App\Core\Exceptions\BusinessException;
+
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Exists;
 use Illuminate\Validation\Rules\Unique;
-use RuntimeException;
 
 /**
  * Builds validation rules constrained to the active tenant.
@@ -15,14 +16,18 @@ use RuntimeException;
  */
 class TenantRule
 {
-    public static function unique(string $table, string $column): Unique
-    {
+    public static function unique(
+        string $table,
+        string $column
+    ): Unique {
         return Rule::unique($table, $column)
             ->where('tenant_id', self::tenantId());
     }
 
-    public static function exists(string $table, string $column = 'id'): Exists
-    {
+    public static function exists(
+        string $table,
+        string $column = 'id'
+    ): Exists {
         return Rule::exists($table, $column)
             ->where('tenant_id', self::tenantId());
     }
@@ -48,8 +53,9 @@ class TenantRule
         $tenantId = tenant()?->getKey();
 
         if (! $tenantId) {
-            throw new RuntimeException(
-                'Cannot build tenant validation rules without an active tenant.'
+            throw new BusinessException(
+                'An active tenant is required for tenant-scoped validation.',
+                'TENANT_REQUIRED'
             );
         }
 

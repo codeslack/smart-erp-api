@@ -4,6 +4,8 @@ namespace App\Modules\Payment\Services\Validation;
 
 use App\Core\Exceptions\BusinessException;
 
+use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
+
 use App\Modules\Payment\Models\Payment;
 use App\Modules\Payment\Models\PaymentAllocation;
 
@@ -12,7 +14,7 @@ use App\Modules\Payment\Services\Validation\Contracts\SupplierOpeningBillAllocat
 use App\Modules\SupplierOpeningBill\Models\SupplierOpeningBill;
 
 class SupplierOpeningBillAllocationValidator
-    implements SupplierOpeningBillAllocationValidatorInterface
+implements SupplierOpeningBillAllocationValidatorInterface
 {
     private const SCALE = 4;
 
@@ -20,6 +22,15 @@ class SupplierOpeningBillAllocationValidator
         Payment $payment,
         PaymentAllocation $allocation
     ): void {
+        if (
+            $payment->party_type
+            !== PaymentPartyTypeEnum::SUPPLIER
+        ) {
+            throw new BusinessException(
+                'Supplier opening bill allocation requires a supplier payment.'
+            );
+        }
+
         $bill = SupplierOpeningBill::query()
             ->whereKey($allocation->document_id)
             ->first();
@@ -30,7 +41,10 @@ class SupplierOpeningBillAllocationValidator
             );
         }
 
-        if ((int) $bill->tenant_id !== (int) tenantId()) {
+        if (
+            (int) $bill->tenant_id
+            !== (int) tenantId()
+        ) {
             throw new BusinessException(
                 'Supplier opening bill does not belong to current tenant.'
             );

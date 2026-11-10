@@ -71,6 +71,15 @@ class PurchaseRepository extends BaseRepository implements PurchaseRepositoryInt
             ->first();
     }
 
+    public function findByIdForUpdate(int $id): ?Purchase
+    {
+        return $this->model
+            ->newQuery()
+            ->whereKey($id)
+            ->lockForUpdate()
+            ->first();
+    }
+
     public function getBySupplierId(int $supplierId): Collection
     {
         return $this->model

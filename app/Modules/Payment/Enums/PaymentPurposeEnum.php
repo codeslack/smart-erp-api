@@ -51,6 +51,16 @@ enum PaymentPurposeEnum: string
         return $this === self::SUPPLIER_REFUND;
     }
 
+    public function allowsAllocations(): bool
+    {
+        return match ($this) {
+            self::CUSTOMER_PAYMENT,
+            self::SUPPLIER_PAYMENT => true,
+
+            default => false,
+        };
+    }
+
     public function isOtherReceipt(): bool
     {
         return $this === self::OTHER_RECEIPT;

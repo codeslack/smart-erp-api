@@ -13,6 +13,8 @@ interface PurchaseRepositoryInterface extends BaseRepositoryInterface
 
     public function findByPurchaseNo(string $purchaseNo): ?Purchase;
 
+    public function findByIdForUpdate(int $id): ?Purchase;
+
     public function getBySupplierId(int $supplierId): Collection;
 
     public function getByGoodsReceiptNoteId(int $goodsReceiptNoteId): ?Purchase;

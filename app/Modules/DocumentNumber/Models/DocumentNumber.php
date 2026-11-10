@@ -11,8 +11,6 @@ class DocumentNumber extends TenantModel
 
     protected $fillable = [
 
-        'tenant_id',
-
         'document_type',
 
         'financial_year',

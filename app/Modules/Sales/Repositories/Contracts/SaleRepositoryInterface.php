@@ -14,5 +14,7 @@ interface SaleRepositoryInterface extends BaseRepositoryInterface
 
     public function findBySaleNo(string $saleNo): ?Sale;
 
+    public function findByIdForUpdate(int $id): ?Sale;
+
     public function find(int|string $id): Sale;
 }
