@@ -18,6 +18,29 @@ use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
 
 class StockLedger extends TenantModel
 {
+
+    protected $fillable = [
+        'product_id',
+        'product_variant_id',
+        'warehouse_id',
+        'product_batch_id',
+        'product_serial_id',
+        'transaction_type',
+        'transaction_date',
+        'sequence_no',
+        'referenceable_type',
+        'referenceable_id',
+        'reference_no',
+        'reversal_of_ledger_id',
+        'quantity_in',
+        'quantity_out',
+        'unit_cost',
+        'total_cost',
+        'balance_quantity',
+        'balance_average_cost',
+        'remarks',
+        'created_by',
+    ];
     /**
      * Casts
      */
