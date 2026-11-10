@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 abstract class BaseModel extends Model
 {
-    protected $guarded = [];
+    protected $guarded = ['*'];
 
     public function getRouteKeyName(): string
     {
