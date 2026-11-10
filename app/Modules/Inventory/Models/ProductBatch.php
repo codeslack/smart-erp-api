@@ -21,6 +21,25 @@ class ProductBatch extends TenantModel
 
     protected $table = 'product_batches';
 
+    protected $fillable = [
+        'product_id',
+        'product_variant_id',
+        'warehouse_id',
+        'sourceable_type',
+        'sourceable_id',
+        'batch_no',
+        'manufacturing_date',
+        'expiry_date',
+        'received_at',
+        'unit_cost',
+        'original_quantity',
+        'remaining_quantity',
+        'remarks',
+        'status',
+        'created_by',
+        'updated_by',
+    ];
+
     protected function casts(): array
     {
         return array_merge(
