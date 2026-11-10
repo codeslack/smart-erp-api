@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Tax;
 
+use App\Core\Exceptions\BusinessException;
 use App\Core\Tenant\TenantManager;
 use App\Modules\Tax\Enums\TaxDirectionEnum;
 use App\Modules\Tax\Enums\TaxTreatmentEnum;
@@ -145,10 +146,10 @@ class TaxTenantIsolationTest extends TestCase
             $this->fail(
                 'A tenant-owned model must reject a foreign tenant assignment.'
             );
-        } catch (\RuntimeException $exception) {
+        } catch (BusinessException $exception) {
             $this->assertSame(
-                'Cannot create a tenant-owned record for a different tenant.',
-                $exception->getMessage(),
+                'TENANT_OWNERSHIP_VIOLATION',
+                $exception->errorCode(),
             );
         }
 
