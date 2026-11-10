@@ -10,6 +10,15 @@ class InventoryCostLayerConsumption extends TenantModel
 {
     protected $table = 'inventory_cost_layer_consumptions';
 
+    protected $fillable = [
+        'inventory_cost_layer_id',
+        'stock_ledger_id',
+        'quantity',
+        'unit_cost',
+        'total_cost',
+        'created_by',
+    ];
+
     /*
     |--------------------------------------------------------------------------
     | Casts
