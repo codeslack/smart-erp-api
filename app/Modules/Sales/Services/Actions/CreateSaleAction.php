@@ -90,6 +90,7 @@ class CreateSaleAction
 
             return $sale->load([
                 'items.product',
+                'items.salesOrderItem',
                 'items.variant',
                 'items.warehouse',
                 'items.unit',
