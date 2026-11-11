@@ -512,6 +512,83 @@ class SalesReturnLifecycleTest extends TestCase
         $this->assertEquals(5, (float) $stock->quantity);
     }
 
+    public function test_sales_return_rejects_duplicate_serial_numbers_ignoring_case(): void
+    {
+        $this->product->update([
+            'inventory_tracking_type' => InventoryTrackingTypeEnum::SERIAL,
+        ]);
+
+        $firstSerialNumber = 'SERIAL-DUPLICATE-CASE-001';
+        $secondSerialNumber = 'SERIAL-DUPLICATE-CASE-002';
+
+        $firstSerial = app(InventorySerialService::class)->register(
+            productId: $this->product->id,
+            warehouseId: $this->warehouse->id,
+            serialNumber: $firstSerialNumber,
+            purchaseCost: 50,
+        );
+
+        $secondSerial = app(InventorySerialService::class)->register(
+            productId: $this->product->id,
+            warehouseId: $this->warehouse->id,
+            serialNumber: $secondSerialNumber,
+            purchaseCost: 50,
+        );
+
+        $posting = app(InventoryPostingService::class);
+
+        foreach ([$firstSerial, $secondSerial] as $serial) {
+            $posting->stockIn(new InventoryMovementData(
+                productId: $this->product->id,
+                productVariantId: null,
+                warehouseId: $this->warehouse->id,
+                quantity: 1,
+                unitCost: 50,
+                transactionType: InventoryTransactionTypeEnum::PURCHASE->value,
+                transactionDate: now(),
+                serialId: $serial->id,
+            ));
+        }
+
+        $sale = app(SaleService::class)->create([
+            'customer_uuid' => $this->customer->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_uuid' => $this->product->uuid,
+                'quantity' => 2,
+                'unit_price' => 100,
+                'serials' => [$firstSerialNumber, $secondSerialNumber],
+            ]],
+        ]);
+
+        $sale = app(SaleService::class)->confirm($sale->uuid);
+        $saleItem = $sale->items->first();
+
+        $response = $this->postJson(route('sales-returns.store'), [
+            'sale_uuid' => $sale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'sale_item_uuid' => $saleItem->uuid,
+                'returned_quantity' => 2,
+                'serials' => [
+                    $firstSerialNumber,
+                    strtolower($firstSerialNumber),
+                ],
+            ]],
+        ]);
+
+        $response
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0.serials.1');
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $this->assertDatabaseMissing('sales_returns', [
+            'sale_id' => $sale->id,
+        ]);
+    }
+
     public function test_batch_sales_return_requires_original_batch_and_posts_converted_base_quantity(): void
     {
         $baseUnit = Unit::create([
