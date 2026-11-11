@@ -62,7 +62,7 @@ class SalesReturnCrudTest extends TestCase
             'customer_uuid' => $this->customer->uuid,
             'warehouse_uuid' => $this->warehouse->uuid,
             'sale_date' => now()->toDateString(),
-            'items' => [['product_uuid' => $this->product->uuid, 'quantity' => 10, 'unit_price' => 100]],
+            'items' => [['product_uuid' => $this->product->uuid, 'quantity' => 10]],
         ]);
         $this->sale = $saleSvc->confirm($this->sale->uuid);
     }
@@ -74,7 +74,7 @@ class SalesReturnCrudTest extends TestCase
             'sale_uuid' => $this->sale->uuid,
             'return_date' => now()->toDateString(),
             'return_reason' => 'Customer returned item',
-            'items' => [['sale_item_uuid' => $saleItem->uuid, 'product_uuid' => $this->product->uuid, 'returned_quantity' => $quantity, 'unit_price' => 100]],
+            'items' => [['sale_item_uuid' => $saleItem->uuid, 'returned_quantity' => $quantity]],
         ]);
         return $res->json('data.uuid');
     }
@@ -86,7 +86,7 @@ class SalesReturnCrudTest extends TestCase
             'sale_uuid' => $this->sale->uuid,
             'return_date' => now()->toDateString(),
             'return_reason' => 'Customer returned item',
-            'items' => [['sale_item_uuid' => $saleItem->uuid, 'product_uuid' => $this->product->uuid, 'returned_quantity' => 2, 'unit_price' => 100]],
+            'items' => [['sale_item_uuid' => $saleItem->uuid, 'returned_quantity' => 2]],
         ]);
 
         $res->assertCreated()->assertJsonStructure([
@@ -128,7 +128,7 @@ class SalesReturnCrudTest extends TestCase
         $saleItem = $this->sale->items->first();
         $updateRes = $this->putJson(route('sales-returns.update', ['uuid' => $uuid]), [
             'return_reason' => 'Updated defect reason',
-            'items' => [['sale_item_uuid' => $saleItem->uuid, 'returned_quantity' => 4, 'unit_price' => 100]],
+            'items' => [['sale_item_uuid' => $saleItem->uuid, 'returned_quantity' => 4]],
         ]);
         $updateRes->assertOk()->assertJsonPath('data.grand_total', 400);
     }
@@ -138,6 +138,73 @@ class SalesReturnCrudTest extends TestCase
         $uuid = $this->makeReturn(2);
         $res = $this->getJson(route('sales-returns.items', ['uuid' => $uuid]));
         $res->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.quantity', 2);
+    }
+
+    public function test_sales_return_rejects_client_price_cost_and_base_quantity_overrides(): void
+    {
+        $saleItem = $this->sale->items->first();
+
+        $this->postJson(route('sales-returns.store'), [
+            'sale_uuid' => $this->sale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [
+                [
+                    'sale_item_uuid' => $saleItem->uuid,
+                    'returned_quantity' => 2,
+                    'unit_price' => 9999,
+                    'unit_cost' => 9999,
+                    'base_quantity' => 9999,
+                    'discount_amount' => 0,
+                ],
+            ],
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0');
+    }
+
+    public function test_sales_return_requires_a_sale_item_reference(): void
+    {
+        $this->postJson(route('sales-returns.store'), [
+            'sale_uuid' => $this->sale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [
+                [
+                    'returned_quantity' => 1,
+                ],
+            ],
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0');
+    }
+
+    public function test_sales_return_cannot_reference_an_item_from_another_sale(): void
+    {
+        $otherSale = app(SaleService::class)->create([
+            'customer_uuid' => $this->customer->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'sale_date' => now()->toDateString(),
+            'items' => [
+                [
+                    'product_uuid' => $this->product->uuid,
+                    'quantity' => 1,
+                    'unit_price' => 100,
+                ],
+            ],
+        ]);
+
+        $otherSale = app(SaleService::class)->confirm($otherSale->uuid);
+        $otherSaleItem = $otherSale->items->first();
+
+        $this->postJson(route('sales-returns.store'), [
+            'sale_uuid' => $this->sale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [
+                [
+                    'sale_item_uuid' => $otherSaleItem->uuid,
+                    'returned_quantity' => 1,
+                ],
+            ],
+        ])->assertUnprocessable();
     }
 
     public function test_sales_return_can_be_deleted_in_draft_state(): void
