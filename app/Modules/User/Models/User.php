@@ -23,6 +23,16 @@ class User extends TenantAuthenticatable
 
     protected $table = 'users';
 
+    protected $fillable = [
+        'code',
+        'name',
+        'email',
+        'phone',
+        'avatar_path',
+        'password',
+        'is_active',
+    ];
+
     protected $hidden = [
         'password',
         'remember_token',

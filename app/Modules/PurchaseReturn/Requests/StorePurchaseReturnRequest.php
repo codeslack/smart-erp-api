@@ -60,6 +60,10 @@ class StorePurchaseReturnRequest extends BaseRequest
             'rounding_amount' => ['nullable', 'numeric'],
 
             'items' => ['required', 'array', 'min:1'],
+            'items.*' => [
+                'required',
+                'array:purchase_item_id,purchase_item_uuid,product_id,product_uuid,product_variant_id,product_variant_uuid,warehouse_id,warehouse_uuid,unit_id,unit_uuid,returned_quantity,quantity,unit_cost,discount_amount,discount,tax_id,tax_uuid,tax_rate,tax_amount,tax,condition,reason,batches,serials',
+            ],
             'items.*.purchase_item_id' => ['nullable', 'integer', TenantRule::exists('purchase_items', 'id')],
             'items.*.purchase_item_uuid' => ['nullable', 'string', TenantRule::exists('purchase_items', 'uuid')],
             'items.*.product_id' => ['nullable', 'integer', TenantRule::exists('products', 'id')],

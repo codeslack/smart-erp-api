@@ -13,6 +13,12 @@ class SystemNumber extends BaseModel
 {
     protected $table = 'system_numbers';
 
+    protected $fillable = [
+        'tenant_id',
+        'type',
+        'current_number',
+    ];
+
     protected function casts(): array
     {
         return [

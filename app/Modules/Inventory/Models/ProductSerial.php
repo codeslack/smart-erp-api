@@ -21,6 +21,24 @@ class ProductSerial extends TenantModel
 
     protected $table = 'product_serials';
 
+    protected $fillable = [
+        'product_id',
+        'product_variant_id',
+        'warehouse_id',
+        'product_batch_id',
+        'sourceable_type',
+        'sourceable_id',
+        'serial_number',
+        'imei_number',
+        'purchase_cost',
+        'warranty_expiry',
+        'status',
+        'sold_at',
+        'remarks',
+        'created_by',
+        'updated_by',
+    ];
+
     protected function casts(): array
     {
         return array_merge(

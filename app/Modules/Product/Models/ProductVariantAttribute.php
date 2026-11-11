@@ -10,6 +10,12 @@ class ProductVariantAttribute extends BaseModel
 {
     protected $table = 'product_variant_attributes';
 
+    protected $fillable = [
+        'product_variant_id',
+        'attribute_name',
+        'attribute_value',
+    ];
+
     /*
     |--------------------------------------------------------------------------
     | Variant

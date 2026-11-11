@@ -16,6 +16,18 @@ class InventoryCostLayer extends TenantModel
 {
     protected $table = 'inventory_cost_layers';
 
+    protected $fillable = [
+        'product_id',
+        'product_variant_id',
+        'warehouse_id',
+        'stock_ledger_id',
+        'original_quantity',
+        'remaining_quantity',
+        'unit_cost',
+        'layer_date',
+        'status',
+    ];
+
     /*
     |--------------------------------------------------------------------------
     | Casts

@@ -212,6 +212,29 @@ class SaleCrudTest extends TestCase
         ]);
     }
 
+    public function test_sale_rejects_internal_fields_on_nested_items(): void
+    {
+        $response = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sale_date' => '2026-10-30',
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 2,
+                    'unit_price' => 50,
+                    'base_quantity' => 500,
+                    'cost_price' => 0.01,
+                    'tenant_id' => $this->tenant->id + 1,
+                ],
+            ],
+        ]);
+
+        $response
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('items.0');
+    }
+
     public function test_sale_items_can_be_retrieved(): void
     {
         $createResponse = $this->postJson(route('sales.store'), [
