@@ -11,6 +11,7 @@ use App\Modules\Sales\Services\Calculators\SaleItemCalculator;
 use App\Modules\Sales\Services\Support\SalePayloadResolver;
 use App\Modules\Sales\Services\Validators\SaleValidator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class UpdateSaleAction
 {
@@ -33,6 +34,16 @@ class UpdateSaleAction
             $headerData = $this->payloadResolver->resolveHeader($data);
             $hasItems = isset($headerData['items']) && is_array($headerData['items']);
 
+            if (
+                array_key_exists('sales_order_id', $headerData)
+                && (int) $headerData['sales_order_id'] !== (int) $sale->sales_order_id
+                && ! $hasItems
+            ) {
+                throw ValidationException::withMessages([
+                    'items' => ['Resubmit sale items when changing the linked sales order.'],
+                ]);
+            }
+
             $existingItemDiscount = (float) $sale->items()->sum('discount_amount');
             $headerDiscount = max(
                 0,
@@ -50,7 +61,15 @@ class UpdateSaleAction
                 unset($headerData['items']);
 
                 $defaultWarehouseId = $headerData['warehouse_id'] ?? $sale->warehouse_id;
-                $resolvedItems = $this->payloadResolver->resolveItems($rawItems, $defaultWarehouseId);
+                $salesOrderId = array_key_exists('sales_order_id', $headerData)
+                    ? ($headerData['sales_order_id'] !== null ? (int) $headerData['sales_order_id'] : null)
+                    : ($sale->sales_order_id !== null ? (int) $sale->sales_order_id : null);
+
+                $resolvedItems = $this->payloadResolver->resolveItems(
+                    $rawItems,
+                    $defaultWarehouseId,
+                    $salesOrderId
+                );
 
                 $calculatedItems = [];
                 foreach ($resolvedItems as $item) {
