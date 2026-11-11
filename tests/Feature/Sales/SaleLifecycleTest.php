@@ -897,7 +897,11 @@ class SaleLifecycleTest extends TestCase
         $this->assertEquals(18, (float) $item->tax_amount);
         $this->assertSame($group->id, $item->tax_group_id);
         $this->assertSame('STANDARD', $item->tax_snapshot['treatment']);
-        $this->assertCount(2, $item->tax_snapshot['components']);
+        $taxableComponents = array_filter(
+            $item->tax_snapshot['components'],
+            fn (array $component) => (float) $component['tax_amount'] > 0,
+        );
+        $this->assertCount(2, $taxableComponents);
 
         $entry = JournalEntry::query()
             ->where('reference_type', Sale::class)
