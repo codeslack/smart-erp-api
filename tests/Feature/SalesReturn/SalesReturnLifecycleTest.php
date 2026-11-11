@@ -65,7 +65,7 @@ class SalesReturnLifecycleTest extends TestCase
             'customer_uuid' => $this->customer->uuid,
             'warehouse_uuid' => $this->warehouse->uuid,
             'sale_date' => now()->toDateString(),
-            'items' => [['product_uuid' => $this->product->uuid, 'quantity' => 5]],
+            'items' => [['product_uuid' => $this->product->uuid, 'quantity' => 5, 'unit_price' => 100]],
         ]);
         $this->sale = $saleSvc->confirm($this->sale->uuid);
     }
