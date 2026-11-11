@@ -273,6 +273,21 @@ class SalesReturnCrudTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.grand_total', 90)
             ->assertJsonPath('data.discount_amount', 10);
+
+        $updateResponse = $this->putJson(
+            route('sales-returns.update', ['uuid' => $firstReturn->json('data.uuid')]),
+            [
+                'items' => [[
+                    'sale_item_uuid' => $saleItem->uuid,
+                    'returned_quantity' => 0.5,
+                ]],
+            ]
+        );
+
+        $updateResponse
+            ->assertOk()
+            ->assertJsonPath('data.grand_total', 45)
+            ->assertJsonPath('data.discount_amount', 5);
     }
 
 }
