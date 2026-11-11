@@ -88,12 +88,7 @@ class SalesPostingService extends BasePostingService
                 $foreignAmount = $this->decimal($postingLine->amount);
                 $baseAmount = $this->decimal(bcmul($foreignAmount, $exchangeRate, 8));
 
-                $taxLines[] = $this->credit(
-                    AccountingAccounts::SALES_REVENUE,
-                    '0.0000'
-                );
-
-                $taxLines[array_key_last($taxLines)] = [
+                $taxLines[] = [
                     'chart_of_account_uuid' => $account->uuid,
                     'debit' => '0.0000',
                     'credit' => $baseAmount,
@@ -102,9 +97,17 @@ class SalesPostingService extends BasePostingService
                     'description' => 'Output tax component ' . $postingLine->taxComponentId,
                 ];
 
+                foreach ($snapshot['components'] as $componentIndex => $componentSnapshot) {
+                    if ((int) ($componentSnapshot['tax_component_id'] ?? 0) === $postingLine->taxComponentId) {
+                        $snapshot['components'][$componentIndex]['tax_account_uuid'] = $account->uuid;
+                    }
+                }
+
                 $foreignTaxTotal = bcadd($foreignTaxTotal, $foreignAmount, 4);
                 $baseTaxTotal = bcadd($baseTaxTotal, $baseAmount, 4);
             }
+
+            $item->update(['tax_snapshot' => $snapshot]);
         }
 
         if (bccomp($foreignTaxTotal, $this->decimal($sale->tax_amount), 4) !== 0) {
