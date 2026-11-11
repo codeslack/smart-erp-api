@@ -5,6 +5,7 @@ namespace Tests\Feature\Payment\Allocation;
 use Tests\TestCase;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 
 use Tests\Support\CreatesTenant;
 use Tests\Support\CreatesCustomer;
@@ -20,6 +21,8 @@ use App\Modules\Tenant\Models\Tenant;
 use App\Modules\Customer\Models\Customer;
 use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Product\Enums\ProductTypeEnum;
+use App\Modules\Product\Models\Product;
+use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Sales\Services\SaleService;
 use App\Modules\Purchase\Services\PurchaseService;
 
@@ -1067,7 +1070,7 @@ class PaymentAllocationBalanceTest extends TestCase
         $this->assertEquals(0, (float) $sale->paid_amount);
 
         $payment = app(PaymentServiceInterface::class)->create([
-            'uuid' => (string) \\Illuminate\\Support\\Str::uuid(),
+            'uuid' => (string) Str::uuid(),
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'REC-SALE-REV-' . uniqid(),
             'payment_type' => PaymentTypeEnum::RECEIPT->value,
@@ -1123,7 +1126,7 @@ class PaymentAllocationBalanceTest extends TestCase
         $this->assertEquals(0, (float) $purchase->paid_amount);
 
         $payment = app(PaymentServiceInterface::class)->create([
-            'uuid' => (string) \\Illuminate\\Support\\Str::uuid(),
+            'uuid' => (string) Str::uuid(),
             'tenant_id' => $this->tenant->id,
             'payment_no' => 'PAY-PURCHASE-REV-' . uniqid(),
             'payment_type' => PaymentTypeEnum::PAYMENT->value,
