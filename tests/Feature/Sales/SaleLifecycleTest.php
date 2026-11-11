@@ -3,7 +3,12 @@
 namespace Tests\Feature\Sales;
 
 use App\Core\Tenant\TenantManager;
+use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
+use App\Modules\Accounting\Models\ChartOfAccount;
+use App\Modules\Accounting\Models\JournalEntry;
+use App\Modules\AdvanceAllocation\Models\AdvanceAllocation;
+use App\Modules\AdvanceAllocation\Services\AdvanceAllocationService;
 use App\Modules\Accounting\Services\AccountingSetupService;
 use App\Modules\Customer\Models\Customer;
 use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
@@ -11,10 +16,19 @@ use App\Modules\Inventory\Models\ProductStock;
 use App\Modules\Product\Models\Product;
 use App\Modules\ProductUnit\Models\ProductUnit;
 use App\Modules\Unit\Models\Unit;
+use App\Modules\Payment\Enums\PaymentMethodEnum;
+use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
+use App\Modules\Payment\Enums\PaymentPurposeEnum;
+use App\Modules\Payment\Enums\PaymentTypeEnum;
+use App\Modules\Payment\Services\Contracts\PaymentServiceInterface;
+use App\Modules\Product\Enums\ProductTypeEnum;
 use App\Modules\Purchase\Services\PurchaseService;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\SalesOrder\Models\SalesOrder;
 use App\Modules\SalesOrder\Models\SalesOrderItem;
+use App\Modules\SalesReturn\Enums\SalesReturnRefundType;
+use App\Modules\SalesReturn\Enums\SalesReturnStatus;
+use App\Modules\SalesReturn\Models\SalesReturn;
 use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Tenant\Models\Tenant;
 use App\Modules\User\Models\User;
@@ -484,6 +498,18 @@ class SaleLifecycleTest extends TestCase
         $saleUuid = $saleResponse->json('data.uuid');
 
         $this->postJson(route('sales.confirm', $saleUuid))->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $sale = Sale::query()->where('uuid', $saleUuid)->firstOrFail();
+        $originalEntryCount = JournalEntry::query()
+            ->where('reference_type', Sale::class)
+            ->where('reference_id', $sale->id)
+            ->whereNull('reversal_of_journal_entry_id')
+            ->count();
+
+        $this->assertGreaterThan(0, $originalEntryCount);
+
         $this->assertDatabaseHas('sales_order_items', [
             'id' => $orderItem->id,
             'invoiced_quantity' => 3,
@@ -492,6 +518,26 @@ class SaleLifecycleTest extends TestCase
         $this->postJson(route('sales.cancel', $saleUuid), [
             'reason' => 'Invoice cancelled',
         ])->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $this->assertSame(
+            $originalEntryCount,
+            JournalEntry::query()
+                ->where('reference_type', Sale::class)
+                ->where('reference_id', $sale->id)
+                ->whereNull('reversal_of_journal_entry_id')
+                ->count()
+        );
+
+        $this->assertSame(
+            $originalEntryCount,
+            JournalEntry::query()
+                ->where('reference_type', Sale::class)
+                ->where('reference_id', $sale->id)
+                ->whereNotNull('reversal_of_journal_entry_id')
+                ->count()
+        );
 
         $this->assertDatabaseHas('sales_order_items', [
             'id' => $orderItem->id,
