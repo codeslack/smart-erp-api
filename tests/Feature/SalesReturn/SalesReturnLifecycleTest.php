@@ -137,6 +137,31 @@ class SalesReturnLifecycleTest extends TestCase
         $res->assertUnprocessable();
     }
 
+    public function test_sales_return_rejects_duplicate_lines_exceeding_sold_quantity(): void
+    {
+        $saleItem = $this->sale->items->first();
+
+        $response = $this->postJson(route('sales-returns.store'), [
+            'sale_uuid' => $this->sale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [
+                [
+                    'sale_item_uuid' => $saleItem->uuid,
+                    'returned_quantity' => 3,
+                    'unit_price' => 100,
+                ],
+                [
+                    'sale_item_uuid' => $saleItem->uuid,
+                    'returned_quantity' => 3,
+                    'unit_price' => 100,
+                ],
+            ],
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0.returned_quantity');
+    }
+
     public function test_sales_return_restores_converted_base_quantity(): void
     {
         $baseUnit = Unit::create([
