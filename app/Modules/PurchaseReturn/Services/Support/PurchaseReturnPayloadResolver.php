@@ -85,13 +85,27 @@ class PurchaseReturnPayloadResolver
                     $item['warehouse_id'] = $item['warehouse_id'] ?? $purchaseItem->warehouse_id ?? $defaultWarehouseId;
                     $item['unit_id'] = $purchaseItem->unit_id;
                     $item['unit_cost'] = (float) $purchaseItem->unit_cost;
+
                     $purchaseQuantity = (float) $purchaseItem->quantity;
-                    $purchaseBaseQuantity = (float) ($purchaseItem->base_quantity ?? $purchaseItem->quantity);
-                    $item['base_quantity'] = $purchaseQuantity > 0
-                        ? round(($purchaseBaseQuantity / $purchaseQuantity) * (float) ($item['returned_quantity'] ?? 0), 4)
+                    $returnedQuantity = (float) ($item['returned_quantity'] ?? 0);
+                    $quantityRatio = $purchaseQuantity > 0
+                        ? $returnedQuantity / $purchaseQuantity
                         : 0.0;
-                    $item['tax_id'] = $item['tax_id'] ?? $purchaseItem->tax_id;
-                    $item['tax_rate'] = $item['tax_rate'] ?? $purchaseItem->tax_rate;
+
+                    $purchaseBaseQuantity = (float) ($purchaseItem->base_quantity ?? $purchaseItem->quantity);
+                    $item['base_quantity'] = round($purchaseBaseQuantity * $quantityRatio, 4);
+
+                    // A return must reverse the original purchase line values, not client overrides.
+                    $item['discount_amount'] = round(
+                        (float) $purchaseItem->discount_amount * $quantityRatio,
+                        4
+                    );
+                    $item['tax_id'] = $purchaseItem->tax_id;
+                    $item['tax_rate'] = (float) $purchaseItem->tax_rate;
+                    $item['tax_amount'] = round(
+                        (float) $purchaseItem->tax_amount * $quantityRatio,
+                        4
+                    );
                 }
             }
 
