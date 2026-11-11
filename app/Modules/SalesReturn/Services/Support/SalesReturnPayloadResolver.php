@@ -80,6 +80,50 @@ class SalesReturnPayloadResolver
         return $data;
     }
 
+    /**
+     * Resolve the proportional share of the source sale's header discount.
+     *
+     * Sale.discount_amount stores both item-level and header-level discounts,
+     * so subtract the original item discounts before prorating the header part.
+     */
+    public function applySourceHeaderDiscount(array $headerData, array $calculatedItems): array
+    {
+        if (empty($headerData['sale_id'])) {
+            return $headerData;
+        }
+
+        $sale = Sale::query()
+            ->with('items')
+            ->find($headerData['sale_id']);
+
+        if (! $sale) {
+            return $headerData;
+        }
+
+        $sourceItemDiscounts = (float) $sale->items->sum('discount_amount');
+        $sourceHeaderDiscount = max(
+            0,
+            round((float) $sale->discount_amount - $sourceItemDiscounts, 4)
+        );
+
+        $sourceSubtotal = (float) $sale->subtotal;
+        $returnSubtotal = array_sum(array_map(
+            fn (array $item) => (float) ($item['subtotal'] ?? 0),
+            $calculatedItems
+        ));
+
+        $discountRatio = $sourceSubtotal > 0
+            ? min(1, max(0, $returnSubtotal / $sourceSubtotal))
+            : 0;
+
+        $headerData['discount_amount'] = round(
+            $sourceHeaderDiscount * $discountRatio,
+            4
+        );
+
+        return $headerData;
+    }
+
     public function resolveItems(array $rawItems, ?int $defaultWarehouseId = null): array
     {
         $resolved = [];
