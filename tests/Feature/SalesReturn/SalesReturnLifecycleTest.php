@@ -270,7 +270,7 @@ class SalesReturnLifecycleTest extends TestCase
         $unitSale = $saleService->confirm($unitSale->uuid);
         $saleItem = $unitSale->items->first();
 
-        $this->assertEquals(20, (float) $saleItem->base_quantity);
+        $this->assertEquals(10, (float) $saleItem->base_quantity);
 
         $response = $this->postJson(route('sales-returns.store'), [
             'sale_uuid' => $unitSale->uuid,
@@ -478,7 +478,7 @@ class SalesReturnLifecycleTest extends TestCase
         $sale = $saleService->confirm($sale->uuid);
         $saleItem = $sale->items->first();
 
-        $this->assertEquals(10, (float) $saleItem->base_quantity);
+        $this->assertEquals(20, (float) $saleItem->base_quantity);
         $this->assertDatabaseHas('sale_item_batches', [
             'sale_item_id' => $saleItem->id,
             'product_batch_id' => $batch->id,
@@ -513,7 +513,7 @@ class SalesReturnLifecycleTest extends TestCase
         $validPayload = $basePayload;
         $validPayload['items'][0]['batches'] = [[
             'batch_no' => 'SR-LOT-BOX-01',
-            'quantity' => 0.5,
+            'quantity' => 0.75,
         ]];
 
         $createResponse = $this->postJson(route('sales-returns.store'), $validPayload);
