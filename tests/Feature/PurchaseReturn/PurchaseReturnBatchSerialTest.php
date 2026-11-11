@@ -210,7 +210,7 @@ class PurchaseReturnBatchSerialTest extends TestCase
         $this->assertEquals(1, (float) $stock->quantity);
     }
 
-    public function test_create_ignores_forged_product_batch_id(): void
+    public function test_create_rejects_forged_product_batch_id(): void
     {
         $purchaseService = app(PurchaseService::class);
 
@@ -271,26 +271,11 @@ class PurchaseReturnBatchSerialTest extends TestCase
             ],
         ]);
 
-        $response->assertStatus(201);
-
-        app(TenantManager::class)->setTenant($this->tenant);
-
-        $savedBatch = PurchaseReturnItemBatch::query()
-            ->where('batch_no', 'LOT-INTENDED')
-            ->firstOrFail();
-
-        $this->assertEquals(
-            $intendedBatch->id,
-            $savedBatch->product_batch_id
-        );
-
-        $this->assertNotEquals(
-            $decoyBatch->id,
-            $savedBatch->product_batch_id
-        );
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors('items.0.batches.0');
     }
 
-    public function test_create_ignores_forged_product_serial_id(): void
+    public function test_create_rejects_forged_product_serial_id(): void
     {
         $purchaseService = app(PurchaseService::class);
 
@@ -343,26 +328,11 @@ class PurchaseReturnBatchSerialTest extends TestCase
             ],
         ]);
 
-        $response->assertStatus(201);
-
-        app(TenantManager::class)->setTenant($this->tenant);
-
-        $savedSerial = PurchaseReturnItemSerial::query()
-            ->where('serial_number', 'SR-SEC-001')
-            ->firstOrFail();
-
-        $this->assertEquals(
-            $intendedSerial->id,
-            $savedSerial->product_serial_id
-        );
-
-        $this->assertNotEquals(
-            $decoySerial->id,
-            $savedSerial->product_serial_id
-        );
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors('items.0.serials.0');
     }
 
-    public function test_update_ignores_forged_product_batch_id(): void
+    public function test_update_rejects_forged_product_batch_id(): void
     {
         $purchaseService = app(PurchaseService::class);
 
@@ -446,26 +416,11 @@ class PurchaseReturnBatchSerialTest extends TestCase
             ]
         );
 
-        $updateResponse->assertStatus(200);
-
-        app(TenantManager::class)->setTenant($this->tenant);
-
-        $savedBatch = PurchaseReturnItemBatch::query()
-            ->where('batch_no', 'LOT-UPDATE-INTENDED')
-            ->firstOrFail();
-
-        $this->assertEquals(
-            $intendedBatch->id,
-            $savedBatch->product_batch_id
-        );
-
-        $this->assertNotEquals(
-            $decoyBatch->id,
-            $savedBatch->product_batch_id
-        );
+        $updateResponse->assertStatus(422)
+            ->assertJsonValidationErrors('items.0.batches.0');
     }
 
-    public function test_update_ignores_forged_product_serial_id(): void
+    public function test_update_rejects_forged_product_serial_id(): void
     {
         $purchaseService = app(PurchaseService::class);
 
@@ -536,22 +491,8 @@ class PurchaseReturnBatchSerialTest extends TestCase
             ]
         );
 
-        $updateResponse->assertStatus(200);
-
-        app(TenantManager::class)->setTenant($this->tenant);
-
-        $savedSerial = PurchaseReturnItemSerial::query()
-            ->where('serial_number', 'SR-UPD-001')
-            ->firstOrFail();
-
-        $this->assertEquals(
-            $intendedSerial->id,
-            $savedSerial->product_serial_id
-        );
-
-        $this->assertNotEquals(
-            $decoySerial->id,
-            $savedSerial->product_serial_id
-        );
+        $updateResponse->assertStatus(422)
+            ->assertJsonValidationErrors('items.0.serials.0');
     }
+
 }
