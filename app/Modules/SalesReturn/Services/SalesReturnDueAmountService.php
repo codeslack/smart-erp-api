@@ -13,7 +13,13 @@ class SalesReturnDueAmountService
         SalesReturn $salesReturn,
         Sale $sale
     ): void {
-        $refundType = $salesReturn->refund_type;
+        $refundType = $salesReturn->refund_type
+            ?? SalesReturnRefundType::CREDIT_NOTE;
+
+        if (is_string($refundType)) {
+            $refundType = SalesReturnRefundType::tryFrom($refundType)
+                ?? SalesReturnRefundType::CREDIT_NOTE;
+        }
 
         if ($refundType === SalesReturnRefundType::CREDIT_NOTE) {
             $salesReturn->update([
