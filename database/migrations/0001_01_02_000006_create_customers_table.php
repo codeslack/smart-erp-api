@@ -56,6 +56,9 @@ return new class extends Migration
             $table->text('address')
                 ->nullable();
 
+            $table->string('country_code', 2)->nullable();
+            $table->string('state_code', 20)->nullable();
+
             /*
             |--------------------------------------------------------------------------
             | Tax Information
