@@ -6,6 +6,7 @@ use App\Core\Exceptions\BusinessException;
 use App\Modules\PurchaseReturn\Enums\PurchaseReturnStatus;
 use App\Modules\PurchaseReturn\Models\PurchaseReturn;
 use App\Modules\PurchaseReturn\Repositories\Contracts\PurchaseReturnRepositoryInterface;
+use Illuminate\Support\Facades\DB;
 
 class CancelPurchaseReturnAction
 {
@@ -15,19 +16,27 @@ class CancelPurchaseReturnAction
 
     public function execute(PurchaseReturn $purchaseReturn, ?string $reason = null): PurchaseReturn
     {
-        if ($purchaseReturn->status === PurchaseReturnStatus::CANCELLED) {
-            throw new BusinessException('Purchase return is already cancelled.');
-        }
+        return DB::transaction(function () use ($purchaseReturn, $reason) {
+            $purchaseReturn = PurchaseReturn::query()
+                ->lockForUpdate()
+                ->findOrFail($purchaseReturn->id);
 
-        if ($purchaseReturn->status === PurchaseReturnStatus::CONFIRMED) {
-            throw new BusinessException('Cannot cancel a confirmed purchase return.');
-        }
+            if ($purchaseReturn->status === PurchaseReturnStatus::CANCELLED) {
+                throw new BusinessException('Purchase return is already cancelled.');
+            }
 
-        $purchaseReturn->update([
-            'status' => PurchaseReturnStatus::CANCELLED->value,
-            'notes' => $reason ? trim($purchaseReturn->notes . "\nCancellation reason: " . $reason) : $purchaseReturn->notes,
-        ]);
+            if ($purchaseReturn->status === PurchaseReturnStatus::CONFIRMED) {
+                throw new BusinessException('Cannot cancel a confirmed purchase return.');
+            }
 
-        return $this->repository->find($purchaseReturn->id);
+            $purchaseReturn->update([
+                'status' => PurchaseReturnStatus::CANCELLED->value,
+                'notes' => $reason
+                    ? trim($purchaseReturn->notes . "\nCancellation reason: " . $reason)
+                    : $purchaseReturn->notes,
+            ]);
+
+            return $this->repository->find($purchaseReturn->id);
+        });
     }
 }
