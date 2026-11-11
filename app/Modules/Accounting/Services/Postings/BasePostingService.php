@@ -76,7 +76,9 @@ abstract class BasePostingService
         string $accountCode,
         string|int|float $debit = '0',
         string|int|float $credit = '0',
-        ?string $description = null
+        ?string $description = null,
+        string|int|float|null $foreignDebit = null,
+        string|int|float|null $foreignCredit = null
     ): array {
         return [
             'chart_of_account_uuid'
@@ -86,6 +88,14 @@ abstract class BasePostingService
 
             'credit' => $this->decimal($credit),
 
+            'foreign_debit' => $foreignDebit !== null
+                ? $this->decimal($foreignDebit)
+                : null,
+
+            'foreign_credit' => $foreignCredit !== null
+                ? $this->decimal($foreignCredit)
+                : null,
+
             'description' => $description,
         ];
     }
@@ -93,26 +103,30 @@ abstract class BasePostingService
     protected function debit(
         string $accountCode,
         string|int|float $amount,
-        ?string $description = null
+        ?string $description = null,
+        string|int|float|null $foreignAmount = null
     ): array {
         return $this->buildEntryLine(
             accountCode: $accountCode,
             debit: $amount,
             credit: '0',
-            description: $description
+            description: $description,
+            foreignDebit: $foreignAmount
         );
     }
 
     protected function credit(
         string $accountCode,
         string|int|float $amount,
-        ?string $description = null
+        ?string $description = null,
+        string|int|float|null $foreignAmount = null
     ): array {
         return $this->buildEntryLine(
             accountCode: $accountCode,
             debit: '0',
             credit: $amount,
-            description: $description
+            description: $description,
+            foreignCredit: $foreignAmount
         );
     }
 
@@ -122,7 +136,9 @@ abstract class BasePostingService
         string $referenceType,
         int $referenceId,
         string $description,
-        array $lines
+        array $lines,
+        ?string $currencyCode = null,
+        string|int|float|null $exchangeRate = null
     ): void {
         if (empty($lines)) {
             throw new BusinessException(
@@ -135,11 +151,27 @@ abstract class BasePostingService
             'reference_type' => $referenceType,
             'reference_id' => $referenceId,
             'entry_date' => $entryDate,
+            'currency_code' => $currencyCode,
+            'exchange_rate' => $exchangeRate !== null
+                ? $this->decimalRate($exchangeRate)
+                : null,
             'description' => $description,
             'status' => JournalEntryStatusEnum::DRAFT,
             'created_by' => auth()->id() ?? userId(),
             'lines' => $lines,
         ]);
+    }
+
+    protected function decimalRate(
+        string|int|float $value
+    ): string {
+        $value = (string) $value;
+
+        if (! is_numeric($value) || bccomp($value, '0', 8) <= 0) {
+            throw new BusinessException('Exchange rate must be greater than zero.');
+        }
+
+        return bcadd($value, '0', 8);
     }
 
     protected function decimal(

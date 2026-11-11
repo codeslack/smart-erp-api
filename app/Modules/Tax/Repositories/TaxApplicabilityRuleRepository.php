@@ -83,7 +83,10 @@ class TaxApplicabilityRuleRepository
             ->whereHas('taxGroup', function ($query) use ($input) {
                 $query
                     ->where('is_active', true)
-                    ->where('usage', $input->usage->value)
+                    ->whereIn('usage', [
+                        $input->usage->value,
+                        'BOTH',
+                    ])
                     ->where('direction', $input->direction->value)
                     ->whereDate(
                         'effective_from',

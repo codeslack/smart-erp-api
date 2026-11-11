@@ -23,6 +23,8 @@ class Customer extends TenantModel
         'phone',
         'email',
         'address',
+        'country_code',
+        'state_code',
         'tax_number',
         'payment_term_id',
         'credit_days',

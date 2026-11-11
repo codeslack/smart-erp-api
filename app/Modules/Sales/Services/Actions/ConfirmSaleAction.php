@@ -7,6 +7,7 @@ use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Services\Posting\SaleAccountingPostingService;
 use App\Modules\Sales\Services\Posting\SaleInventoryPostingService;
 use App\Modules\Sales\Services\Validators\SaleValidator;
+use App\Modules\Sales\Services\Tax\SaleTaxCalculationService;
 use App\Modules\SalesOrder\Enums\SalesOrderStatusEnum;
 use App\Modules\SalesOrder\Models\SalesOrder;
 use App\Modules\SalesOrder\Models\SalesOrderItem;
@@ -18,7 +19,8 @@ class ConfirmSaleAction
     public function __construct(
         protected SaleValidator $validator,
         protected SaleInventoryPostingService $inventoryPostingService,
-        protected SaleAccountingPostingService $accountingPostingService
+        protected SaleAccountingPostingService $accountingPostingService,
+        protected SaleTaxCalculationService $taxCalculationService
     ) {}
 
     public function execute(Sale $sale): Sale
@@ -29,6 +31,9 @@ class ConfirmSaleAction
                 ->findOrFail($sale->id);
 
             $this->validator->validateForConfirmation($sale);
+
+            $this->taxCalculationService->calculateAndSnapshot($sale);
+            $sale->refresh();
 
             $sale->update([
                 'status' => SaleStatusEnum::CONFIRMED,
@@ -113,6 +118,8 @@ class ConfirmSaleAction
 
             return $sale->fresh([
                 'items.product',
+                'items.taxGroup',
+                'items.taxApplicabilityRule',
                 'items.salesOrderItem',
                 'items.variant',
                 'items.warehouse',

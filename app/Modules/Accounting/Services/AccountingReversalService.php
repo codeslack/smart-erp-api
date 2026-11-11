@@ -59,6 +59,8 @@ class AccountingReversalService
                     'chart_of_account_uuid' => $line->account->uuid,
                     'debit' => (string) $line->credit,
                     'credit' => (string) $line->debit,
+                    'foreign_debit' => $line->foreign_credit,
+                    'foreign_credit' => $line->foreign_debit,
                     'description' => $line->description,
                 ];
             }
@@ -68,6 +70,8 @@ class AccountingReversalService
                 'reference_type' => $original->reference_type,
                 'reference_id' => $original->reference_id,
                 'entry_date' => $original->entry_date,
+                'currency_code' => $original->currency_code,
+                'exchange_rate' => $original->exchange_rate,
                 'description' => 'Reversal of ' . $original->voucher_no,
                 'status' => JournalEntryStatusEnum::DRAFT,
                 'created_by' => auth()->id(),

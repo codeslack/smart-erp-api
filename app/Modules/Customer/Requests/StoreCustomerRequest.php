@@ -56,6 +56,9 @@ class StoreCustomerRequest extends BaseRequest
                 'string',
             ],
 
+            'country_code' => ['nullable', 'string', 'size:2'],
+            'state_code' => ['nullable', 'string', 'max:20'],
+
             'tax_number' => [
                 'nullable',
                 'string',

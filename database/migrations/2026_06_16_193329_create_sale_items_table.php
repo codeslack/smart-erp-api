@@ -60,6 +60,9 @@ return new class extends Migration
 
             // Tax
             $table->unsignedBigInteger('tax_id')->nullable()->index();
+            $table->unsignedBigInteger('tax_group_id')->nullable()->index();
+            $table->unsignedBigInteger('tax_applicability_rule_id')->nullable()->index();
+            $table->json('tax_snapshot')->nullable();
             $table->decimal('tax_rate', 18, 4)->default(0);
             $table->decimal('tax_amount', 18, 4)->default(0);
 

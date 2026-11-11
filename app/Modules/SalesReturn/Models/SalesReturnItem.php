@@ -8,6 +8,8 @@ use App\Modules\Product\Models\ProductVariant;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\SalesReturn\Enums\SalesReturnCondition;
 use App\Modules\Tax\Models\Tax;
+use App\Modules\Tax\Models\TaxGroup;
+use App\Modules\Tax\Models\TaxApplicabilityRule;
 use App\Modules\Unit\Models\Unit;
 use App\Modules\Warehouse\Models\Warehouse;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -42,6 +44,9 @@ class SalesReturnItem extends TenantModel
         'net_unit_price',
         'subtotal',
         'tax_id',
+        'tax_group_id',
+        'tax_applicability_rule_id',
+        'tax_snapshot',
         'tax_rate',
         'tax_amount',
         'line_total',
@@ -61,6 +66,7 @@ class SalesReturnItem extends TenantModel
             'discount_amount' => 'decimal:4',
             'net_unit_price' => 'decimal:4',
             'subtotal' => 'decimal:4',
+            'tax_snapshot' => 'array',
             'tax_rate' => 'decimal:4',
             'tax_amount' => 'decimal:4',
             'line_total' => 'decimal:4',
@@ -102,6 +108,16 @@ class SalesReturnItem extends TenantModel
     public function tax(): BelongsTo
     {
         return $this->belongsTo(Tax::class, 'tax_id');
+    }
+
+    public function taxGroup(): BelongsTo
+    {
+        return $this->belongsTo(TaxGroup::class, 'tax_group_id');
+    }
+
+    public function taxApplicabilityRule(): BelongsTo
+    {
+        return $this->belongsTo(TaxApplicabilityRule::class, 'tax_applicability_rule_id');
     }
 
     public function batches(): HasMany

@@ -56,7 +56,7 @@ class SalesReturn extends TenantModel
     {
         return array_merge(parent::casts(), [
             'return_date' => 'date',
-            'exchange_rate' => 'decimal:6',
+            'exchange_rate' => 'decimal:8',
             'subtotal' => 'decimal:4',
             'discount_amount' => 'decimal:4',
             'tax_amount' => 'decimal:4',

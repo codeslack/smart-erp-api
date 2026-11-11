@@ -42,16 +42,8 @@ class SettingsSetupService
             |--------------------------------------------------------------------------
             */
 
-            if (
-                Setting::query()
-                    ->where(
-                        'tenant_id',
-                        $tenant->id
-                    )
-                    ->exists()
-            ) {
-                return;
-            }
+            // Seed only missing keys so existing tenants receive new defaults
+            // without overwriting settings they have already customized.
 
             /*
             |--------------------------------------------------------------------------
@@ -59,11 +51,16 @@ class SettingsSetupService
             |--------------------------------------------------------------------------
             */
 
-            foreach (
-                $this->defaultSettings($tenant)
-                as $setting
-            ) {
-                Setting::create($setting);
+            foreach ($this->defaultSettings($tenant) as $setting) {
+                $identity = [
+                    'tenant_id' => $setting['tenant_id'],
+                    'group' => $setting['group'],
+                    'key' => $setting['key'],
+                ];
+
+                $values = array_diff_key($setting, $identity);
+
+                Setting::firstOrCreate($identity, $values);
             }
 
         } finally {
@@ -114,6 +111,15 @@ class SettingsSetupService
                 'group' => SettingGroupEnum::COMPANY->value,
                 'key' => 'state',
                 'value' => 'West Bengal',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+
+            [
+                'tenant_id' => $tenant->id,
+                'group' => SettingGroupEnum::COMPANY->value,
+                'key' => 'state_code',
+                'value' => '19',
                 'created_at' => $now,
                 'updated_at' => $now,
             ],

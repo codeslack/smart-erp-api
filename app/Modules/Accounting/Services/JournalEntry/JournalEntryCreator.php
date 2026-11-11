@@ -59,6 +59,14 @@ class JournalEntryCreator
                     $line['credit'] ?? '0'
                 ),
 
+                'foreign_debit' => isset($line['foreign_debit'])
+                    ? $this->decimal($line['foreign_debit'])
+                    : null,
+
+                'foreign_credit' => isset($line['foreign_credit'])
+                    ? $this->decimal($line['foreign_credit'])
+                    : null,
+
                 'description' =>
                 $line['description'] ?? null,
             ]);

@@ -94,6 +94,8 @@ class CreateSalesReturnAction
 
             return $salesReturn->load([
                 'items.product',
+                'items.taxGroup',
+                'items.taxApplicabilityRule',
                 'items.variant',
                 'items.warehouse',
                 'items.unit',
