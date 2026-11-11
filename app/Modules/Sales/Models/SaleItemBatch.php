@@ -20,6 +20,7 @@ class SaleItemBatch extends TenantModel
         'batch_no',
         'quantity',
         'base_quantity',
+        'unit_cost',
     ];
 
     protected function casts(): array
@@ -27,6 +28,7 @@ class SaleItemBatch extends TenantModel
         return array_merge(parent::casts(), [
             'quantity' => 'decimal:4',
             'base_quantity' => 'decimal:4',
+            'unit_cost' => 'decimal:4',
         ]);
     }
 
