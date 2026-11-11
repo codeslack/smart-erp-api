@@ -33,6 +33,18 @@ class UpdateSaleAction
             $headerData = $this->payloadResolver->resolveHeader($data);
             $hasItems = isset($headerData['items']) && is_array($headerData['items']);
 
+            $existingItemDiscount = (float) $sale->items()->sum('discount_amount');
+            $headerDiscount = max(
+                0,
+                round((float) $sale->discount_amount - $existingItemDiscount, 4)
+            );
+
+            if (array_key_exists('discount_amount', $headerData)) {
+                $headerDiscount = (float) $headerData['discount_amount'];
+            } elseif (array_key_exists('discount', $headerData)) {
+                $headerDiscount = (float) $headerData['discount'];
+            }
+
             if ($hasItems) {
                 $rawItems = $headerData['items'];
                 unset($headerData['items']);
@@ -45,8 +57,7 @@ class UpdateSaleAction
                     $calculatedItems[] = $this->itemCalculator->calculate($item);
                 }
 
-                $totals = $this->saleCalculator->calculate($calculatedItems, array_merge($sale->toArray(), $headerData));
-                $headerData = array_merge($headerData, $totals);
+                $calculationItems = $calculatedItems;
 
                 // Sync items
                 $sale->items()->delete();
@@ -82,7 +93,29 @@ class UpdateSaleAction
                         ]);
                     }
                 }
+            } else {
+                $calculationItems = $sale->items()
+                    ->get()
+                    ->map(fn (SaleItem $item) => [
+                        'subtotal' => (float) $item->subtotal,
+                        'discount_amount' => (float) $item->discount_amount,
+                        'tax_amount' => (float) $item->tax_amount,
+                    ])
+                    ->all();
             }
+
+            $calculationHeader = array_merge(
+                $sale->toArray(),
+                $headerData,
+                ['discount_amount' => $headerDiscount]
+            );
+
+            $totals = $this->saleCalculator->calculate(
+                $calculationItems,
+                $calculationHeader
+            );
+
+            $headerData = array_merge($headerData, $totals);
 
             unset($headerData['sale_no'], $headerData['status']);
             $headerData['updated_by'] = auth()->id();
