@@ -13,6 +13,7 @@ use App\Modules\Tax\Models\TaxComponent;
 use App\Modules\Tax\Models\TaxApplicabilityRule;
 use App\Modules\Tax\Models\TaxAccountingMapping;
 use App\Modules\Tax\Services\TaxSetupService;
+use App\Modules\Settings\Services\SettingsSetupService;
 use App\Modules\Customer\Models\Customer;
 use App\Modules\Inventory\Data\InventoryMovementData;
 use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
@@ -1297,6 +1298,7 @@ class SalesReturnLifecycleTest extends TestCase
 
     public function test_partial_return_reverses_saved_tax_and_inherits_sale_currency(): void
     {
+        app(SettingsSetupService::class)->setup($this->tenant);
         app(TaxSetupService::class)->setup($this->tenant);
         $this->customer->update(['country_code' => 'IN', 'state_code' => '19']);
 
