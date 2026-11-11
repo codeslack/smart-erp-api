@@ -22,6 +22,7 @@ use App\Modules\ProductUnit\Models\ProductUnit;
 use App\Modules\Unit\Models\Unit;
 use App\Modules\Purchase\Services\PurchaseService;
 use App\Modules\Sales\Models\Sale;
+use App\Modules\Inventory\Models\StockLedger;
 use App\Modules\Sales\Models\SaleItemSerial;
 use App\Modules\Sales\Services\SaleService;
 use App\Modules\SalesReturn\Models\SalesReturn;
@@ -111,6 +112,21 @@ class SalesReturnLifecycleTest extends TestCase
             'quantity_in' => 2,
             'referenceable_id' => $salesReturn->id,
         ]);
+
+        $saleLedger = StockLedger::query()
+            ->where('referenceable_type', Sale::class)
+            ->where('referenceable_id', $this->sale->id)
+            ->firstOrFail();
+
+        $returnLedger = StockLedger::query()
+            ->where('referenceable_type', SalesReturn::class)
+            ->where('referenceable_id', $salesReturn->id)
+            ->firstOrFail();
+
+        $this->assertEquals(50, (float) $saleLedger->unit_cost);
+        $this->assertEquals(50, (float) $returnLedger->unit_cost);
+        $this->assertEquals(100, (float) $returnLedger->total_cost);
+        $this->assertEquals(50, (float) $this->sale->items->first()->fresh()->cost_price);
 
         $journalEntry = JournalEntry::query()
             ->where('voucher_type', JournalVoucherTypeEnum::SALES_RETURN->value)
@@ -304,6 +320,15 @@ class SalesReturnLifecycleTest extends TestCase
             'quantity_in' => 10,
             'transaction_type' => 'SALE_RETURN',
         ]);
+
+        $returnLedger = StockLedger::query()
+            ->where('transaction_type', 'SALE_RETURN')
+            ->where('quantity_in', 10)
+            ->where('referenceable_type', SalesReturn::class)
+            ->firstOrFail();
+
+        $this->assertEquals(50, (float) $returnLedger->unit_cost);
+        $this->assertEquals(500, (float) $returnLedger->total_cost);
     }
 
     public function test_sales_return_restores_sold_serial_and_rejects_returning_it_twice(): void
@@ -350,6 +375,7 @@ class SalesReturnLifecycleTest extends TestCase
             'sale_item_id' => $saleItem->id,
             'product_serial_id' => $serial->id,
             'serial_number' => 'SERIAL-RETURN-001',
+            'unit_cost' => 50,
         ]);
 
         // Create a second confirmed sale with a different serial for the same product.
