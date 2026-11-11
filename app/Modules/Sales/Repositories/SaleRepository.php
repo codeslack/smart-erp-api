@@ -74,6 +74,7 @@ class SaleRepository extends BaseRepository implements SaleRepositoryInterface
                 'salesOrder',
                 'journalEntry',
                 'items.product',
+                'items.salesOrderItem',
                 'items.variant',
                 'items.warehouse',
                 'items.unit',
