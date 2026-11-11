@@ -316,8 +316,13 @@ class PurchaseOrderService extends BaseService
         array $items
     ): array {
         return array_map(
-            fn (array $item): array =>
-                $this->itemCalculator->calculate($item),
+            function (array $item): array {
+                $item['received_quantity'] = 0;
+                $item['billed_quantity'] = 0;
+                $item['cancelled_quantity'] = 0;
+
+                return $this->itemCalculator->calculate($item);
+            },
             $items
         );
     }
