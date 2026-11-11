@@ -85,6 +85,25 @@ class SalesReturnLifecycleTest extends TestCase
         $this->sale = $saleSvc->confirm($this->sale->uuid);
     }
 
+    protected function makeReturn(int $quantity = 2): string
+    {
+        $saleItem = $this->sale->items->first();
+
+        $response = $this->postJson(route('sales-returns.store'), [
+            'sale_uuid' => $this->sale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'sale_item_uuid' => $saleItem->uuid,
+                'returned_quantity' => $quantity,
+                'unit_price' => 100,
+            ]],
+        ]);
+
+        $response->assertCreated();
+
+        return $response->json('data.uuid');
+    }
+
     public function test_sales_return_can_be_confirmed_restoring_stock_and_posting_gl(): void
     {
         $saleItem = $this->sale->items->first();
