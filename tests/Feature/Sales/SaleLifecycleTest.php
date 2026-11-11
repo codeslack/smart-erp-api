@@ -351,6 +351,7 @@ class SaleLifecycleTest extends TestCase
 
         $secondTenant = $this->createTestTenant();
         $secondUser = $this->createTestUser(['tenant_id' => $secondTenant->id]);
+        $this->grantSalesPermissions($secondUser, $secondTenant);
         Sanctum::actingAs($secondUser);
         app(TenantManager::class)->setTenant($secondTenant);
 
