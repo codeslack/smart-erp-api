@@ -11,6 +11,7 @@ use App\Modules\Inventory\Models\ProductBatch;
 use App\Modules\Inventory\Models\ProductSerial;
 use App\Modules\Inventory\Models\StockLedger;
 use App\Modules\Sales\Models\SaleItemBatch;
+use App\Modules\Sales\Models\SaleItemSerial;
 use App\Modules\Inventory\Services\InventoryBatchService;
 use App\Modules\Inventory\Services\InventoryPostingService;
 use App\Modules\Inventory\Services\InventorySerialService;
