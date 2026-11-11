@@ -16,6 +16,7 @@ use Tests\Support\CreatesProduct;
 use Tests\Support\CreatesTenant;
 use Tests\Support\CreatesUser;
 use Tests\Support\CreatesWarehouse;
+use Tests\Support\GrantsSalesPermissions;
 use Tests\TestCase;
 
 class SalesOrderLifecycleTest extends TestCase
@@ -26,6 +27,7 @@ class SalesOrderLifecycleTest extends TestCase
     use CreatesCustomer;
     use CreatesWarehouse;
     use CreatesProduct;
+    use GrantsSalesPermissions;
 
     protected Tenant $tenant;
     protected User $user;
@@ -40,6 +42,9 @@ class SalesOrderLifecycleTest extends TestCase
         $this->tenant = $this->createTestTenant();
         $this->user = $this->createTestUser();
         Sanctum::actingAs($this->user);
+
+        app(TenantManager::class)->setTenant($this->tenant);
+        $this->grantSalesPermissions($this->user, $this->tenant);
 
         $this->customer = $this->createCustomer();
         $this->warehouse = $this->createWarehouse();
