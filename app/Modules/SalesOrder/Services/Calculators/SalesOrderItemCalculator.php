@@ -61,6 +61,10 @@ class SalesOrderItemCalculator
             'tax_base_amount' => round($taxBaseAmount, 4),
             'tax_total_amount' => round($taxTotalAmount, 4),
             'total_amount' => round($totalAmount, 4),
+            // Fulfillment counters are maintained only by delivery/invoice workflows.
+            'delivered_quantity' => 0,
+            'invoiced_quantity' => 0,
+            'cancelled_quantity' => 0,
         ]);
     }
 
