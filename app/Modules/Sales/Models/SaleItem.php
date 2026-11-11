@@ -5,6 +5,7 @@ namespace App\Modules\Sales\Models;
 use App\Core\Models\TenantModel;
 use App\Modules\Product\Models\Product;
 use App\Modules\Product\Models\ProductVariant;
+use App\Modules\SalesOrder\Models\SalesOrderItem;
 use App\Modules\Tax\Models\Tax;
 use App\Modules\Unit\Models\Unit;
 use App\Modules\Warehouse\Models\Warehouse;
@@ -73,6 +74,11 @@ class SaleItem extends TenantModel
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'product_id');
+    }
+
+    public function salesOrderItem(): BelongsTo
+    {
+        return $this->belongsTo(SalesOrderItem::class, 'sales_order_item_id');
     }
 
     public function variant(): BelongsTo
