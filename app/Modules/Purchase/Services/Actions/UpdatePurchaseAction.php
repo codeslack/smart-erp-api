@@ -26,11 +26,15 @@ class UpdatePurchaseAction
 
     public function execute(Purchase $purchase, array $data): Purchase
     {
-        if (! $purchase->isDraft()) {
-            throw new BusinessException('Only draft purchases can be updated.');
-        }
-
         return DB::transaction(function () use ($purchase, $data) {
+            $purchase = Purchase::query()
+                ->lockForUpdate()
+                ->findOrFail($purchase->id);
+
+            if (! $purchase->isDraft()) {
+                throw new BusinessException('Only draft purchases can be updated.');
+            }
+
             $resolvedHeader = $this->resolver->resolveHeader($data);
             $rawItems = $resolvedHeader['items'] ?? null;
             $rawCharges = $resolvedHeader['charges'] ?? null;
