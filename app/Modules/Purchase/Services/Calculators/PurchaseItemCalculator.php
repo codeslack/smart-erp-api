@@ -38,6 +38,10 @@ class PurchaseItemCalculator
             }
         }
 
+        if ($discountAmount > $lineTotal + 0.0001) {
+            throw new BusinessException('Item discount cannot exceed the line total.');
+        }
+
         $subtotal = max(0, round($lineTotal - $discountAmount, 4));
 
         $taxRate = (float) ($data['tax_rate'] ?? 0);
