@@ -62,10 +62,6 @@ class StoreChartOfAccountRequest extends FormRequest
                 ),
             ],
 
-            'is_system' => [
-                'boolean',
-            ],
-
             'is_active' => [
                 'boolean',
             ],
