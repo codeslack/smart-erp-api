@@ -29,7 +29,6 @@ class Sale extends TenantModel
     protected $table = 'sales';
 
     protected $fillable = [
-        'tenant_id',
         'sale_no',
         'sale_date',
         'due_date',
