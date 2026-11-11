@@ -2,6 +2,8 @@
 
 namespace App\Modules\Sales\Services\Calculators;
 
+use App\Core\Exceptions\BusinessException;
+
 class SaleItemCalculator
 {
     public function calculate(array $item): array
@@ -12,6 +14,10 @@ class SaleItemCalculator
         $discountType = $item['discount_type'] ?? 'fixed';
         $discountRate = (float) ($item['discount_rate'] ?? 0);
         $discountAmountInput = (float) ($item['discount_amount'] ?? $item['discount'] ?? 0);
+
+        if ($discountType === 'percentage' && ($discountRate < 0 || $discountRate > 100)) {
+            throw new BusinessException('Percentage discounts must be between 0 and 100.');
+        }
 
         $grossAmount = round($quantity * $unitPrice, 4);
 
