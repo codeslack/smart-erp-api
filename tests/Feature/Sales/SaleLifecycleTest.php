@@ -653,4 +653,186 @@ class SaleLifecycleTest extends TestCase
         ]);
     }
 
+    public function test_sale_cannot_be_cancelled_while_a_confirmed_sales_return_exists(): void
+    {
+        $saleResponse = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $this->product->id,
+                'quantity' => 2,
+                'unit_price' => 100,
+            ]],
+        ])->assertCreated();
+
+        $saleUuid = $saleResponse->json('data.uuid');
+
+        $this->postJson(route('sales.confirm', $saleUuid))
+            ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $sale = Sale::query()->where('uuid', $saleUuid)->firstOrFail();
+        $saleItem = $sale->items()->firstOrFail();
+
+        $returnResponse = $this->postJson(route('sales-returns.store'), [
+            'sale_uuid' => $sale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'sale_item_uuid' => $saleItem->uuid,
+                'returned_quantity' => 1,
+                'unit_price' => 100,
+            ]],
+        ])->assertCreated();
+
+        $returnUuid = $returnResponse->json('data.uuid');
+
+        $this->postJson(route('sales-returns.confirm', ['uuid' => $returnUuid]))
+            ->assertOk();
+
+        $this->postJson(route('sales.cancel', $saleUuid), [
+            'reason' => 'Attempted cancellation after a confirmed return',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('sales_returns');
+    }
+
+    public function test_sale_cannot_be_cancelled_while_a_confirmed_receipt_is_allocated(): void
+    {
+        $saleResponse = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $this->product->id,
+                'quantity' => 2,
+                'unit_price' => 100,
+            ]],
+        ])->assertCreated();
+
+        $saleUuid = $saleResponse->json('data.uuid');
+
+        $this->postJson(route('sales.confirm', $saleUuid))
+            ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $sale = Sale::query()->where('uuid', $saleUuid)->firstOrFail();
+        $cashAccount = ChartOfAccount::query()
+            ->where('account_code', AccountingAccounts::CASH)
+            ->firstOrFail();
+
+        $payment = app(PaymentServiceInterface::class)->create([
+            'uuid' => (string) str()->uuid(),
+            'tenant_id' => $this->tenant->id,
+            'payment_no' => 'REC-SALE-CANCEL-' . uniqid(),
+            'payment_type' => PaymentTypeEnum::RECEIPT->value,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT->value,
+            'payment_date' => now()->toDateString(),
+            'party_type' => PaymentPartyTypeEnum::CUSTOMER->value,
+            'party_id' => $this->customer->id,
+            'account_id' => $cashAccount->id,
+            'amount' => 20,
+            'payment_method' => PaymentMethodEnum::CASH->value,
+            'allocations' => [[
+                'document_type' => 'sales_invoice',
+                'document_id' => $sale->id,
+                'allocated_amount' => 20,
+            ]],
+        ]);
+
+        app(PaymentServiceInterface::class)->confirm($payment);
+
+        $this->postJson(route('sales.cancel', $saleUuid), [
+            'reason' => 'Attempted cancellation after a receipt',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('payment_allocations');
+    }
+
+    public function test_sale_cancellation_releases_its_customer_advance_allocation(): void
+    {
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $cashAccount = ChartOfAccount::query()
+            ->where('account_code', AccountingAccounts::CASH)
+            ->firstOrFail();
+
+        $advancePayment = app(PaymentServiceInterface::class)->create([
+            'uuid' => (string) str()->uuid(),
+            'tenant_id' => $this->tenant->id,
+            'payment_no' => 'ADV-SALE-CANCEL-' . uniqid(),
+            'payment_type' => PaymentTypeEnum::RECEIPT->value,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_ADVANCE->value,
+            'payment_date' => now()->toDateString(),
+            'party_type' => PaymentPartyTypeEnum::CUSTOMER->value,
+            'party_id' => $this->customer->id,
+            'account_id' => $cashAccount->id,
+            'amount' => 50,
+            'payment_method' => PaymentMethodEnum::CASH->value,
+        ]);
+
+        $advancePayment = app(PaymentServiceInterface::class)->confirm($advancePayment);
+
+        $serviceProduct = $this->createProduct([
+            'product_type' => ProductTypeEnum::SERVICE,
+            'purchase_price' => 0,
+            'selling_price' => 100,
+        ]);
+
+        $saleResponse = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $serviceProduct->id,
+                'quantity' => 1,
+                'unit_price' => 100,
+            ]],
+        ])->assertCreated();
+
+        $saleUuid = $saleResponse->json('data.uuid');
+
+        $this->postJson(route('sales.confirm', $saleUuid))
+            ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $sale = Sale::query()->where('uuid', $saleUuid)->firstOrFail();
+
+        $this->assertEquals(50, (float) $sale->paid_amount);
+        $this->assertEquals(50, (float) $sale->due_amount);
+
+        $this->assertDatabaseHas('advance_allocations', [
+            'source_type' => Payment::class,
+            'source_id' => $advancePayment->id,
+            'target_type' => Sale::class,
+            'target_id' => $sale->id,
+            'allocated_amount' => 50,
+        ]);
+
+        $this->postJson(route('sales.cancel', $saleUuid), [
+            'reason' => 'Customer cancelled after advance adjustment',
+        ])->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $sale->refresh();
+
+        $this->assertEquals(0, (float) $sale->paid_amount);
+        $this->assertEquals(100, (float) $sale->due_amount);
+
+        $this->assertDatabaseMissing('advance_allocations', [
+            'source_type' => Payment::class,
+            'source_id' => $advancePayment->id,
+            'target_type' => Sale::class,
+            'target_id' => $sale->id,
+        ]);
+
+        $this->assertEquals(
+            50,
+            app(AdvanceAllocationService::class)
+                ->getAvailableCustomerAdvance($advancePayment->fresh())
+        );
+    }
+
 }
