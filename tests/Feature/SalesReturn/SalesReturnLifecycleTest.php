@@ -744,6 +744,8 @@ class SalesReturnLifecycleTest extends TestCase
     public function test_header_only_refund_type_update_recalculates_refund_amounts_and_posts_to_cash(): void
     {
         $uuid = $this->makeReturn(2);
+        app(TenantManager::class)->setTenant($this->tenant);
+
         $cashAccount = ChartOfAccount::query()
             ->where('account_code', AccountingAccounts::CASH)
             ->firstOrFail();
@@ -763,6 +765,8 @@ class SalesReturnLifecycleTest extends TestCase
 
         $this->postJson(route('sales-returns.confirm', ['uuid' => $uuid]))
             ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
 
         $this->assertEquals($dueBefore, (float) $this->sale->fresh()->due_amount);
 
@@ -796,13 +800,15 @@ class SalesReturnLifecycleTest extends TestCase
             'reason' => 'Cash refund reversed',
         ])->assertOk();
 
+        app(TenantManager::class)->setTenant($this->tenant);
+
         $this->assertEquals($dueBefore, (float) $this->sale->fresh()->due_amount);
     }
 
     public function test_credit_note_cancellation_restores_only_the_due_amount_that_was_outstanding(): void
     {
         $this->sale->update([
-            'paid_amount' => 950,
+            'paid_amount' => 450,
             'due_amount' => 50,
         ]);
 
@@ -811,11 +817,15 @@ class SalesReturnLifecycleTest extends TestCase
         $this->postJson(route('sales-returns.confirm', ['uuid' => $uuid]))
             ->assertOk();
 
+        app(TenantManager::class)->setTenant($this->tenant);
+
         $this->assertEquals(0, (float) $this->sale->fresh()->due_amount);
 
         $this->postJson(route('sales-returns.cancel', ['uuid' => $uuid]), [
             'reason' => 'Credit note cancelled',
         ])->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
 
         $this->assertEquals(50, (float) $this->sale->fresh()->due_amount);
     }
