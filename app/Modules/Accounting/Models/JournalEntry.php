@@ -26,6 +26,8 @@ class JournalEntry extends TenantModel
         'reference_id',
         'reversal_of_journal_entry_id',
         'entry_date',
+        'currency_code',
+        'exchange_rate',
         'description',
         'status',
         'created_by',
@@ -43,6 +45,7 @@ class JournalEntry extends TenantModel
                 'voucher_type' => JournalVoucherTypeEnum::class,
                 'status' => JournalEntryStatusEnum::class,
                 'entry_date' => 'date',
+                'exchange_rate' => 'decimal:8',
             ]
         );
     }
