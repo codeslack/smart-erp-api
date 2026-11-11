@@ -1247,24 +1247,24 @@ class SalesReturnLifecycleTest extends TestCase
         $journalEntryCountBefore = JournalEntry::query()->count();
         $dueBefore = $this->sale->fresh()->due_amount;
 
-        $accountingPosting = \\Mockery::mock(
-            \\App\\Modules\\SalesReturn\\Services\\Posting\\SalesReturnAccountingPostingService::class
+        $accountingPosting = \Mockery::mock(
+            \App\Modules\SalesReturn\Services\Posting\SalesReturnAccountingPostingService::class
         );
 
         $accountingPosting->shouldReceive('reverse')
             ->once()
-            ->andThrow(new \\RuntimeException('Simulated accounting reversal failure.'));
+            ->andThrow(new \RuntimeException('Simulated accounting reversal failure.'));
 
         $this->app->instance(
-            \\App\\Modules\\SalesReturn\\Services\\Posting\\SalesReturnAccountingPostingService::class,
+            \App\Modules\SalesReturn\Services\Posting\SalesReturnAccountingPostingService::class,
             $accountingPosting
         );
 
         try {
-            app(\\App\\Modules\\SalesReturn\\Services\\Actions\\CancelSalesReturnAction::class)
+            app(\App\Modules\SalesReturn\Services\Actions\CancelSalesReturnAction::class)
                 ->execute($salesReturn, 'Test rollback');
             $this->fail('The accounting reversal failure should abort cancellation.');
-        } catch (\\RuntimeException $exception) {
+        } catch (\RuntimeException $exception) {
             $this->assertSame('Simulated accounting reversal failure.', $exception->getMessage());
         }
 
