@@ -8,6 +8,15 @@ use App\Modules\Payment\Models\Payment;
 use App\Modules\Payment\Models\PaymentAllocation;
 use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
 
+use App\Modules\Sales\Repositories\Contracts\SaleRepositoryInterface;
+use App\Modules\SalesReturn\Models\SalesReturn;
+use App\Modules\SalesReturn\Enums\SalesReturnRefundType;
+use App\Modules\SalesReturn\Enums\SalesReturnStatus;
+use App\Modules\Purchase\Repositories\Contracts\PurchaseRepositoryInterface;
+use App\Modules\PurchaseReturn\Models\PurchaseReturn;
+use App\Modules\PurchaseReturn\Enums\PurchaseReturnRefundType;
+use App\Modules\PurchaseReturn\Enums\PurchaseReturnStatus;
+
 use App\Modules\CustomerOpeningBill\Repositories\Contracts\CustomerOpeningBillRepositoryInterface;
 use App\Modules\SupplierOpeningBill\Repositories\Contracts\SupplierOpeningBillRepositoryInterface;
 
@@ -20,9 +29,17 @@ class PaymentAllocationReversalService
 
     private const SUPPLIER_OPENING_BILL = 'supplier_opening_bill';
 
+    private const SALES_INVOICE = 'sales_invoice';
+
+    private const PURCHASE_BILL = 'purchase_bill';
+
+    private const SCALE = 4;
+
     public function __construct(
         protected CustomerOpeningBillRepositoryInterface $customerOpeningBills,
         protected SupplierOpeningBillRepositoryInterface $supplierOpeningBills,
+        protected SaleRepositoryInterface $sales,
+        protected PurchaseRepositoryInterface $purchases,
     ) {}
 
     public function reverse(
@@ -42,13 +59,8 @@ class PaymentAllocationReversalService
     ): void {
         $documentType = $allocation->document_type;
 
-        if (
-            $documentType === self::CUSTOMER_OPENING_BILL
-        ) {
-            if (
-                $payment->party_type
-                !== PaymentPartyTypeEnum::CUSTOMER
-            ) {
+        if ($documentType === self::CUSTOMER_OPENING_BILL) {
+            if ($payment->party_type !== PaymentPartyTypeEnum::CUSTOMER) {
                 throw new BusinessException(
                     'Customer opening bill reversal requires a customer payment.'
                 );
@@ -72,13 +84,8 @@ class PaymentAllocationReversalService
             return;
         }
 
-        if (
-            $documentType === self::SUPPLIER_OPENING_BILL
-        ) {
-            if (
-                $payment->party_type
-                !== PaymentPartyTypeEnum::SUPPLIER
-            ) {
+        if ($documentType === self::SUPPLIER_OPENING_BILL) {
+            if ($payment->party_type !== PaymentPartyTypeEnum::SUPPLIER) {
                 throw new BusinessException(
                     'Supplier opening bill reversal requires a supplier payment.'
                 );
@@ -101,5 +108,141 @@ class PaymentAllocationReversalService
 
             return;
         }
+
+        if ($documentType === self::SALES_INVOICE) {
+            $this->reverseSalesInvoice($payment, $allocation);
+
+            return;
+        }
+
+        if ($documentType === self::PURCHASE_BILL) {
+            $this->reversePurchaseBill($payment, $allocation);
+
+            return;
+        }
+
+        throw new BusinessException(
+            'Unsupported payment allocation document type.'
+        );
+    }
+
+    protected function reverseSalesInvoice(
+        Payment $payment,
+        PaymentAllocation $allocation
+    ): void {
+        if ($payment->party_type !== PaymentPartyTypeEnum::CUSTOMER) {
+            throw new BusinessException(
+                'Sales invoice reversal requires a customer payment.'
+            );
+        }
+
+        $sale = $this->sales->findByIdForUpdate(
+            (int) $allocation->document_id
+        );
+
+        if (! $sale) {
+            throw new BusinessException(
+                'Sales invoice not found.'
+            );
+        }
+
+        $allocatedAmount = bcadd(
+            (string) $allocation->allocated_amount,
+            '0',
+            self::SCALE
+        );
+
+        $paidAmount = bcsub(
+            (string) $sale->paid_amount,
+            $allocatedAmount,
+            self::SCALE
+        );
+
+        if (bccomp($paidAmount, '0', self::SCALE) < 0) {
+            throw new BusinessException(
+                'Payment reversal would make the sales invoice paid amount negative.'
+            );
+        }
+
+        $creditedReturns = (float) SalesReturn::query()
+            ->where('sale_id', $sale->id)
+            ->where('status', SalesReturnStatus::CONFIRMED->value)
+            ->where('refund_type', SalesReturnRefundType::CREDIT_NOTE->value)
+            ->sum('credited_amount');
+
+        $dueAmount = max(
+            0,
+            round(
+                (float) $sale->grand_total
+                    - (float) $paidAmount
+                    - $creditedReturns,
+                self::SCALE
+            )
+        );
+
+        $this->sales->update($sale, [
+            'paid_amount' => $paidAmount,
+            'due_amount' => $dueAmount,
+        ]);
+    }
+
+    protected function reversePurchaseBill(
+        Payment $payment,
+        PaymentAllocation $allocation
+    ): void {
+        if ($payment->party_type !== PaymentPartyTypeEnum::SUPPLIER) {
+            throw new BusinessException(
+                'Purchase bill reversal requires a supplier payment.'
+            );
+        }
+
+        $purchase = $this->purchases->findByIdForUpdate(
+            (int) $allocation->document_id
+        );
+
+        if (! $purchase) {
+            throw new BusinessException(
+                'Purchase bill not found.'
+            );
+        }
+
+        $allocatedAmount = bcadd(
+            (string) $allocation->allocated_amount,
+            '0',
+            self::SCALE
+        );
+
+        $paidAmount = bcsub(
+            (string) $purchase->paid_amount,
+            $allocatedAmount,
+            self::SCALE
+        );
+
+        if (bccomp($paidAmount, '0', self::SCALE) < 0) {
+            throw new BusinessException(
+                'Payment reversal would make the purchase bill paid amount negative.'
+            );
+        }
+
+        $creditedReturns = (float) PurchaseReturn::query()
+            ->where('purchase_id', $purchase->id)
+            ->where('status', PurchaseReturnStatus::CONFIRMED->value)
+            ->where('refund_type', PurchaseReturnRefundType::CREDIT_NOTE->value)
+            ->sum('credited_amount');
+
+        $dueAmount = max(
+            0,
+            round(
+                (float) $purchase->grand_total
+                    - (float) $paidAmount
+                    - $creditedReturns,
+                self::SCALE
+            )
+        );
+
+        $this->purchases->update($purchase, [
+            'paid_amount' => $paidAmount,
+            'due_amount' => $dueAmount,
+        ]);
     }
 }
