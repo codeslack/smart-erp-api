@@ -18,7 +18,6 @@ class PurchaseCharge extends TenantModel
 
     protected $fillable = [
         'uuid',
-        'tenant_id',
         'purchase_id',
         'charge_type',
         'name',
