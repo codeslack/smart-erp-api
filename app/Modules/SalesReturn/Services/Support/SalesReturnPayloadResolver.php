@@ -163,18 +163,24 @@ class SalesReturnPayloadResolver
                     $item['warehouse_id'] = $item['warehouse_id'] ?? $defaultWarehouseId ?? $saleItem->warehouse_id;
                     $item['unit_id'] = $saleItem->unit_id;
                     $item['unit_price'] = (float) $saleItem->unit_price;
-                    $item['unit_cost'] = (float) $saleItem->cost_price;
                     $item['line_type'] = $saleItem->line_type;
                     $item['item_name'] = $saleItem->item_name;
                     $item['sku'] = $saleItem->sku;
                     $item['description'] = $saleItem->description;
 
                     $originalQuantity = (float) $saleItem->quantity;
+                    $originalBaseQuantity = (float) ($saleItem->base_quantity ?? $saleItem->quantity);
+                    $costConversionFactor = $originalQuantity > 0
+                        ? $originalBaseQuantity / $originalQuantity
+                        : 1.0;
+                    $item['unit_cost'] = $costConversionFactor > 0
+                        ? round((float) $saleItem->cost_price / $costConversionFactor, 4)
+                        : 0.0;
+
                     $returnQuantity = (float) ($item['returned_quantity'] ?? $item['quantity'] ?? 0);
                     $item['base_quantity'] = $originalQuantity > 0
                         ? round(
-                            (float) ($saleItem->base_quantity ?? $saleItem->quantity)
-                                * ($returnQuantity / $originalQuantity),
+                            $originalBaseQuantity * ($returnQuantity / $originalQuantity),
                             4
                         )
                         : 0.0;
