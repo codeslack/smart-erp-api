@@ -2,6 +2,8 @@
 
 namespace App\Modules\Purchase\Services\Support;
 
+use App\Core\Exceptions\BusinessException;
+use App\Modules\ProductUnit\Services\ProductUnitService;
 use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\PaymentTerm\Models\PaymentTerm;
@@ -17,6 +19,10 @@ use App\Modules\PurchaseOrder\Models\PurchaseOrderItem;
 
 class PurchasePayloadResolver
 {
+    public function __construct(
+        protected ProductUnitService $productUnitService
+    ) {}
+
     public function resolveHeader(array $data): array
     {
         if (isset($data['supplier_uuid']) && ! isset($data['supplier_id'])) {
@@ -100,6 +106,71 @@ class PurchasePayloadResolver
                     $item['unit_id'] = $item['unit_id'] ?? $grnItem->unit_id;
                     $item['warehouse_id'] = $item['warehouse_id'] ?? $grnItem->warehouse_id;
                     $item['unit_cost'] = $item['unit_cost'] ?? $grnItem->unit_cost;
+                }
+            }
+
+            $product = isset($item['product_id'])
+                ? Product::query()->find((int) $item['product_id'])
+                : null;
+
+            $productUnit = null;
+            $conversionFactor = 1.0;
+
+            if ($product && $product->requiresStock()) {
+                if (! isset($item['unit_id']) && $product->unit_id) {
+                    $item['unit_id'] = (int) $product->unit_id;
+                }
+
+                if (isset($item['unit_id'])) {
+                    $productUnit = $this->productUnitService
+                        ->findByProductAndUnit(
+                            $product->id,
+                            (int) $item['unit_id']
+                        );
+
+                    if (
+                        ! $productUnit
+                        && (int) ($product->unit_id ?? 0) === (int) $item['unit_id']
+                    ) {
+                        $productUnit = $this->productUnitService
+                            ->syncBaseUnit($product);
+                    }
+
+                    if (! $productUnit) {
+                        throw new BusinessException(
+                            'The selected purchase unit is not configured for this product.'
+                        );
+                    }
+
+                    $this->productUnitService
+                        ->ensurePurchaseUnit($productUnit);
+
+                    $conversionFactor = (float) $productUnit->conversion_factor;
+                }
+            }
+
+            $quantity = (float) ($item['quantity'] ?? 0);
+            $unitCost = (float) ($item['unit_cost'] ?? 0);
+
+            // These inventory values are server-derived; client values are never trusted.
+            $item['base_quantity'] = round(
+                $quantity * $conversionFactor,
+                4
+            );
+
+            $item['base_unit_cost'] = $productUnit
+                ? $this->productUnitService->toBaseUnitCost(
+                    $productUnit,
+                    $unitCost
+                )
+                : $unitCost;
+
+            if (isset($item['batches']) && is_array($item['batches'])) {
+                foreach ($item['batches'] as $index => $batch) {
+                    $item['batches'][$index]['base_quantity'] = round(
+                        (float) ($batch['quantity'] ?? 0) * $conversionFactor,
+                        4
+                    );
                 }
             }
 
