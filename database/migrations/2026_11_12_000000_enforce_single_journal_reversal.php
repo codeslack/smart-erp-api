@@ -11,11 +11,12 @@ return new class extends Migration
         Schema::table('journal_entries', function (Blueprint $table) {
             $table->dropIndex('je_tenant_reversal_idx');
 
-            // A posted journal may have at most one reversal per tenant.
-            // Multiple NULL values remain valid for original journal entries.
+            // Journal entry IDs are globally unique, so one original can
+            // have only one reversal even if a tenant-context bug occurs.
+            // MySQL permits multiple NULL values for original entries.
             $table->unique(
-                ['tenant_id', 'reversal_of_journal_entry_id'],
-                'je_tenant_reversal_unique'
+                'reversal_of_journal_entry_id',
+                'je_reversal_unique'
             );
         });
     }
@@ -23,7 +24,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('journal_entries', function (Blueprint $table) {
-            $table->dropUnique('je_tenant_reversal_unique');
+            $table->dropUnique('je_reversal_unique');
 
             $table->index(
                 ['tenant_id', 'reversal_of_journal_entry_id'],
