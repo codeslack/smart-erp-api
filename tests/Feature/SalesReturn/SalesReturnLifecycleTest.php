@@ -697,10 +697,43 @@ class SalesReturnLifecycleTest extends TestCase
         $uuid = $createRes->json('data.uuid');
         $this->postJson(route('sales-returns.confirm', ['uuid' => $uuid]))->assertOk();
 
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $salesReturn = SalesReturn::query()
+            ->where('uuid', $uuid)
+            ->firstOrFail();
+
+        $originalEntryCount = JournalEntry::query()
+            ->where('reference_type', SalesReturn::class)
+            ->where('reference_id', $salesReturn->id)
+            ->whereNull('reversal_of_journal_entry_id')
+            ->count();
+
+        $this->assertGreaterThan(0, $originalEntryCount);
+
         $cancelRes = $this->postJson(route('sales-returns.cancel', ['uuid' => $uuid]), ['reason' => 'Customer change']);
         $cancelRes->assertOk()->assertJsonPath('data.status', 'cancelled');
 
         app(TenantManager::class)->setTenant($this->tenant);
+
+        $this->assertSame(
+            $originalEntryCount,
+            JournalEntry::query()
+                ->where('reference_type', SalesReturn::class)
+                ->where('reference_id', $salesReturn->id)
+                ->whereNull('reversal_of_journal_entry_id')
+                ->count()
+        );
+
+        $this->assertSame(
+            $originalEntryCount,
+            JournalEntry::query()
+                ->where('reference_type', SalesReturn::class)
+                ->where('reference_id', $salesReturn->id)
+                ->whereNotNull('reversal_of_journal_entry_id')
+                ->count()
+        );
+
         $stock = ProductStock::query()->where('product_id', $this->product->id)->where('warehouse_id', $this->warehouse->id)->first();
         $this->assertNotNull($stock);
         $this->assertEquals(5, (float) $stock->quantity);
