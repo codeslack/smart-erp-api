@@ -200,14 +200,17 @@ class SalesReturnValidator
                         ]);
                     }
 
-                    if (isset($requestedSerialNumbers[$serialNumber])) {
+                    // Match MySQL's case-insensitive serial-number collation.
+                    $serialKey = mb_strtolower($serialNumber, 'UTF-8');
+
+                    if (isset($requestedSerialNumbers[$serialKey])) {
                         throw ValidationException::withMessages([
                             "items.{$index}.serials.{$serialIndex}" => [
                                 "Serial [{$serialNumber}] may only be returned once in this request.",
                             ],
                         ]);
                     }
-                    $requestedSerialNumbers[$serialNumber] = true;
+                    $requestedSerialNumbers[$serialKey] = true;
 
                     $sourceSerial = SaleItemSerial::query()
                         ->where('sale_id', $sale->id)
