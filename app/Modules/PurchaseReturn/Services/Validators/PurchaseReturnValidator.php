@@ -12,6 +12,7 @@ use App\Modules\Purchase\Models\Purchase;
 use App\Modules\Purchase\Models\PurchaseItem;
 use App\Modules\PurchaseReturn\Enums\PurchaseReturnRefundType;
 use App\Modules\PurchaseReturn\Enums\PurchaseReturnStatus;
+use App\Modules\PurchaseReturn\Models\PurchaseReturn;
 use App\Modules\PurchaseReturn\Models\PurchaseReturnItem;
 use Illuminate\Validation\ValidationException;
 
@@ -79,11 +80,12 @@ class PurchaseReturnValidator
                 }
             })->sum('returned_quantity');
 
+        $quantityToValidate = $aggregateReturnedQty ?? $returnedQty;
         $availableQty = (float) $purchaseItem->quantity - $priorConfirmedQty;
-        if ($returnedQty > $availableQty + 0.0001) {
+        if ($quantityToValidate > $availableQty + 0.0001) {
             throw ValidationException::withMessages([
                 "items.{$index}.returned_quantity" => [
-                    "Returned quantity ({$returnedQty}) exceeds available return quantity ({$availableQty}).",
+                    "Returned quantity ({$quantityToValidate}) exceeds available return quantity ({$availableQty}).",
                 ],
             ]);
         }
