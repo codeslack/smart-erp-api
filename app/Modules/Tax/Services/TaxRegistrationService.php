@@ -50,6 +50,11 @@ class TaxRegistrationService
                 $data['registrable_id']
             );
 
+            $this->rules->validateRegistrable(
+                $registrableType,
+                $registrableId
+            );
+
             $effectiveFrom =
                 $data['effective_from'];
 
@@ -142,6 +147,11 @@ class TaxRegistrationService
             $registrableId = (int) (
                 $data['registrable_id']
                 ?? $registration->registrable_id
+            );
+
+            $this->rules->validateRegistrable(
+                $registrableType,
+                $registrableId
             );
 
             $registrationType =
