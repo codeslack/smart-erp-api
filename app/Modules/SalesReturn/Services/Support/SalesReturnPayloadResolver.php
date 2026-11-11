@@ -31,10 +31,19 @@ class SalesReturnPayloadResolver
             unset($data['sale_uuid']);
         }
 
-        if (isset($data['sale_id']) && ! isset($data['customer_id'])) {
-            $data['customer_id'] = Sale::query()
-                ->where('id', $data['sale_id'])
-                ->value('customer_id');
+        if (isset($data['sale_id'])) {
+            $sale = Sale::query()->find($data['sale_id']);
+
+            if ($sale) {
+                if (
+                    isset($data['customer_id'])
+                    && (int) $data['customer_id'] !== (int) $sale->customer_id
+                ) {
+                    throw new BusinessException('Customer does not match the referenced sale.');
+                }
+
+                $data['customer_id'] = $sale->customer_id;
+            }
         }
 
         if (isset($data['warehouse_uuid']) && ! isset($data['warehouse_id'])) {
