@@ -270,7 +270,7 @@ class SalesReturnLifecycleTest extends TestCase
         $unitSale = $saleService->confirm($unitSale->uuid);
         $saleItem = $unitSale->items->first();
 
-        $this->assertEquals(10, (float) $saleItem->base_quantity);
+        $this->assertEquals(20, (float) $saleItem->base_quantity);
 
         $response = $this->postJson(route('sales-returns.store'), [
             'sale_uuid' => $unitSale->uuid,
@@ -446,10 +446,10 @@ class SalesReturnLifecycleTest extends TestCase
                 'unit_uuid' => $boxUnit->uuid,
                 'quantity' => 2,
                 'unit_cost' => 500,
-                'batches' => [[
-                    'batch_no' => 'SR-LOT-BOX-01',
-                    'quantity' => 2,
-                ]],
+                'batches' => [
+                    ['batch_no' => 'SR-LOT-BOX-01', 'quantity' => 1],
+                    ['batch_no' => 'SR-LOT-BOX-02', 'quantity' => 1],
+                ],
             ]],
         ]);
         $purchaseService->confirm($purchase);
@@ -467,12 +467,12 @@ class SalesReturnLifecycleTest extends TestCase
             'items' => [[
                 'product_uuid' => $batchProduct->uuid,
                 'unit_uuid' => $boxUnit->uuid,
-                'quantity' => 1,
+                'quantity' => 2,
                 'unit_price' => 1000,
-                'batches' => [[
-                    'batch_no' => 'SR-LOT-BOX-01',
-                    'quantity' => 1,
-                ]],
+                'batches' => [
+                    ['batch_no' => 'SR-LOT-BOX-01', 'quantity' => 1],
+                    ['batch_no' => 'SR-LOT-BOX-02', 'quantity' => 1],
+                ],
             ]],
         ]);
         $sale = $saleService->confirm($sale->uuid);
@@ -491,7 +491,7 @@ class SalesReturnLifecycleTest extends TestCase
             'return_date' => now()->toDateString(),
             'items' => [[
                 'sale_item_uuid' => $saleItem->uuid,
-                'returned_quantity' => 0.5,
+                'returned_quantity' => 0.75,
                 'unit_price' => 1000,
             ]],
         ];
@@ -503,7 +503,7 @@ class SalesReturnLifecycleTest extends TestCase
         $unknownBatchPayload = $basePayload;
         $unknownBatchPayload['items'][0]['batches'] = [[
             'batch_no' => 'NOT-ON-THIS-SALE',
-            'quantity' => 0.5,
+            'quantity' => 0.75,
         ]];
 
         $this->postJson(route('sales-returns.store'), $unknownBatchPayload)
@@ -523,17 +523,17 @@ class SalesReturnLifecycleTest extends TestCase
         $return = SalesReturn::query()->where('uuid', $returnUuid)->firstOrFail();
         $returnItem = $return->items()->firstOrFail();
 
-        $this->assertEquals(5, (float) $returnItem->base_quantity);
+        $this->assertEquals(7.5, (float) $returnItem->base_quantity);
         $this->assertDatabaseHas('sale_return_item_batches', [
             'sales_return_item_id' => $returnItem->id,
             'product_batch_id' => $batch->id,
             'batch_no' => 'SR-LOT-BOX-01',
-            'quantity' => 0.5,
+            'quantity' => 0.75,
         ]);
 
         $excessPayload = $validPayload;
-        $excessPayload['items'][0]['returned_quantity'] = 0.6;
-        $excessPayload['items'][0]['batches'][0]['quantity'] = 0.6;
+        $excessPayload['items'][0]['returned_quantity'] = 0.5;
+        $excessPayload['items'][0]['batches'][0]['quantity'] = 0.5;
 
         $this->postJson(route('sales-returns.store'), $excessPayload)
             ->assertUnprocessable();
@@ -541,11 +541,11 @@ class SalesReturnLifecycleTest extends TestCase
         $this->postJson(route('sales-returns.confirm', ['uuid' => $returnUuid]))
             ->assertOk();
 
-        $this->assertEquals(15, (float) $batch->fresh()->remaining_quantity);
+        $this->assertEquals(7.5, (float) $batch->fresh()->remaining_quantity);
         $this->assertDatabaseHas('stock_ledgers', [
             'product_id' => $batchProduct->id,
             'product_batch_id' => $batch->id,
-            'quantity_in' => 5,
+            'quantity_in' => 7.5,
             'transaction_type' => 'SALE_RETURN',
         ]);
     }
