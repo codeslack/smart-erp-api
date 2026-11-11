@@ -21,7 +21,6 @@ class PurchaseReturn extends TenantModel
     protected $table = 'purchase_returns';
 
     protected $fillable = [
-        'tenant_id',
         'purchase_id',
         'supplier_id',
         'return_no',
