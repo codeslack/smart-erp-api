@@ -4,7 +4,6 @@ namespace App\Modules\SalesReturn\Services\Actions;
 
 use App\Modules\Sales\Models\Sale;
 use App\Modules\SalesReturn\Enums\SalesReturnStatus;
-use App\Modules\SalesReturn\Enums\SalesReturnRefundType;
 use App\Modules\SalesReturn\Models\SalesReturn;
 use App\Modules\SalesReturn\Services\Posting\SalesReturnAccountingPostingService;
 use App\Modules\SalesReturn\Services\Posting\SalesReturnInventoryPostingService;
@@ -51,12 +50,8 @@ class CancelSalesReturnAction
                 'cancellation_reason' => $reason,
             ]);
 
-            // Recalculate only when a confirmed credit note is cancelled.
-            if (
-                $wasConfirmed
-                && $sale
-                && $salesReturn->refund_type === SalesReturnRefundType::CREDIT_NOTE
-            ) {
+            // Restore the receivable impact of any confirmed return being cancelled.
+            if ($wasConfirmed && $sale) {
                 $this->dueAmountService->recalculate($sale);
             }
 

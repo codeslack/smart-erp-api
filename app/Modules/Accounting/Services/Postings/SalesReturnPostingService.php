@@ -51,25 +51,53 @@ class SalesReturnPostingService extends BasePostingService
                 ?? SalesReturnRefundType::CREDIT_NOTE;
         }
 
-        $counterLine = $refundType === SalesReturnRefundType::CREDIT_NOTE
-            ? $this->credit(
+        $counterLines = [];
+
+        if ($refundType === SalesReturnRefundType::CREDIT_NOTE) {
+            $counterLines[] = $this->credit(
                 AccountingAccounts::ACCOUNTS_RECEIVABLE,
                 $grandTotal,
                 "Sales Return Credit Note {$salesReturn->return_no}"
-            )
-            : [
-                'chart_of_account_uuid' => $salesReturn->refundAccount?->uuid
-                    ?? throw new BusinessException('A valid refund account is required for this Sales Return.'),
-                'debit' => '0.0000',
-                'credit' => $grandTotal,
-                'description' => "Sales Return Refund {$salesReturn->return_no}",
-            ];
+            );
+        } else {
+            if (! $salesReturn->refundAccount?->is_active) {
+                throw new BusinessException('The selected Sales Return refund account is inactive.');
+            }
 
-        if (
-            $refundType !== SalesReturnRefundType::CREDIT_NOTE
-            && ! $salesReturn->refundAccount?->is_active
-        ) {
-            throw new BusinessException('The selected Sales Return refund account is inactive.');
+            $refundAmount = $this->decimal($salesReturn->refund_amount);
+            $creditedAmount = $this->decimal($salesReturn->credited_amount);
+
+            if (
+                bccomp($refundAmount, '0.0000', 4) < 0
+                || bccomp($creditedAmount, '0.0000', 4) < 0
+                || bccomp(
+                    bcadd($refundAmount, $creditedAmount, 4),
+                    $grandTotal,
+                    4
+                ) !== 0
+            ) {
+                throw new BusinessException(
+                    'Sales Return refund and receivable credit amounts do not equal the return total.'
+                );
+            }
+
+            if (bccomp($refundAmount, '0.0000', 4) > 0) {
+                $counterLines[] = [
+                    'chart_of_account_uuid' => $salesReturn->refundAccount?->uuid
+                        ?? throw new BusinessException('A valid refund account is required for this Sales Return.'),
+                    'debit' => '0.0000',
+                    'credit' => $refundAmount,
+                    'description' => "Sales Return Refund {$salesReturn->return_no}",
+                ];
+            }
+
+            if (bccomp($creditedAmount, '0.0000', 4) > 0) {
+                $counterLines[] = $this->credit(
+                    AccountingAccounts::ACCOUNTS_RECEIVABLE,
+                    $creditedAmount,
+                    "Sales Return Receivable Credit {$salesReturn->return_no}"
+                );
+            }
         }
 
         $this->createJournalEntry(
@@ -78,13 +106,15 @@ class SalesReturnPostingService extends BasePostingService
             referenceType: SalesReturn::class,
             referenceId: $salesReturn->id,
             description: "Sales Return {$salesReturn->return_no}",
-            lines: [
-                $this->debit(
-                    AccountingAccounts::SALES_RETURN,
-                    $grandTotal
-                ),
-                $counterLine,
-            ]
+            lines: array_merge(
+                [
+                    $this->debit(
+                        AccountingAccounts::SALES_RETURN,
+                        $grandTotal
+                    ),
+                ],
+                $counterLines
+            )
         );
 
         /*

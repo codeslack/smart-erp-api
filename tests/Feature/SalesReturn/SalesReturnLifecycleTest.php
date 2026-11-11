@@ -914,6 +914,11 @@ class SalesReturnLifecycleTest extends TestCase
 
     public function test_header_only_refund_type_update_recalculates_refund_amounts_and_posts_to_cash(): void
     {
+        $this->sale->update([
+            'paid_amount' => 200,
+            'due_amount' => 300,
+        ]);
+
         $uuid = $this->makeReturn(2);
         app(TenantManager::class)->setTenant($this->tenant);
 
@@ -974,6 +979,147 @@ class SalesReturnLifecycleTest extends TestCase
         app(TenantManager::class)->setTenant($this->tenant);
 
         $this->assertEquals($dueBefore, (float) $this->sale->fresh()->due_amount);
+    }
+
+    public function test_cash_refund_splits_between_paid_amount_and_receivable_across_multiple_returns(): void
+    {
+        $this->sale->update([
+            'paid_amount' => 150,
+            'due_amount' => 350,
+        ]);
+
+        $firstReturnUuid = $this->makeReturn(1);
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $cashAccount = ChartOfAccount::query()
+            ->where('account_code', AccountingAccounts::CASH)
+            ->firstOrFail();
+
+        $receivableAccount = ChartOfAccount::query()
+            ->where('account_code', AccountingAccounts::ACCOUNTS_RECEIVABLE)
+            ->firstOrFail();
+
+        $this->putJson(route('sales-returns.update', ['uuid' => $firstReturnUuid]), [
+            'refund_type' => 'cash_refund',
+            'refund_account_id' => $cashAccount->id,
+        ])->assertOk();
+
+        $this->postJson(route('sales-returns.confirm', ['uuid' => $firstReturnUuid]))
+            ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $firstReturn = SalesReturn::query()
+            ->where('uuid', $firstReturnUuid)
+            ->firstOrFail();
+
+        $this->assertEquals(100, (float) $firstReturn->refund_amount);
+        $this->assertEquals(0, (float) $firstReturn->credited_amount);
+        $this->assertEquals(350, (float) $this->sale->fresh()->due_amount);
+
+        $secondReturnUuid = $this->makeReturn(1);
+
+        $this->putJson(route('sales-returns.update', ['uuid' => $secondReturnUuid]), [
+            'refund_type' => 'cash_refund',
+            'refund_account_id' => $cashAccount->id,
+        ])->assertOk();
+
+        $this->postJson(route('sales-returns.confirm', ['uuid' => $secondReturnUuid]))
+            ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $secondReturn = SalesReturn::query()
+            ->where('uuid', $secondReturnUuid)
+            ->firstOrFail();
+
+        $this->assertEquals(50, (float) $secondReturn->refund_amount);
+        $this->assertEquals(50, (float) $secondReturn->credited_amount);
+        $this->assertEquals(300, (float) $this->sale->fresh()->due_amount);
+
+        $journalEntry = JournalEntry::query()
+            ->where('reference_type', SalesReturn::class)
+            ->where('reference_id', $secondReturn->id)
+            ->orderBy('id')
+            ->firstOrFail();
+
+        $this->assertTrue(
+            $journalEntry->lines()
+                ->where('chart_of_account_id', $cashAccount->id)
+                ->where('credit', 50)
+                ->exists()
+        );
+
+        $this->assertTrue(
+            $journalEntry->lines()
+                ->where('chart_of_account_id', $receivableAccount->id)
+                ->where('credit', 50)
+                ->exists()
+        );
+
+        $this->postJson(route('sales-returns.cancel', ['uuid' => $secondReturnUuid]), [
+            'reason' => 'Split refund reversed',
+        ])->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $this->assertEquals(350, (float) $this->sale->fresh()->due_amount);
+    }
+
+    public function test_unpaid_cash_return_is_applied_entirely_to_accounts_receivable(): void
+    {
+        $this->sale->update([
+            'paid_amount' => 0,
+            'due_amount' => 500,
+        ]);
+
+        $returnUuid = $this->makeReturn(1);
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $cashAccount = ChartOfAccount::query()
+            ->where('account_code', AccountingAccounts::CASH)
+            ->firstOrFail();
+
+        $receivableAccount = ChartOfAccount::query()
+            ->where('account_code', AccountingAccounts::ACCOUNTS_RECEIVABLE)
+            ->firstOrFail();
+
+        $this->putJson(route('sales-returns.update', ['uuid' => $returnUuid]), [
+            'refund_type' => 'cash_refund',
+            'refund_account_id' => $cashAccount->id,
+        ])->assertOk();
+
+        $this->postJson(route('sales-returns.confirm', ['uuid' => $returnUuid]))
+            ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $salesReturn = SalesReturn::query()
+            ->where('uuid', $returnUuid)
+            ->firstOrFail();
+
+        $this->assertEquals(0, (float) $salesReturn->refund_amount);
+        $this->assertEquals(100, (float) $salesReturn->credited_amount);
+        $this->assertEquals(400, (float) $this->sale->fresh()->due_amount);
+
+        $journalEntry = JournalEntry::query()
+            ->where('reference_type', SalesReturn::class)
+            ->where('reference_id', $salesReturn->id)
+            ->orderBy('id')
+            ->firstOrFail();
+
+        $this->assertFalse(
+            $journalEntry->lines()
+                ->where('chart_of_account_id', $cashAccount->id)
+                ->exists()
+        );
+
+        $this->assertTrue(
+            $journalEntry->lines()
+                ->where('chart_of_account_id', $receivableAccount->id)
+                ->where('credit', 100)
+                ->exists()
+        );
     }
 
     public function test_credit_note_cancellation_restores_only_the_due_amount_that_was_outstanding(): void
