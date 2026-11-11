@@ -197,6 +197,37 @@ class PurchaseReturnValidationTest extends TestCase
         ]);
     }
 
+    public function test_uses_original_purchase_discount_and_tax_values(): void
+    {
+        $purchaseItem = $this->purchase->items->first();
+
+        $response = $this->postJson('/api/purchase-returns', [
+            'purchase_uuid' => $this->purchase->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'purchase_item_uuid' => $purchaseItem->uuid,
+                'returned_quantity' => 2,
+                'unit_cost' => 50,
+                'discount_amount' => 500,
+                'tax_amount' => 500,
+                'tax_rate' => 99,
+            ]],
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.grand_total', 100);
+
+        $this->assertDatabaseHas('purchase_return_items', [
+            'purchase_item_id' => $purchaseItem->id,
+            'returned_quantity' => 2,
+            'unit_cost' => 50,
+            'discount_amount' => 0,
+            'tax_amount' => 0,
+            'tax_rate' => 0,
+        ]);
+    }
+
     public function test_rejects_unvalidated_base_quantity_on_return_items(): void
     {
         $purchaseItem = $this->purchase->items->first();
