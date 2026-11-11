@@ -76,6 +76,11 @@ class PurchaseOrderItemCalculator
                 $totalAmount,
                 4
             ),
+
+            // Fulfillment counters are maintained only by receiving/billing workflows.
+            'received_quantity' => 0,
+            'billed_quantity' => 0,
+            'cancelled_quantity' => 0,
         ]);
     }
 
