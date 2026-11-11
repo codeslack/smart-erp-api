@@ -153,12 +153,15 @@ class CustomerAdvanceAutoAdjustmentService
             return 0;
         }
 
-        $allocatedAmount = number_format(
-            (float) $allocations->sum('allocated_amount'),
-            4,
-            '.',
-            ''
-        );
+        $allocatedAmount = '0.0000';
+
+        foreach ($allocations as $allocation) {
+            $allocatedAmount = bcadd(
+                $allocatedAmount,
+                (string) $allocation->allocated_amount,
+                4
+            );
+        }
 
         $remainingPaidAmount = bcsub(
             (string) $sale->paid_amount,
