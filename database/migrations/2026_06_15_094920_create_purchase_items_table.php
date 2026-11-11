@@ -43,7 +43,6 @@ return new class extends Migration
 
             // Cost per selected purchase unit.
             $table->decimal('unit_cost', 18, 4);
-            $table->decimal('base_unit_cost', 18, 8)->nullable();
 
             // line_total: before item discount.
             // subtotal: after item discount, before tax.
