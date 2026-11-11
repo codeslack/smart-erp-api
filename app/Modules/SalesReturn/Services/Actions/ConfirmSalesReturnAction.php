@@ -20,9 +20,13 @@ class ConfirmSalesReturnAction
 
     public function execute(SalesReturn $salesReturn): SalesReturn
     {
-        $this->validator->validateForConfirmation($salesReturn);
-
         return DB::transaction(function () use ($salesReturn) {
+            $salesReturn = SalesReturn::query()
+                ->lockForUpdate()
+                ->findOrFail($salesReturn->id);
+
+            $this->validator->validateForConfirmation($salesReturn);
+
             $salesReturn->update([
                 'status' => SalesReturnStatus::CONFIRMED,
                 'approved_by' => auth()->id(),
