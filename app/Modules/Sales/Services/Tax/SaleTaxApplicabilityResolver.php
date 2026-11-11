@@ -6,6 +6,7 @@ use App\Modules\Customer\Models\Customer;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Settings\Models\Setting;
 use App\Modules\Tax\Domain\TaxApplicabilityInput;
+use App\Modules\Tax\Domain\TaxApplicabilityResult;
 use App\Modules\Tax\Enums\TaxDirectionEnum;
 use App\Modules\Tax\Enums\TaxUsageEnum;
 use App\Modules\Tax\Models\TaxRegistration;
@@ -19,7 +20,7 @@ class SaleTaxApplicabilityResolver
     ) {
     }
 
-    public function resolve(Sale $sale)
+    public function resolve(Sale $sale): TaxApplicabilityResult
     {
         $tenant = tenant();
         $customer = $sale->customer;
