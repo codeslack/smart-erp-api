@@ -1224,4 +1224,69 @@ class SalesReturnLifecycleTest extends TestCase
         $this->assertEquals(50, (float) $this->sale->fresh()->due_amount);
     }
 
+    public function test_failed_accounting_reversal_rolls_back_sales_return_inventory_and_status(): void
+    {
+        $returnUuid = $this->makeReturn(1);
+
+        $this->postJson(route('sales-returns.confirm', ['uuid' => $returnUuid]))
+            ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $salesReturn = SalesReturn::query()
+            ->where('uuid', $returnUuid)
+            ->firstOrFail();
+
+        $stockBefore = ProductStock::query()
+            ->where('product_id', $this->product->id)
+            ->where('warehouse_id', $this->warehouse->id)
+            ->firstOrFail()
+            ->quantity;
+
+        $stockLedgerCountBefore = StockLedger::query()->count();
+        $journalEntryCountBefore = JournalEntry::query()->count();
+        $dueBefore = $this->sale->fresh()->due_amount;
+
+        $accountingPosting = \\Mockery::mock(
+            \\App\\Modules\\SalesReturn\\Services\\Posting\\SalesReturnAccountingPostingService::class
+        );
+
+        $accountingPosting->shouldReceive('reverse')
+            ->once()
+            ->andThrow(new \\RuntimeException('Simulated accounting reversal failure.'));
+
+        $this->app->instance(
+            \\App\\Modules\\SalesReturn\\Services\\Posting\\SalesReturnAccountingPostingService::class,
+            $accountingPosting
+        );
+
+        try {
+            app(\\App\\Modules\\SalesReturn\\Services\\Actions\\CancelSalesReturnAction::class)
+                ->execute($salesReturn, 'Test rollback');
+            $this->fail('The accounting reversal failure should abort cancellation.');
+        } catch (\\RuntimeException $exception) {
+            $this->assertSame('Simulated accounting reversal failure.', $exception->getMessage());
+        }
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $this->assertSame(
+            'confirmed',
+            SalesReturn::query()->where('uuid', $returnUuid)->firstOrFail()->status->value
+        );
+
+        $this->assertEquals(
+            (float) $stockBefore,
+            (float) ProductStock::query()
+                ->where('product_id', $this->product->id)
+                ->where('warehouse_id', $this->warehouse->id)
+                ->firstOrFail()
+                ->quantity
+        );
+
+        $this->assertSame($stockLedgerCountBefore, StockLedger::query()->count());
+        $this->assertSame($journalEntryCountBefore, JournalEntry::query()->count());
+        $this->assertEquals((float) $dueBefore, (float) $this->sale->fresh()->due_amount);
+    }
+
 }
