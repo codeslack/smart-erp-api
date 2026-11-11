@@ -283,6 +283,46 @@ class PurchaseBatchTrackingTest extends TestCase
         $response->assertStatus(422);
     }
 
+    public function test_client_cannot_override_batch_base_quantity(): void
+    {
+        $batchProduct = Product::create([
+            'tenant_id' => $this->tenant->id,
+            'code' => 'PRD-BAT-BASE',
+            'sku' => 'SKU-BAT-BASE',
+            'name' => 'Batch Base Quantity Protection',
+            'slug' => 'batch-base-quantity-protection',
+            'product_type' => ProductTypeEnum::PRODUCT,
+            'inventory_tracking_type' => InventoryTrackingTypeEnum::BATCH,
+            'is_active' => true,
+            'purchase_price' => 50,
+            'selling_price' => 80,
+        ]);
+
+        $payload = [
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [
+                [
+                    'product_uuid' => $batchProduct->uuid,
+                    'quantity' => 1,
+                    'unit_cost' => 50,
+                    'batches' => [
+                        [
+                            'batch_no' => 'FORGED-BASE-BATCH',
+                            'quantity' => 1,
+                            'base_quantity' => 500,
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $this->postJson(route('purchases.store'), $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0.batches.0');
+    }
+
     public function test_purchase_show_includes_batches(): void
     {
         $batchProduct = Product::create([
