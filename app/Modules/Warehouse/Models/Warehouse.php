@@ -17,8 +17,6 @@ class Warehouse extends TenantModel
 
     protected $fillable = [
 
-        'tenant_id',
-
         'code',
 
         'name',

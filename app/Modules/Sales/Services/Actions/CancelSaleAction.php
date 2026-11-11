@@ -9,6 +9,7 @@ use App\Modules\Sales\Services\Posting\SaleInventoryPostingService;
 use App\Modules\Sales\Services\Validators\SaleValidator;
 use App\Modules\SalesOrder\Models\SalesOrderItem;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class CancelSaleAction
 {
@@ -36,15 +37,38 @@ class CancelSaleAction
                 // Reverse accounting postings
                 $this->accountingPostingService->reverse($sale);
 
-                // Reverse linked sales order progress if present
-                if ($sale->sales_order_id) {
-                    foreach ($sale->items as $item) {
-                        if ($item->sales_order_item_id) {
-                            SalesOrderItem::query()
-                                ->where('id', $item->sales_order_item_id)
-                                ->decrement('invoiced_quantity', $item->quantity);
-                        }
+                // Reverse invoiced quantities from the exact linked source order lines.
+                $linkedItems = $sale->items()
+                    ->whereNotNull('sales_order_item_id')
+                    ->get();
+
+                $quantities = $linkedItems
+                    ->groupBy('sales_order_item_id')
+                    ->map(fn ($items) => (float) $items->sum('quantity'));
+
+                $orderItems = SalesOrderItem::query()
+                    ->whereIn('id', $quantities->keys())
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get()
+                    ->keyBy('id');
+
+                foreach ($quantities as $orderItemId => $invoiceQuantity) {
+                    $orderItem = $orderItems->get($orderItemId);
+
+                    if (
+                        ! $orderItem
+                        || (int) $orderItem->sales_order_id !== (int) $sale->sales_order_id
+                        || (float) $orderItem->invoiced_quantity + 0.00001 < $invoiceQuantity
+                    ) {
+                        throw ValidationException::withMessages([
+                            'items' => ['The linked sales order invoiced quantity cannot be safely reversed.'],
+                        ]);
                     }
+                }
+
+                foreach ($quantities as $orderItemId => $invoiceQuantity) {
+                    $orderItems->get($orderItemId)->decrement('invoiced_quantity', $invoiceQuantity);
                 }
             }
 
@@ -57,6 +81,7 @@ class CancelSaleAction
 
             return $sale->fresh([
                 'items.product',
+                'items.salesOrderItem',
                 'items.variant',
                 'items.warehouse',
                 'items.unit',

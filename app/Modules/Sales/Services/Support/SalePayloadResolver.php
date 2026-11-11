@@ -10,6 +10,7 @@ use App\Modules\PaymentTerm\Models\PaymentTerm;
 use App\Modules\Product\Models\Product;
 use App\Modules\Product\Models\ProductVariant;
 use App\Modules\SalesOrder\Models\SalesOrder;
+use App\Modules\SalesOrder\Models\SalesOrderItem;
 use App\Modules\SalesQuotation\Models\SalesQuotation;
 use App\Modules\Tax\Models\Tax;
 use App\Modules\Unit\Models\Unit;
@@ -63,7 +64,7 @@ class SalePayloadResolver
         unset($data[$uuidKey]);
     }
 
-    public function resolveItems(array $rawItems, ?int $defaultWarehouseId = null): array
+    public function resolveItems(array $rawItems, ?int $defaultWarehouseId = null, ?int $salesOrderId = null): array
     {
         $resolved = [];
 
@@ -78,6 +79,7 @@ class SalePayloadResolver
 
             $this->resolveUuidReference($item, 'unit_uuid', 'unit_id', Unit::class, 'Unit', "items.{$index}.unit_uuid");
             $this->resolveUuidReference($item, 'tax_uuid', 'tax_id', Tax::class, 'Tax', "items.{$index}.tax_uuid");
+            $this->resolveUuidReference($item, 'sales_order_item_uuid', 'sales_order_item_id', SalesOrderItem::class, 'Sales order item', "items.{$index}.sales_order_item_uuid");
 
             if (! empty($item['product_id']) && (empty($item['item_name']) || empty($item['sku']))) {
                 $product = Product::query()->find($item['product_id']);
@@ -93,6 +95,50 @@ class SalePayloadResolver
             $product = ! empty($item['product_id'])
                 ? Product::query()->find((int) $item['product_id'])
                 : null;
+
+            if (isset($item['sales_order_item_id'])) {
+                if (! $salesOrderId) {
+                    throw new BusinessException(
+                        'A sales order must be selected when linking an invoice line to an order item.',
+                        'BUSINESS_ERROR',
+                        ["items.{$index}.sales_order_item_uuid" => ['A sales order is required for this order item.']]
+                    );
+                }
+
+                $orderItem = SalesOrderItem::query()
+                    ->whereKey($item['sales_order_item_id'])
+                    ->where('sales_order_id', $salesOrderId)
+                    ->first();
+
+                if (! $orderItem) {
+                    throw new BusinessException(
+                        'The selected sales order item does not belong to the selected sales order.',
+                        'BUSINESS_ERROR',
+                        ["items.{$index}.sales_order_item_uuid" => ['The order item does not belong to the selected sales order.']]
+                    );
+                }
+
+                $saleProductId = isset($item['product_id']) ? (int) $item['product_id'] : null;
+                $orderProductId = $orderItem->product_id !== null ? (int) $orderItem->product_id : null;
+                $saleVariantId = isset($item['product_variant_id']) ? (int) $item['product_variant_id'] : null;
+                $orderVariantId = $orderItem->product_variant_id !== null ? (int) $orderItem->product_variant_id : null;
+                $saleUnitId = isset($item['unit_id']) ? (int) $item['unit_id'] : null;
+                $orderUnitId = $orderItem->unit_of_measure_id !== null
+                    ? (int) $orderItem->unit_of_measure_id
+                    : ($orderItem->product?->unit_id !== null ? (int) $orderItem->product->unit_id : null);
+
+                if (
+                    $saleProductId !== $orderProductId
+                    || $saleVariantId !== $orderVariantId
+                    || $saleUnitId !== $orderUnitId
+                ) {
+                    throw new BusinessException(
+                        'The invoice line product, variant, and unit must match the linked sales order item.',
+                        'BUSINESS_ERROR',
+                        ["items.{$index}.sales_order_item_uuid" => ['The invoice line does not match the linked order item.']]
+                    );
+                }
+            }
 
             if (
                 $product

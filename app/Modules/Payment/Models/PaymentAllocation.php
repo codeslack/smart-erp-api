@@ -12,7 +12,6 @@ class PaymentAllocation extends TenantModel
 
     protected $fillable = [
         'uuid',
-        'tenant_id',
         'payment_id',
         'document_type',
         'document_id',

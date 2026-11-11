@@ -25,7 +25,6 @@ class Purchase extends TenantModel
     protected $table = 'purchases';
 
     protected $fillable = [
-        'tenant_id',
         'supplier_id',
         'warehouse_id',
         'purchase_order_id',

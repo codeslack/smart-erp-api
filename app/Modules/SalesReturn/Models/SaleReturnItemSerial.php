@@ -14,7 +14,6 @@ class SaleReturnItemSerial extends TenantModel
     protected $table = 'sale_return_item_serials';
 
     protected $fillable = [
-        'tenant_id',
         'sales_return_id',
         'sales_return_item_id',
         'product_serial_id',

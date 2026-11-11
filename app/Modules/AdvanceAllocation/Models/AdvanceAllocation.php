@@ -8,8 +8,6 @@ class AdvanceAllocation extends TenantModel
 {
     protected $fillable = [
 
-        'tenant_id',
-
         'allocation_type',
 
         'source_type',

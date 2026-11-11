@@ -7,8 +7,11 @@ use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Services\Posting\SaleAccountingPostingService;
 use App\Modules\Sales\Services\Posting\SaleInventoryPostingService;
 use App\Modules\Sales\Services\Validators\SaleValidator;
+use App\Modules\SalesOrder\Enums\SalesOrderStatusEnum;
+use App\Modules\SalesOrder\Models\SalesOrder;
 use App\Modules\SalesOrder\Models\SalesOrderItem;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ConfirmSaleAction
 {
@@ -39,19 +42,78 @@ class ConfirmSaleAction
             // Post GL revenue/COGS and advance auto-adjustments
             $this->accountingPostingService->post($sale);
 
-            // Update linked Sales Order progress if present
-            if ($sale->sales_order_id) {
-                foreach ($sale->items as $item) {
-                    if ($item->sales_order_item_id) {
-                        SalesOrderItem::query()
-                            ->where('id', $item->sales_order_item_id)
-                            ->increment('invoiced_quantity', $item->quantity);
-                    }
+            // Lock source order lines in a stable order to prevent concurrent over-invoicing.
+            $linkedItems = $sale->items()
+                ->whereNotNull('sales_order_item_id')
+                ->get();
+
+            if ($linkedItems->isNotEmpty() && ! $sale->sales_order_id) {
+                throw ValidationException::withMessages([
+                    'sales_order_id' => ['A linked sales order is required for invoicing these order lines.'],
+                ]);
+            }
+
+            if ($linkedItems->isNotEmpty()) {
+                $salesOrder = SalesOrder::query()
+                    ->whereKey($sale->sales_order_id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $salesOrder || ! in_array($salesOrder->status, [
+                    SalesOrderStatusEnum::CONFIRMED,
+                    SalesOrderStatusEnum::PARTIALLY_DELIVERED,
+                    SalesOrderStatusEnum::DELIVERED,
+                ], true)) {
+                    throw ValidationException::withMessages([
+                        'sales_order_id' => ['Only an active, confirmed sales order can be invoiced.'],
+                    ]);
                 }
+
+                if ((int) $salesOrder->customer_id !== (int) $sale->customer_id) {
+                    throw ValidationException::withMessages([
+                        'customer_id' => ['The sale customer must match the linked sales order customer.'],
+                    ]);
+                }
+            }
+
+            $quantities = $linkedItems
+                ->groupBy('sales_order_item_id')
+                ->map(fn ($items) => (float) $items->sum('quantity'));
+
+            $orderItems = SalesOrderItem::query()
+                ->whereIn('id', $quantities->keys())
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
+            foreach ($quantities as $orderItemId => $invoiceQuantity) {
+                $orderItem = $orderItems->get($orderItemId);
+
+                if (! $orderItem || (int) $orderItem->sales_order_id !== (int) $sale->sales_order_id) {
+                    throw ValidationException::withMessages([
+                        'items' => ['A linked sales order item no longer belongs to this sales order.'],
+                    ]);
+                }
+
+                $remainingQuantity = (float) $orderItem->quantity
+                    - (float) $orderItem->invoiced_quantity
+                    - (float) $orderItem->cancelled_quantity;
+
+                if ($invoiceQuantity > $remainingQuantity + 0.00001) {
+                    throw ValidationException::withMessages([
+                        'items' => ["The invoice quantity exceeds the remaining quantity for sales order item {$orderItem->uuid}."],
+                    ]);
+                }
+            }
+
+            foreach ($quantities as $orderItemId => $invoiceQuantity) {
+                $orderItems->get($orderItemId)->increment('invoiced_quantity', $invoiceQuantity);
             }
 
             return $sale->fresh([
                 'items.product',
+                'items.salesOrderItem',
                 'items.variant',
                 'items.warehouse',
                 'items.unit',

@@ -261,9 +261,12 @@ class SaleInventoryPostingService
 
         foreach ($ledgers as $ledger) {
             $reversalData = new InventoryReversalData(
-                reason: "Cancellation of Sale {$sale->sale_no}",
+                stockLedgerId: (int) $ledger->id,
                 reversalDate: now(),
-                metadata: ['sale_id' => $sale->id]
+                referenceType: Sale::class,
+                referenceId: (int) $sale->id,
+                referenceNo: $sale->sale_no,
+                remarks: "Cancellation of Sale {$sale->sale_no}"
             );
 
             $this->stockOutReversalService->reverse($ledger, $reversalData);

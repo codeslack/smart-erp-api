@@ -12,7 +12,6 @@ class Role extends SpatieRole
     use HasUuidPrimaryKey;
 
     protected $fillable = [
-        'tenant_id',
         'name',
         'guard_name',
     ];

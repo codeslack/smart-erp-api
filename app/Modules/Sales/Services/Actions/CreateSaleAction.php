@@ -29,7 +29,11 @@ class CreateSaleAction
             unset($headerData['items']);
 
             $defaultWarehouseId = $headerData['warehouse_id'] ?? null;
-            $resolvedItems = $this->payloadResolver->resolveItems($rawItems, $defaultWarehouseId);
+            $resolvedItems = $this->payloadResolver->resolveItems(
+                $rawItems,
+                $defaultWarehouseId,
+                isset($headerData['sales_order_id']) ? (int) $headerData['sales_order_id'] : null
+            );
 
             $calculatedItems = [];
             foreach ($resolvedItems as $item) {
@@ -86,6 +90,7 @@ class CreateSaleAction
 
             return $sale->load([
                 'items.product',
+                'items.salesOrderItem',
                 'items.variant',
                 'items.warehouse',
                 'items.unit',
