@@ -8,7 +8,6 @@ use App\Modules\Tax\Enums\TaxPricingModeEnum;
 use App\Modules\Tax\Enums\TaxRoundingModeEnum;
 use App\Modules\Tax\Models\TaxApplicabilityRule;
 use App\Modules\Tax\Services\TaxCalculationService;
-use App\Core\Exceptions\BusinessException;
 
 class SaleTaxCalculationService
 {
@@ -25,6 +24,12 @@ class SaleTaxCalculationService
         $hasRules = TaxApplicabilityRule::query()->exists();
 
         if (! $hasRules) {
+            if (bccomp((string) $sale->tax_amount, '0.0000', 4) > 0) {
+                throw new \App\Core\Exceptions\BusinessException(
+                    'Configure Tax V4 applicability rules before confirming a Sale with tax.'
+                );
+            }
+
             return;
         }
 
@@ -52,8 +57,13 @@ class SaleTaxCalculationService
                 4,
             );
 
+            $lineTax = round(array_sum(array_map(
+                fn (array $component) => (float) ($component['tax_amount'] ?? 0),
+                $calculation->components,
+            )), 4);
+
             $taxRate = $taxableAmount > 0
-                ? round(($calculation->totalTax / $taxableAmount) * 100, 4)
+                ? round(($lineTax / $taxableAmount) * 100, 4)
                 : 0.0;
 
             $snapshot = [
@@ -64,7 +74,7 @@ class SaleTaxCalculationService
                 'treatment' => $applicability->treatment,
                 'calculation_date' => $sale->sale_date->toDateString(),
                 'taxable_amount' => $calculation->taxableAmount,
-                'tax_amount' => $calculation->totalTax,
+                'tax_amount' => $lineTax,
                 'components' => $calculation->components,
             ];
 
@@ -73,12 +83,12 @@ class SaleTaxCalculationService
                 'tax_applicability_rule_id' => $applicability->taxApplicabilityRuleId,
                 'tax_snapshot' => $snapshot,
                 'tax_rate' => $taxRate,
-                'tax_amount' => $calculation->totalTax,
-                'line_total' => round((float) $item->subtotal + $calculation->totalTax, 4),
-                'total_amount' => round((float) $item->subtotal + $calculation->totalTax, 4),
+                'tax_amount' => $lineTax,
+                'line_total' => round((float) $item->subtotal + $lineTax, 4),
+                'total_amount' => round((float) $item->subtotal + $lineTax, 4),
             ]);
 
-            $totalTax += $calculation->totalTax;
+            $totalTax += $lineTax;
         }
 
         $grandTotal = max(0, round(
