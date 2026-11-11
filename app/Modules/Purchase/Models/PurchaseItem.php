@@ -26,7 +26,6 @@ class PurchaseItem extends TenantModel
 
     protected $fillable = [
         'uuid',
-        'tenant_id',
         'purchase_id',
         'purchase_order_item_id',
         'goods_receipt_note_item_id',
