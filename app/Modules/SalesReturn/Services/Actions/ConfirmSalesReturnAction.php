@@ -4,7 +4,6 @@ namespace App\Modules\SalesReturn\Services\Actions;
 
 use App\Modules\Sales\Models\Sale;
 use App\Modules\SalesReturn\Enums\SalesReturnStatus;
-use App\Modules\SalesReturn\Enums\SalesReturnRefundType;
 use App\Modules\SalesReturn\Models\SalesReturn;
 use App\Modules\SalesReturn\Services\Posting\SalesReturnAccountingPostingService;
 use App\Modules\SalesReturn\Services\Posting\SalesReturnInventoryPostingService;
@@ -34,6 +33,17 @@ class ConfirmSalesReturnAction
 
             $this->validator->validateForConfirmation($salesReturn);
 
+            if (! $sale) {
+                throw new \App\Core\Exceptions\BusinessException(
+                    'The source Sale for this Sales Return could not be found.'
+                );
+            }
+
+            $this->dueAmountService->allocateRefundAmounts(
+                $salesReturn,
+                $sale
+            );
+
             $salesReturn->update([
                 'status' => SalesReturnStatus::CONFIRMED,
                 'approved_by' => auth()->id(),
@@ -46,13 +56,8 @@ class ConfirmSalesReturnAction
             // Post GL entries (revenue reversal, COGS restoration)
             $this->accountingPostingService->post($salesReturn);
 
-            // Credit notes reduce the receivable; cash/bank refunds do not.
-            if (
-                $sale
-                && $salesReturn->refund_type === SalesReturnRefundType::CREDIT_NOTE
-            ) {
-                $this->dueAmountService->recalculate($sale);
-            }
+            // Every confirmed return reduces the receivable by its credited portion.
+            $this->dueAmountService->recalculate($sale);
 
             return $salesReturn->fresh([
                 'items.product',
