@@ -23,6 +23,7 @@ return new class extends Migration
 
             $table->unsignedBigInteger('product_serial_id')->nullable()->index();
             $table->string('serial_number', 150);
+            $table->decimal('unit_cost', 18, 4)->default(0);
 
             $table->timestamps();
             $table->softDeletes();
