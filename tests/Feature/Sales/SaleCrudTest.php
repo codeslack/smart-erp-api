@@ -235,6 +235,39 @@ class SaleCrudTest extends TestCase
             ->assertJsonValidationErrors('items.0');
     }
 
+    public function test_sale_update_rejects_internal_nested_item_fields(): void
+    {
+        $createResponse = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sale_date' => '2026-10-30',
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 1,
+                    'unit_price' => 50,
+                ],
+            ],
+        ]);
+
+        $uuid = $createResponse->json('data.uuid');
+
+        $this->putJson(route('sales.update', $uuid), [
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 2,
+                    'unit_price' => 50,
+                    'base_quantity' => 500,
+                    'cost_price' => 0.01,
+                    'tenant_id' => $this->tenant->id + 1,
+                ],
+            ],
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0');
+    }
+
     public function test_sale_items_can_be_retrieved(): void
     {
         $createResponse = $this->postJson(route('sales.store'), [
