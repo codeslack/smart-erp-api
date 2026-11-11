@@ -26,8 +26,8 @@ class SalesReturnPostingService extends BasePostingService
         $this->validateAmount($grandTotal);
         $salesReturn->loadMissing('refundAccount', 'items');
 
-        $exchangeRate = $this->decimalRate($salesReturn->exchange_rate);
-        $currencyCode = strtoupper((string) $salesReturn->currency_code);
+        $exchangeRate = $this->decimalRate($salesReturn->exchange_rate ?? '1.00000000');
+        $currencyCode = strtoupper((string) ($salesReturn->currency_code ?: 'INR'));
         $baseGrandTotal = $this->decimal(bcmul($grandTotal, $exchangeRate, 8));
 
         $foreignTaxTotal = '0.0000';
