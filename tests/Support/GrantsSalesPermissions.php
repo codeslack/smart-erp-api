@@ -41,6 +41,21 @@ trait GrantsSalesPermissions
                 'sales-return.approve',
                 'sales-return.confirm',
                 'sales-return.cancel',
+                'sales-order.view',
+                'sales-order.create',
+                'sales-order.update',
+                'sales-order.delete',
+                'sales-order.confirm',
+                'sales-order.cancel',
+                'sales-quotation.view',
+                'sales-quotation.create',
+                'sales-quotation.update',
+                'sales-quotation.delete',
+                'sales-quotation.send',
+                'sales-quotation.accept',
+                'sales-quotation.reject',
+                'sales-quotation.cancel',
+                'sales-quotation.convert',
             ];
 
             $permissionModels = array_map(
