@@ -7,6 +7,8 @@ use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Services\Posting\SaleAccountingPostingService;
 use App\Modules\Sales\Services\Posting\SaleInventoryPostingService;
 use App\Modules\Sales\Services\Validators\SaleValidator;
+use App\Modules\SalesOrder\Enums\SalesOrderStatusEnum;
+use App\Modules\SalesOrder\Models\SalesOrder;
 use App\Modules\SalesOrder\Models\SalesOrderItem;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -49,6 +51,23 @@ class ConfirmSaleAction
                 throw ValidationException::withMessages([
                     'sales_order_id' => ['A linked sales order is required for invoicing these order lines.'],
                 ]);
+            }
+
+            if ($linkedItems->isNotEmpty()) {
+                $salesOrder = SalesOrder::query()
+                    ->whereKey($sale->sales_order_id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $salesOrder || ! in_array($salesOrder->status, [
+                    SalesOrderStatusEnum::CONFIRMED,
+                    SalesOrderStatusEnum::PARTIALLY_DELIVERED,
+                    SalesOrderStatusEnum::DELIVERED,
+                ], true)) {
+                    throw ValidationException::withMessages([
+                        'sales_order_id' => ['Only an active, confirmed sales order can be invoiced.'],
+                    ]);
+                }
             }
 
             $quantities = $linkedItems
