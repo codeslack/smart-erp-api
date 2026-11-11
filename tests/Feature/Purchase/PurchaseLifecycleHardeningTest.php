@@ -1,0 +1,125 @@
+<?php
+
+namespace Tests\Feature\Purchase;
+
+use App\Core\Tenant\TenantManager;
+use App\Modules\Accounting\Services\AccountingSetupService;
+use App\Modules\Inventory\Models\ProductStock;
+use App\Modules\Purchase\Models\Purchase;
+use App\Modules\Supplier\Models\Supplier;
+use App\Modules\Tenant\Models\Tenant;
+use App\Modules\User\Models\User;
+use App\Modules\Warehouse\Models\Warehouse;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
+use Tests\Support\CreatesProduct;
+use Tests\Support\CreatesSupplier;
+use Tests\Support\CreatesTenant;
+use Tests\Support\CreatesUser;
+use Tests\Support\CreatesWarehouse;
+use Tests\TestCase;
+
+class PurchaseLifecycleHardeningTest extends TestCase
+{
+    use RefreshDatabase, CreatesTenant, CreatesUser, CreatesSupplier, CreatesWarehouse, CreatesProduct;
+
+    protected Tenant $tenant;
+    protected User $user;
+    protected Supplier $supplier;
+    protected Warehouse $warehouse;
+    protected $product;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->tenant = $this->createTestTenant();
+        $this->user = $this->createTestUser();
+        Sanctum::actingAs($this->user);
+
+        app(TenantManager::class)->setTenant($this->tenant);
+        app(AccountingSetupService::class)->setup($this->tenant);
+
+        $this->supplier = $this->createSupplier();
+        $this->warehouse = $this->createWarehouse();
+        $this->product = $this->createProduct([
+            'purchase_price' => 50,
+            'selling_price' => 100,
+        ]);
+    }
+
+    public function test_confirming_a_purchase_twice_does_not_post_inventory_twice(): void
+    {
+        $purchaseUuid = $this->createPurchase();
+
+        $this->postJson(route('purchases.confirm', $purchaseUuid))
+            ->assertOk()
+            ->assertJsonPath('data.status', 'confirmed');
+
+        $this->postJson(route('purchases.confirm', $purchaseUuid))
+            ->assertStatus(422);
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $stock = ProductStock::query()
+            ->where('product_id', $this->product->id)
+            ->where('warehouse_id', $this->warehouse->id)
+            ->firstOrFail();
+
+        $this->assertSame(10.0, (float) $stock->quantity);
+
+        $this->assertSame(
+            1,
+            Purchase::query()
+                ->where('uuid', $purchaseUuid)
+                ->firstOrFail()
+                ->journalEntry()
+                ->count()
+        );
+    }
+
+    public function test_confirmed_purchase_cannot_be_cancelled_without_reversal(): void
+    {
+        $purchaseUuid = $this->createPurchase();
+
+        $this->postJson(route('purchases.confirm', $purchaseUuid))
+            ->assertOk();
+
+        $this->postJson(route('purchases.cancel', $purchaseUuid), [
+            'reason' => 'Attempted cancellation after stock posting',
+        ])->assertStatus(422);
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $purchase = Purchase::query()
+            ->where('uuid', $purchaseUuid)
+            ->firstOrFail();
+
+        $this->assertSame('confirmed', $purchase->status->value);
+
+        $stock = ProductStock::query()
+            ->where('product_id', $this->product->id)
+            ->where('warehouse_id', $this->warehouse->id)
+            ->firstOrFail();
+
+        $this->assertSame(10.0, (float) $stock->quantity);
+    }
+
+    protected function createPurchase(): string
+    {
+        $response = $this->postJson(route('purchases.store'), [
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'purchase_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $this->product->id,
+                'quantity' => 10,
+                'unit_cost' => 50,
+            ]],
+        ]);
+
+        $response->assertCreated();
+
+        return $response->json('data.uuid');
+    }
+}
