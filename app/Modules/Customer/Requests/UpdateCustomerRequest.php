@@ -65,6 +65,9 @@ class UpdateCustomerRequest extends BaseRequest
                 'string',
             ],
 
+            'country_code' => ['sometimes', 'nullable', 'string', 'size:2'],
+            'state_code' => ['sometimes', 'nullable', 'string', 'max:20'],
+
             'tax_number' => [
                 'sometimes',
                 'nullable',
