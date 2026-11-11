@@ -35,7 +35,7 @@ class SalesPostingService extends BasePostingService
         $baseCurrency = (string) Setting::query()
             ->where('group', Setting::GROUP_COMPANY)
             ->where('key', 'currency')
-            ->value('value');
+            ->value('value') ?? 'INR';
 
         if (! preg_match('/^[A-Z]{3}$/', $currencyCode)) {
             throw new BusinessException('Sale currency code must be a valid three-letter code.');
