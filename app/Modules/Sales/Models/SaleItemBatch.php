@@ -14,7 +14,6 @@ class SaleItemBatch extends TenantModel
     protected $table = 'sale_item_batches';
 
     protected $fillable = [
-        'tenant_id',
         'sale_id',
         'sale_item_id',
         'product_batch_id',
