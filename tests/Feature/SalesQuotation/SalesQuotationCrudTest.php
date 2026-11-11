@@ -167,6 +167,7 @@ class SalesQuotationCrudTest extends TestCase
         $otherUser = $this->createTestUser(['tenant_id' => $otherTenant->id]);
         Sanctum::actingAs($otherUser);
         app(TenantManager::class)->setTenant($otherTenant);
+        $this->grantSalesPermissions($otherUser, $otherTenant);
 
         $this->getJson(route('sales-quotations.show', ['uuid' => $uuid]))->assertNotFound();
     }
