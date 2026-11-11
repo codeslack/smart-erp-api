@@ -36,7 +36,11 @@ class UpdateSalesReturnAction
                 $defaultWarehouseId = $headerData['warehouse_id'] ?? $salesReturn->warehouse_id;
                 $resolvedItems = $this->payloadResolver->resolveItems($rawItems, $defaultWarehouseId);
 
-                $this->validator->validateForSave($headerData, $resolvedItems, $salesReturn->id);
+                $this->validator->validateForSave(
+                    array_merge(['sale_id' => $salesReturn->sale_id], $headerData),
+                    $resolvedItems,
+                    $salesReturn->id
+                );
 
                 $calculatedItems = [];
                 foreach ($resolvedItems as $item) {
