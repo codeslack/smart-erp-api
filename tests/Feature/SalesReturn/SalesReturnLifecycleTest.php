@@ -374,6 +374,8 @@ class SalesReturnLifecycleTest extends TestCase
             'uuid' => $secondReturn->json('data.uuid'),
         ]))->assertUnprocessable();
 
+        app(TenantManager::class)->setTenant($this->tenant);
+
         $stock = ProductStock::query()
             ->where('product_id', $this->product->id)
             ->where('warehouse_id', $this->warehouse->id)
