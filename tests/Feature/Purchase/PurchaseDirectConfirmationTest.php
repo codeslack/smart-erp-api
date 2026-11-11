@@ -8,6 +8,8 @@ use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Product\Models\Product;
 use App\Modules\Product\Models\ProductVariant;
+use App\Modules\ProductUnit\Models\ProductUnit;
+use App\Modules\Unit\Models\Unit;
 use App\Modules\Product\Enums\ProductTypeEnum;
 use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 use App\Modules\Purchase\Models\Purchase;
@@ -131,6 +133,111 @@ class PurchaseDirectConfirmationTest extends TestCase
             'product_variant_id' => $this->variant->id,
             'quantity_in' => 2,
         ]);
+    }
+
+    public function test_purchase_unit_conversion_uses_derived_base_quantity_and_cost(): void
+    {
+        $baseUnit = Unit::create([
+            'tenant_id' => $this->tenant->id,
+            'code' => 'PCS',
+            'name' => 'Piece',
+            'short_name' => 'pc',
+            'is_active' => true,
+        ]);
+
+        $boxUnit = Unit::create([
+            'tenant_id' => $this->tenant->id,
+            'code' => 'BOX',
+            'name' => 'Box',
+            'short_name' => 'box',
+            'is_active' => true,
+        ]);
+
+        $this->product->update([
+            'unit_id' => $baseUnit->id,
+        ]);
+
+        ProductUnit::create([
+            'product_id' => $this->product->id,
+            'unit_id' => $baseUnit->id,
+            'conversion_factor' => 1,
+            'is_purchase_unit' => true,
+            'is_sales_unit' => true,
+            'is_active' => true,
+        ]);
+
+        ProductUnit::create([
+            'product_id' => $this->product->id,
+            'unit_id' => $boxUnit->id,
+            'conversion_factor' => 10,
+            'is_purchase_unit' => true,
+            'is_sales_unit' => true,
+            'is_active' => true,
+        ]);
+
+        $payload = [
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [
+                [
+                    'product_uuid' => $this->product->uuid,
+                    'unit_uuid' => $boxUnit->uuid,
+                    'quantity' => 2,
+                    'unit_cost' => 500,
+                ],
+            ],
+        ];
+
+        $createResponse = $this->postJson(route('purchases.store'), $payload);
+
+        $createResponse
+            ->assertCreated()
+            ->assertJsonPath('data.items.0.base_quantity', 20)
+            ->assertJsonPath('data.items.0.base_unit_cost', 50);
+
+        $purchaseUuid = $createResponse->json('data.uuid');
+        $purchaseId = Purchase::query()
+            ->where('uuid', $purchaseUuid)
+            ->value('id');
+
+        $this->assertDatabaseHas('purchase_items', [
+            'purchase_id' => $purchaseId,
+            'quantity' => 2,
+            'base_quantity' => 20,
+            'unit_cost' => 500,
+            'base_unit_cost' => 50,
+        ]);
+
+        $this->postJson("/api/purchases/{$purchaseUuid}/confirm")
+            ->assertOk();
+
+        $this->assertDatabaseHas('stock_ledgers', [
+            'product_id' => $this->product->id,
+            'quantity_in' => 20,
+            'unit_cost' => 50,
+        ]);
+    }
+
+    public function test_client_cannot_override_purchase_base_quantity(): void
+    {
+        $payload = [
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [
+                [
+                    'product_uuid' => $this->product->uuid,
+                    'quantity' => 2,
+                    'unit_cost' => 100,
+                    'base_quantity' => 500,
+                ],
+            ],
+        ];
+
+        $this->postJson(route('purchases.store'), $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0');
     }
 
     public function test_service_product_does_not_post_stock(): void
