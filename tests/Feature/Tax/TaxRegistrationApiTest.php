@@ -17,6 +17,7 @@ use App\Modules\Rbac\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 use App\Modules\User\Models\User;
+use App\Modules\Customer\Models\Customer;
 use App\Modules\Tenant\Models\Tenant;
 
 use App\Modules\Tax\Models\TaxRegistration;
@@ -31,11 +32,29 @@ class TaxRegistrationApiTest extends TestCase
 
     protected User $user;
 
+    protected Customer $customer;
+
+    protected Customer $secondCustomer;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->tenant = $this->createTestTenant();
+
+        $this->customer = Customer::create([
+            'tenant_id' => $this->tenant->id,
+            'code' => 'TAX-CUS-1',
+            'name' => 'Tax Registration Customer',
+            'is_active' => true,
+        ]);
+
+        $this->secondCustomer = Customer::create([
+            'tenant_id' => $this->tenant->id,
+            'code' => 'TAX-CUS-2',
+            'name' => 'Second Tax Registration Customer',
+            'is_active' => true,
+        ]);
 
         $this->user = $this->createTestUser();
 
@@ -203,6 +222,37 @@ class TaxRegistrationApiTest extends TestCase
             ]);
     }
 
+    public function test_unapproved_registrable_types_are_rejected(): void
+    {
+        $payload = $this->registrationPayload();
+        $payload['registrable_type'] = User::class;
+
+        $this->postJson('/api/tax-registrations', $payload)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('registrable_type');
+    }
+
+    public function test_registration_cannot_reference_another_tenants_customer(): void
+    {
+        $otherTenant = $this->createTestTenant();
+
+        $foreignCustomer = Customer::create([
+            'tenant_id' => $otherTenant->id,
+            'code' => 'FOREIGN-TAX-CUS',
+            'name' => 'Foreign Tenant Customer',
+            'is_active' => true,
+        ]);
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $payload = $this->registrationPayload();
+        $payload['registrable_id'] = $foreignCustomer->id;
+
+        $this->postJson('/api/tax-registrations', $payload)
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Tax registration entity not found.');
+    }
+
     public function test_invalid_gstin_is_rejected(): void
     {
         $response = $this->postJson(
@@ -232,7 +282,7 @@ class TaxRegistrationApiTest extends TestCase
             array_merge(
                 $this->registrationPayload(),
                 [
-                    'registrable_id' => 2,
+                    'registrable_id' => $this->secondCustomer->id,
                     'is_primary' => false,
                 ]
             )
@@ -250,7 +300,7 @@ class TaxRegistrationApiTest extends TestCase
     {
         return [
             'registrable_type' => 'customer',
-            'registrable_id' => 1,
+            'registrable_id' => $this->customer->id,
             'registration_type' => 'GSTIN',
             'registration_number' => '22AAAAA0000A1Z5',
             'country_code' => 'IN',
@@ -266,7 +316,7 @@ class TaxRegistrationApiTest extends TestCase
         return TaxRegistration::query()->create([
             'tenant_id' => $this->tenant->id,
             'registrable_type' => 'customer',
-            'registrable_id' => 1,
+            'registrable_id' => $this->customer->id,
             'registration_type' => 'GSTIN',
             'registration_number' => '22AAAAA0000A1Z5',
             'country_code' => 'IN',

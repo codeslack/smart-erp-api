@@ -6,6 +6,7 @@ use Illuminate\Validation\Rule;
 
 use App\Core\Requests\BaseRequest;
 use App\Modules\Tax\Enums\TaxRegistrationTypeEnum;
+use App\Modules\Tax\Domain\TaxRegistrationRules;
 
 class TaxRegistrationCreateRequest extends BaseRequest
 {
@@ -15,7 +16,7 @@ class TaxRegistrationCreateRequest extends BaseRequest
             'registrable_type' => [
                 'required',
                 'string',
-                'max:100',
+                Rule::in(array_keys(TaxRegistrationRules::registrableMorphMap())),
             ],
 
             'registrable_id' => [

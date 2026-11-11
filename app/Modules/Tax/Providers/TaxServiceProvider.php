@@ -3,6 +3,8 @@
 namespace App\Modules\Tax\Providers;
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Database\Eloquent\Relations\Relation;
+use App\Modules\Tax\Domain\TaxRegistrationRules;
 use Illuminate\Support\ServiceProvider;
 
 use App\Modules\Tax\Repositories\TaxRepository;
@@ -62,6 +64,10 @@ class TaxServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        Relation::morphMap(
+            TaxRegistrationRules::registrableMorphMap()
+        );
+
         Route::middleware('api')
             ->prefix('api')
             ->group(

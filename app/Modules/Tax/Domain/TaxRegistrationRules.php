@@ -4,9 +4,41 @@ namespace App\Modules\Tax\Domain;
 
 use App\Core\Exceptions\BusinessException;
 use App\Modules\Tax\Enums\TaxRegistrationTypeEnum;
+use App\Modules\Customer\Models\Customer;
+use App\Modules\Supplier\Models\Supplier;
 
 class TaxRegistrationRules
 {
+    /**
+     * @return array<string, class-string>
+     */
+    public static function registrableMorphMap(): array
+    {
+        return [
+            'customer' => Customer::class,
+            'supplier' => Supplier::class,
+        ];
+    }
+
+    public function validateRegistrable(
+        string $registrableType,
+        int $registrableId
+    ): void {
+        $modelClass = self::registrableMorphMap()[$registrableType] ?? null;
+
+        if ($modelClass === null) {
+            throw new BusinessException(
+                'Invalid tax registration entity type.'
+            );
+        }
+
+        if (! $modelClass::query()->whereKey($registrableId)->exists()) {
+            throw new BusinessException(
+                'Tax registration entity not found.'
+            );
+        }
+    }
+
     public function validateRegistrationType(
         string $registrationType
     ): void {
