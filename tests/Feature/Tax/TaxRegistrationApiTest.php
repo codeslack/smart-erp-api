@@ -316,7 +316,7 @@ class TaxRegistrationApiTest extends TestCase
         return TaxRegistration::query()->create([
             'tenant_id' => $this->tenant->id,
             'registrable_type' => 'customer',
-            'registrable_id' => 1,
+            'registrable_id' => $this->customer->id,
             'registration_type' => 'GSTIN',
             'registration_number' => '22AAAAA0000A1Z5',
             'country_code' => 'IN',
