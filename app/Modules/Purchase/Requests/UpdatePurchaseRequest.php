@@ -66,7 +66,33 @@ class UpdatePurchaseRequest extends BaseRequest
             'items.*.batches.*.manufacturing_date' => ['nullable', 'date'],
             'items.*.batches.*.expiry_date' => ['nullable', 'date'],
             'items.*.serials' => ['nullable', 'array'],
-            'items.*.serials.*' => ['nullable'],
+            'items.*.serials.*' => [
+                'required',
+                function ($attribute, $value, $fail) {
+                    if (is_string($value) || is_int($value)) {
+                        $serial = trim((string) $value);
+                    } elseif (is_array($value)) {
+                        $keys = array_keys($value);
+
+                        if (
+                            count($keys) !== 1
+                            || ! in_array($keys[0], ['serial_number', 'serial_no'], true)
+                        ) {
+                            $fail('Each serial entry must contain only serial_number or serial_no.');
+                            return;
+                        }
+
+                        $serial = trim((string) ($value[$keys[0]] ?? ''));
+                    } else {
+                        $fail('Each serial entry must be a non-empty serial number.');
+                        return;
+                    }
+
+                    if ($serial === '' || strlen($serial) > 100) {
+                        $fail('Serial numbers must contain between 1 and 100 characters.');
+                    }
+                },
+            ],
 
             'charges' => ['sometimes', 'nullable', 'array'],
             'charges.*' => [
