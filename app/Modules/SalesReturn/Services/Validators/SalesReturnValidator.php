@@ -119,6 +119,12 @@ class SalesReturnValidator
             $product = $saleItem->product;
 
             if ($product?->isBatchTracked()) {
+                if (! empty($item['serials'])) {
+                    throw ValidationException::withMessages([
+                        'items' => ['Serial allocations are not valid for batch-tracked products.'],
+                    ]);
+                }
+
                 $this->validateBatchReturns(
                     $saleItem,
                     $item,
@@ -130,6 +136,12 @@ class SalesReturnValidator
             }
 
             if ($product?->isSerialTracked()) {
+                if (! empty($item['batches'])) {
+                    throw ValidationException::withMessages([
+                        'items' => ['Batch allocations are not valid for serial-tracked products.'],
+                    ]);
+                }
+
                 $this->validateSerialReturns(
                     $saleItem,
                     $item,
