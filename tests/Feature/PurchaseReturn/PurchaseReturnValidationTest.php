@@ -169,6 +169,34 @@ class PurchaseReturnValidationTest extends TestCase
         $res3->assertStatus(201);
     }
 
+    public function test_uses_original_purchase_cost_instead_of_client_supplied_cost(): void
+    {
+        $purchaseItem = $this->purchase->items->first();
+
+        $response = $this->postJson('/api/purchase-returns', [
+            'purchase_uuid' => $this->purchase->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [
+                [
+                    'purchase_item_uuid' => $purchaseItem->uuid,
+                    'returned_quantity' => 2,
+                    'unit_cost' => 999,
+                ],
+            ],
+        ]);
+
+        $response
+            ->assertStatus(201)
+            ->assertJsonPath('data.grand_total', 100);
+
+        $this->assertDatabaseHas('purchase_return_items', [
+            'purchase_item_id' => $purchaseItem->id,
+            'returned_quantity' => 2,
+            'unit_cost' => 50,
+            'base_quantity' => 2,
+        ]);
+    }
+
     public function test_rejects_unvalidated_base_quantity_on_return_items(): void
     {
         $purchaseItem = $this->purchase->items->first();
