@@ -52,6 +52,7 @@ class ConfirmSaleAction
 
             return $sale->fresh([
                 'items.product',
+                'items.salesOrderItem',
                 'items.variant',
                 'items.warehouse',
                 'items.unit',
