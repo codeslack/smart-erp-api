@@ -23,9 +23,13 @@ class UpdateSaleAction
 
     public function execute(Sale $sale, array $data): Sale
     {
-        $this->validator->validateForUpdate($sale);
-
         return DB::transaction(function () use ($sale, $data) {
+            $sale = Sale::query()
+                ->lockForUpdate()
+                ->findOrFail($sale->id);
+
+            $this->validator->validateForUpdate($sale);
+
             $headerData = $this->payloadResolver->resolveHeader($data);
             $hasItems = isset($headerData['items']) && is_array($headerData['items']);
 
