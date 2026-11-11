@@ -15,7 +15,7 @@ class SalesReturnValidator
     public function validateForSave(array $header, array $items, ?int $ignoreReturnId = null): void
     {
         $sale = ! empty($header['sale_id'])
-            ? Sale::query()->find($header['sale_id'])
+            ? Sale::query()->lockForUpdate()->find($header['sale_id'])
             : null;
 
         if (
@@ -35,6 +35,15 @@ class SalesReturnValidator
             throw ValidationException::withMessages([
                 'items' => ['Sales return must have at least one line item.'],
             ]);
+        }
+
+        $quantitiesBySaleItem = [];
+        foreach ($items as $item) {
+            $saleItemId = (int) ($item['sale_item_id'] ?? 0);
+            if ($saleItemId > 0) {
+                $quantitiesBySaleItem[$saleItemId] = ($quantitiesBySaleItem[$saleItemId] ?? 0.0)
+                    + (float) ($item['returned_quantity'] ?? $item['quantity'] ?? 0);
+            }
         }
 
         foreach ($items as $index => $item) {
@@ -79,11 +88,12 @@ class SalesReturnValidator
                 })
                 ->sum('returned_quantity');
 
+            $quantityToValidate = $quantitiesBySaleItem[$saleItem->id] ?? $qty;
             $maxReturnable = max(0, $soldQty - $alreadyReturned);
-            if ($qty > $maxReturnable + 0.0001) {
+            if ($quantityToValidate > $maxReturnable + 0.0001) {
                 throw ValidationException::withMessages([
                     "items.{$index}.returned_quantity" => [
-                        "Returned quantity ({$qty}) exceeds available returnable quantity ({$maxReturnable}).",
+                        "Returned quantity ({$quantityToValidate}) exceeds available returnable quantity ({$maxReturnable}).",
                     ],
                 ]);
             }
@@ -115,11 +125,17 @@ class SalesReturnValidator
             ]);
         }
 
-        if ($return->items()->count() === 0) {
-            throw ValidationException::withMessages([
-                'items' => ['Cannot confirm a sales return without items.'],
-            ]);
-        }
+        $items = $return->items()->get()->map(fn ($item) => [
+            'sale_item_id' => $item->sale_item_id,
+            'product_id' => $item->product_id,
+            'returned_quantity' => (float) $item->returned_quantity,
+        ])->all();
+
+        $this->validateForSave(
+            ['sale_id' => $return->sale_id],
+            $items,
+            $return->id
+        );
     }
 
     public function validateForCancellation(SalesReturn $return): void
