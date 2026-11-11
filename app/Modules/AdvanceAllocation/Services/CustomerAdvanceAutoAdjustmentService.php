@@ -2,6 +2,8 @@
 
 namespace App\Modules\AdvanceAllocation\Services;
 
+use App\Core\Exceptions\BusinessException;
+use App\Modules\AdvanceAllocation\Models\AdvanceAllocation;
 use App\Modules\Sales\Models\Sale;
 
 use App\Modules\Payment\Models\Payment;
@@ -133,5 +135,59 @@ class CustomerAdvanceAutoAdjustmentService
         }
 
         return $totalAdjusted;
+    }
+
+    public function reverse(Sale $sale): float
+    {
+        $sale = Sale::query()
+            ->lockForUpdate()
+            ->findOrFail($sale->id);
+
+        $allocations = AdvanceAllocation::query()
+            ->where('target_type', Sale::class)
+            ->where('target_id', $sale->id)
+            ->lockForUpdate()
+            ->get();
+
+        if ($allocations->isEmpty()) {
+            return 0;
+        }
+
+        $allocatedAmount = number_format(
+            (float) $allocations->sum('allocated_amount'),
+            4,
+            '.',
+            ''
+        );
+
+        $remainingPaidAmount = bcsub(
+            (string) $sale->paid_amount,
+            $allocatedAmount,
+            4
+        );
+
+        if (bccomp($remainingPaidAmount, '0', 4) !== 0) {
+            throw new BusinessException(
+                'The Sale balance does not match its customer advance allocations.'
+            );
+        }
+
+        $dueAmount = bcadd(
+            (string) $sale->due_amount,
+            $allocatedAmount,
+            4
+        );
+
+        $this->allocationService->releaseTarget(
+            Sale::class,
+            $sale->id
+        );
+
+        $sale->update([
+            'paid_amount' => '0.0000',
+            'due_amount' => $dueAmount,
+        ]);
+
+        return (float) $allocatedAmount;
     }
 }
