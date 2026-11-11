@@ -13,6 +13,8 @@ use App\Modules\ProductUnit\Models\ProductUnit;
 use App\Modules\Unit\Models\Unit;
 use App\Modules\Purchase\Services\PurchaseService;
 use App\Modules\Sales\Models\Sale;
+use App\Modules\SalesOrder\Models\SalesOrder;
+use App\Modules\SalesOrder\Models\SalesOrderItem;
 use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Tenant\Models\Tenant;
 use App\Modules\User\Models\User;
@@ -352,4 +354,188 @@ class SaleLifecycleTest extends TestCase
 
         $this->getJson(route('sales.show', $uuid))->assertNotFound();
     }
+
+    protected function createConfirmedSalesOrder(float $quantity): SalesOrderItem
+    {
+        $response = $this->postJson(route('sales-orders.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'order_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $this->product->id,
+                'quantity' => $quantity,
+                'unit_price' => 100,
+            ]],
+        ]);
+
+        $response->assertCreated();
+        $orderUuid = $response->json('data.uuid');
+
+        $this->postJson(route('sales-orders.confirm', $orderUuid))
+            ->assertOk();
+
+        $order = SalesOrder::query()
+            ->where('uuid', $orderUuid)
+            ->firstOrFail();
+
+        return $order->items()->firstOrFail();
+    }
+
+    public function test_sale_invoice_updates_linked_sales_order_item_quantity(): void
+    {
+        $orderItem = $this->createConfirmedSalesOrder(5);
+
+        $createResponse = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sales_order_uuid' => $orderItem->salesOrder->uuid,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $this->product->id,
+                'sales_order_item_uuid' => $orderItem->uuid,
+                'quantity' => 3,
+                'unit_price' => 100,
+            ]],
+        ]);
+
+        $createResponse->assertCreated()
+            ->assertJsonPath('data.items.0.sales_order_item_uuid', $orderItem->uuid);
+
+        $saleUuid = $createResponse->json('data.uuid');
+
+        $this->postJson(route('sales.confirm', $saleUuid))
+            ->assertOk()
+            ->assertJsonPath('data.status', 'confirmed');
+
+        $this->assertDatabaseHas('sales_order_items', [
+            'id' => $orderItem->id,
+            'invoiced_quantity' => 3,
+        ]);
+    }
+
+    public function test_sale_confirmation_rejects_over_invoicing_a_sales_order_item(): void
+    {
+        $orderItem = $this->createConfirmedSalesOrder(5);
+
+        $firstSale = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sales_order_uuid' => $orderItem->salesOrder->uuid,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $this->product->id,
+                'sales_order_item_uuid' => $orderItem->uuid,
+                'quantity' => 4,
+                'unit_price' => 100,
+            ]],
+        ])->assertCreated();
+
+        $this->postJson(route('sales.confirm', $firstSale->json('data.uuid')))
+            ->assertOk();
+
+        $secondSale = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sales_order_uuid' => $orderItem->salesOrder->uuid,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $this->product->id,
+                'sales_order_item_uuid' => $orderItem->uuid,
+                'quantity' => 2,
+                'unit_price' => 100,
+            ]],
+        ])->assertCreated();
+
+        $this->postJson(route('sales.confirm', $secondSale->json('data.uuid')))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items');
+
+        $this->assertDatabaseHas('sales_order_items', [
+            'id' => $orderItem->id,
+            'invoiced_quantity' => 4,
+        ]);
+    }
+
+    public function test_cancelling_confirmed_sale_reverses_sales_order_invoiced_quantity(): void
+    {
+        $orderItem = $this->createConfirmedSalesOrder(5);
+
+        $saleResponse = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sales_order_uuid' => $orderItem->salesOrder->uuid,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $this->product->id,
+                'sales_order_item_uuid' => $orderItem->uuid,
+                'quantity' => 3,
+                'unit_price' => 100,
+            ]],
+        ])->assertCreated();
+
+        $saleUuid = $saleResponse->json('data.uuid');
+
+        $this->postJson(route('sales.confirm', $saleUuid))->assertOk();
+        $this->assertDatabaseHas('sales_order_items', [
+            'id' => $orderItem->id,
+            'invoiced_quantity' => 3,
+        ]);
+
+        $this->postJson(route('sales.cancel', $saleUuid), [
+            'reason' => 'Invoice cancelled',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('sales_order_items', [
+            'id' => $orderItem->id,
+            'invoiced_quantity' => 0,
+        ]);
+    }
+
+    public function test_sale_rejects_sales_order_item_from_another_order(): void
+    {
+        $selectedOrderItem = $this->createConfirmedSalesOrder(5);
+        $otherOrderItem = $this->createConfirmedSalesOrder(5);
+
+        $response = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sales_order_uuid' => $selectedOrderItem->salesOrder->uuid,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $this->product->id,
+                'sales_order_item_uuid' => $otherOrderItem->uuid,
+                'quantity' => 1,
+                'unit_price' => 100,
+            ]],
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0.sales_order_item_uuid');
+    }
+
+    public function test_sale_rejects_sales_order_item_with_mismatched_product(): void
+    {
+        $orderItem = $this->createConfirmedSalesOrder(5);
+        $otherProduct = $this->createProduct([
+            'purchase_price' => 20,
+            'selling_price' => 40,
+        ]);
+
+        $response = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sales_order_uuid' => $orderItem->salesOrder->uuid,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $otherProduct->id,
+                'sales_order_item_uuid' => $orderItem->uuid,
+                'quantity' => 1,
+                'unit_price' => 40,
+            ]],
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0.sales_order_item_uuid');
+    }
+
 }
