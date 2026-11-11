@@ -311,11 +311,14 @@ class SalesReturnValidator
             default => null,
         };
 
-        $account = ChartOfAccount::query()->find($header['refund_account_id']);
+        $account = ChartOfAccount::query()
+            ->lockForUpdate()
+            ->find($header['refund_account_id']);
 
         $rootAccount = $requiredRootCode !== null
             ? ChartOfAccount::query()
                 ->where('account_code', $requiredRootCode)
+                ->lockForUpdate()
                 ->first()
             : null;
 
@@ -363,7 +366,9 @@ class SalesReturnValidator
                 return false;
             }
 
-            $account = ChartOfAccount::query()->find($account->parent_id);
+            $account = ChartOfAccount::query()
+                ->lockForUpdate()
+                ->find($account->parent_id);
 
             if (! $account) {
                 return false;
