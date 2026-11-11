@@ -27,6 +27,10 @@ class UpdateSalesReturnAction
 
         return DB::transaction(function () use ($salesReturn, $data) {
             $headerData = $this->payloadResolver->resolveHeader($data);
+            $headerData['sale_id'] = $salesReturn->sale_id;
+            $headerData['customer_id'] = $salesReturn->customer_id;
+            $headerData['warehouse_id'] = $salesReturn->warehouse_id;
+
             $hasItems = isset($headerData['items']) && is_array($headerData['items']);
 
             if ($hasItems) {
@@ -67,6 +71,7 @@ class UpdateSalesReturnAction
                             'product_batch_id' => $batch['product_batch_id'] ?? null,
                             'batch_no' => $batch['batch_no'],
                             'quantity' => $batch['quantity'],
+                            'base_quantity' => $batch['base_quantity'] ?? $batch['quantity'],
                         ]);
                     }
 
@@ -81,7 +86,7 @@ class UpdateSalesReturnAction
                 }
             }
 
-            unset($headerData['return_no'], $headerData['status']);
+            unset($headerData['return_no'], $headerData['status'], $headerData['sale_id']);
             $headerData['updated_by'] = auth()->id();
 
             $salesReturn->update($headerData);
