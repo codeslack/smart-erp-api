@@ -153,6 +153,7 @@ class SalesReturnLifecycleTest extends TestCase
 
         $createResponse->assertCreated();
         $returnUuid = $createResponse->json('data.uuid');
+        app(TenantManager::class)->setTenant($this->tenant);
         $otherCustomer = $this->createCustomer();
 
         $this->putJson(route('sales-returns.update', ['uuid' => $returnUuid]), [
