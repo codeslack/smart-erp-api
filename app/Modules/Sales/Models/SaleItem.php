@@ -20,7 +20,6 @@ class SaleItem extends TenantModel
     protected $table = 'sale_items';
 
     protected $fillable = [
-        'tenant_id',
         'sale_id',
         'sales_order_item_id',
         'delivery_note_item_id',
