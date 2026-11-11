@@ -207,6 +207,28 @@ class SalesReturnCrudTest extends TestCase
         ])->assertUnprocessable();
     }
 
+    public function test_sales_return_rejects_duplicate_source_sale_item_lines(): void
+    {
+        $saleItem = $this->sale->items->first();
+
+        $this->postJson(route('sales-returns.store'), [
+            'sale_uuid' => $this->sale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [
+                [
+                    'sale_item_uuid' => $saleItem->uuid,
+                    'returned_quantity' => 4,
+                ],
+                [
+                    'sale_item_uuid' => $saleItem->uuid,
+                    'returned_quantity' => 4,
+                ],
+            ],
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items');
+    }
+
     public function test_sales_return_can_be_deleted_in_draft_state(): void
     {
         $uuid = $this->makeReturn(1);
