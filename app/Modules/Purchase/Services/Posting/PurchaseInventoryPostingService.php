@@ -67,7 +67,23 @@ class PurchaseInventoryPostingService
             $warehouseId = $item->warehouse_id ?? $purchase->warehouse_id;
 
             // Batch-tracked items
-            if ($item->product->isBatchTracked() && $item->batches->isNotEmpty()) {
+            if ($item->product->isBatchTracked()) {
+                if ($item->batches->isEmpty()) {
+                    throw new BusinessException(
+                        "Product [{$item->product->name}] requires batch details."
+                    );
+                }
+
+                $batchQuantitySum = (float) $item->batches->sum('quantity');
+
+                if (abs($batchQuantitySum - (float) $item->quantity) > 0.0001) {
+                    throw new BusinessException(
+                        'Purchase batch quantities do not match the document quantity.'
+                    );
+                }
+
+                $postedBaseQuantity = 0.0;
+
                 foreach ($item->batches as $batchItem) {
                     $batchBaseQuantity = $batchItem->base_quantity !== null
                         ? (float) $batchItem->base_quantity
@@ -77,6 +93,8 @@ class PurchaseInventoryPostingService
                                 (float) $batchItem->quantity
                             )
                             : (float) $batchItem->quantity);
+
+                    $postedBaseQuantity += $batchBaseQuantity;
 
                     $batch = $this->resolveBatch(
                         $purchase,
@@ -104,11 +122,36 @@ class PurchaseInventoryPostingService
 
                     $this->inventoryPostingService->stockIn($movement);
                 }
+
+                if (abs($postedBaseQuantity - $baseQuantity) > 0.0001) {
+                    throw new BusinessException(
+                        'Purchase batch base quantities do not match the item base quantity.'
+                    );
+                }
+
                 continue;
             }
 
             // Serial-tracked items
-            if ($item->product->isSerialTracked() && $item->serials->isNotEmpty()) {
+            if ($item->product->isSerialTracked()) {
+                if ($item->serials->isEmpty()) {
+                    throw new BusinessException(
+                        "Product [{$item->product->name}] requires serial numbers."
+                    );
+                }
+
+                if (abs($baseQuantity - round($baseQuantity)) > 0.0001) {
+                    throw new BusinessException(
+                        'Serial-tracked purchase quantity must resolve to a whole number of base units.'
+                    );
+                }
+
+                if ($item->serials->count() !== (int) round($baseQuantity)) {
+                    throw new BusinessException(
+                        'Purchase serial count does not match the item base quantity.'
+                    );
+                }
+
                 foreach ($item->serials as $serialItem) {
                     $serial = $this->serialRegistrationService->register(
                         productId: $item->product_id,
@@ -240,7 +283,7 @@ class PurchaseInventoryPostingService
 
         $this->inventoryBatchService->initializeOriginalQuantity(
             $draft,
-            (float) $batchItem->quantity,
+            (float) ($batchItem->base_quantity ?? $batchItem->quantity),
         );
 
         return $this->inventoryBatchService->activate($draft);
