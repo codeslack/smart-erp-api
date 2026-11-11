@@ -142,7 +142,7 @@ class SalesReturnInventoryPostingService
             if ($product->isSerialTracked()) {
                 if ($item->serials->isEmpty()) {
                     throw new BusinessException(
-                        "Product [{$item->product->name}] requires serial numbers for return."
+                        "Product [{$product->name}] requires serial numbers for return."
                     );
                 }
 
