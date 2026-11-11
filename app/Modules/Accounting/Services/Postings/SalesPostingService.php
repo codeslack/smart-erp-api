@@ -22,13 +22,13 @@ class SalesPostingService extends BasePostingService
         $exchangeRate = (string) $sale->exchange_rate;
 
         if (! preg_match('/^[A-Z]{3}$/', $currencyCode)) {
-            throw new \\App\\Core\\Exceptions\\BusinessException(
+            throw new BusinessException(
                 'Sale currency code must be a valid three-letter code.'
             );
         }
 
         if (! is_numeric($exchangeRate) || bccomp($exchangeRate, '0', 8) <= 0) {
-            throw new \\App\\Core\\Exceptions\\BusinessException(
+            throw new BusinessException(
                 'Sale exchange rate must be greater than zero.'
             );
         }
