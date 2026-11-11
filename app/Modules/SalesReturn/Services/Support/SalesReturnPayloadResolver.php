@@ -166,12 +166,21 @@ class SalesReturnPayloadResolver
                 unset($item['tax_uuid']);
             }
 
-            if (isset($item['sale_item_uuid']) && ! isset($item['sale_item_id'])) {
-                $item['sale_item_id'] = SaleItem::query()
+            if (isset($item['sale_item_uuid'])) {
+                $saleItemId = SaleItem::query()
                     ->where('uuid', $item['sale_item_uuid'])
                     ->value('id');
+
+                if (
+                    isset($item['sale_item_id'])
+                    && (int) $item['sale_item_id'] !== (int) $saleItemId
+                ) {
+                    throw new BusinessException('Sale item references do not match.');
+                }
+
+                $item['sale_item_id'] = $item['sale_item_id'] ?? $saleItemId;
+                unset($item['sale_item_uuid']);
             }
-            unset($item['sale_item_uuid']);
 
             if (isset($item['sale_item_id'])) {
                 $saleItem = SaleItem::query()->find($item['sale_item_id']);
