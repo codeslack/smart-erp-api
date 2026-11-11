@@ -9,6 +9,8 @@ use App\Modules\Customer\Models\Customer;
 use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
 use App\Modules\Inventory\Models\ProductStock;
 use App\Modules\Product\Models\Product;
+use App\Modules\ProductUnit\Models\ProductUnit;
+use App\Modules\Unit\Models\Unit;
 use App\Modules\Purchase\Services\PurchaseService;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Supplier\Models\Supplier;
@@ -101,6 +103,86 @@ class SaleLifecycleTest extends TestCase
         $this->assertDatabaseHas('journal_entries', [
             'voucher_type' => JournalVoucherTypeEnum::SALE->value,
             'reference_id' => $sale->id,
+        ]);
+    }
+
+    public function test_sale_unit_conversion_posts_stock_in_base_units(): void
+    {
+        $baseUnit = Unit::create([
+            'tenant_id' => $this->tenant->id,
+            'code' => 'SPCS',
+            'name' => 'Sale Piece',
+            'short_name' => 'spc',
+            'is_active' => true,
+        ]);
+
+        $boxUnit = Unit::create([
+            'tenant_id' => $this->tenant->id,
+            'code' => 'SBOX',
+            'name' => 'Sale Box',
+            'short_name' => 'sbox',
+            'is_active' => true,
+        ]);
+
+        $this->product->update([
+            'unit_id' => $baseUnit->id,
+        ]);
+
+        ProductUnit::create([
+            'product_id' => $this->product->id,
+            'unit_id' => $baseUnit->id,
+            'conversion_factor' => 1,
+            'is_purchase_unit' => true,
+            'is_sales_unit' => true,
+            'is_active' => true,
+        ]);
+
+        ProductUnit::create([
+            'product_id' => $this->product->id,
+            'unit_id' => $boxUnit->id,
+            'conversion_factor' => 10,
+            'is_purchase_unit' => true,
+            'is_sales_unit' => true,
+            'is_active' => true,
+        ]);
+
+        $createResponse = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sale_date' => now()->toDateString(),
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'unit_id' => $boxUnit->id,
+                    'quantity' => 1,
+                    'unit_price' => 1000,
+                ],
+            ],
+        ]);
+
+        $createResponse
+            ->assertCreated()
+            ->assertJsonPath('data.items.0.base_quantity', 10);
+
+        $saleUuid = $createResponse->json('data.uuid');
+
+        $this->postJson(route('sales.confirm', $saleUuid))
+            ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $stock = ProductStock::query()
+            ->where('product_id', $this->product->id)
+            ->where('warehouse_id', $this->warehouse->id)
+            ->firstOrFail();
+
+        $this->assertSame(0.0, (float) $stock->quantity);
+
+        $this->assertDatabaseHas('stock_ledgers', [
+            'product_id' => $this->product->id,
+            'warehouse_id' => $this->warehouse->id,
+            'quantity_out' => 10,
+            'transaction_type' => InventoryTransactionTypeEnum::SALE->value,
         ]);
     }
 
