@@ -65,10 +65,29 @@ class StoreSalesReturnRequest extends BaseRequest
             'items.*.reason' => ['nullable', 'string', 'max:255'],
 
             'items.*.batches' => ['nullable', 'array'],
+            'items.*.batches.*' => ['required', 'array:batch_no,quantity'],
             'items.*.batches.*.batch_no' => ['required_with:items.*.batches', 'string', 'max:100'],
             'items.*.batches.*.quantity' => ['required_with:items.*.batches', 'numeric', 'gt:0'],
 
             'items.*.serials' => ['nullable', 'array'],
+            'items.*.serials.*' => [
+                function ($attribute, $value, $fail) {
+                    if (is_array($value)) {
+                        if (array_diff(array_keys($value), ['serial_number', 'serial_no']) !== []) {
+                            $fail('Serial entries may only contain a serial number.');
+                            return;
+                        }
+
+                        $serialNumber = $value['serial_number'] ?? $value['serial_no'] ?? null;
+                    } else {
+                        $serialNumber = $value;
+                    }
+
+                    if (! is_string($serialNumber) || trim($serialNumber) === '') {
+                        $fail('A valid serial number is required.');
+                    }
+                },
+            ],
         ];
     }
 }
