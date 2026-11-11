@@ -80,8 +80,8 @@ class PurchaseReturnPayloadResolver
             if (isset($item['purchase_item_id'])) {
                 $purchaseItem = PurchaseItem::query()->find($item['purchase_item_id']);
                 if ($purchaseItem) {
-                    $item['product_id'] = $purchaseItem->product_id;
-                    $item['product_variant_id'] = $purchaseItem->product_variant_id;
+                    $item['product_id'] = $item['product_id'] ?? $purchaseItem->product_id;
+                    $item['product_variant_id'] = $item['product_variant_id'] ?? $purchaseItem->product_variant_id;
                     $item['warehouse_id'] = $item['warehouse_id'] ?? $purchaseItem->warehouse_id ?? $defaultWarehouseId;
                     $item['unit_id'] = $purchaseItem->unit_id;
                     $item['unit_cost'] = (float) $purchaseItem->unit_cost;
