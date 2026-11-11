@@ -137,6 +137,30 @@ class SalesReturnLifecycleTest extends TestCase
         $res->assertUnprocessable();
     }
 
+    public function test_update_cannot_change_customer_away_from_source_sale(): void
+    {
+        $saleItem = $this->sale->items->first();
+
+        $createResponse = $this->postJson(route('sales-returns.store'), [
+            'sale_uuid' => $this->sale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'sale_item_uuid' => $saleItem->uuid,
+                'returned_quantity' => 1,
+                'unit_price' => 100,
+            ]],
+        ]);
+
+        $createResponse->assertCreated();
+        $returnUuid = $createResponse->json('data.uuid');
+        $otherCustomer = $this->createCustomer();
+
+        $this->putJson(route('sales-returns.update', ['uuid' => $returnUuid]), [
+            'customer_uuid' => $otherCustomer->uuid,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('customer_uuid');
+    }
+
     public function test_sales_return_rejects_duplicate_lines_exceeding_sold_quantity(): void
     {
         $saleItem = $this->sale->items->first();
