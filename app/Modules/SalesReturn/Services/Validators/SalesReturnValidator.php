@@ -1,18 +1,18 @@
 <?php
 
-namespace App\\Modules\\SalesReturn\\Services\\Validators;
+namespace App\Modules\SalesReturn\Services\Validators;
 
-use App\\Modules\\Sales\\Enums\\SaleStatusEnum;
-use App\\Modules\\Sales\\Models\\Sale;
-use App\\Modules\\Sales\\Models\\SaleItem;
-use App\\Modules\\Sales\\Models\\SaleItemBatch;
-use App\\Modules\\Sales\\Models\\SaleItemSerial;
-use App\\Modules\\SalesReturn\\Enums\\SalesReturnStatus;
-use App\\Modules\\SalesReturn\\Models\\SaleReturnItemBatch;
-use App\\Modules\\SalesReturn\\Models\\SaleReturnItemSerial;
-use App\\Modules\\SalesReturn\\Models\\SalesReturn;
-use App\\Modules\\SalesReturn\\Models\\SalesReturnItem;
-use Illuminate\\Validation\\ValidationException;
+use App\Modules\Sales\Enums\SaleStatusEnum;
+use App\Modules\Sales\Models\Sale;
+use App\Modules\Sales\Models\SaleItem;
+use App\Modules\Sales\Models\SaleItemBatch;
+use App\Modules\Sales\Models\SaleItemSerial;
+use App\Modules\SalesReturn\Enums\SalesReturnStatus;
+use App\Modules\SalesReturn\Models\SaleReturnItemBatch;
+use App\Modules\SalesReturn\Models\SaleReturnItemSerial;
+use App\Modules\SalesReturn\Models\SalesReturn;
+use App\Modules\SalesReturn\Models\SalesReturnItem;
+use Illuminate\Validation\ValidationException;
 
 class SalesReturnValidator
 {
