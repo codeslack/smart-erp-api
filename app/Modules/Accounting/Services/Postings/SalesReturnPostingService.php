@@ -99,7 +99,7 @@ class SalesReturnPostingService extends BasePostingService
         }
         $taxLines = array_values($aggregatedTaxLines);
 
-        if (bccomp($foreignTaxTotal, $this->decimal($salesReturn->tax_amount), 4) !== 0
+        if (bccomp($foreignTaxTotal, $this->decimal($salesReturn->tax_amount ?? '0'), 4) !== 0
             && bccomp($this->decimal($salesReturn->tax_amount), '0.0000', 4) > 0) {
             throw new BusinessException('Sales Return tax snapshot totals do not match the return tax amount.');
         }
