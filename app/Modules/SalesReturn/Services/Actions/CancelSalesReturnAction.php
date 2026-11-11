@@ -4,9 +4,11 @@ namespace App\Modules\SalesReturn\Services\Actions;
 
 use App\Modules\Sales\Models\Sale;
 use App\Modules\SalesReturn\Enums\SalesReturnStatus;
+use App\Modules\SalesReturn\Enums\SalesReturnRefundType;
 use App\Modules\SalesReturn\Models\SalesReturn;
 use App\Modules\SalesReturn\Services\Posting\SalesReturnAccountingPostingService;
 use App\Modules\SalesReturn\Services\Posting\SalesReturnInventoryPostingService;
+use App\Modules\SalesReturn\Services\SalesReturnDueAmountService;
 use App\Modules\SalesReturn\Services\Validators\SalesReturnValidator;
 use Illuminate\Support\Facades\DB;
 
@@ -15,7 +17,8 @@ class CancelSalesReturnAction
     public function __construct(
         protected SalesReturnValidator $validator,
         protected SalesReturnInventoryPostingService $inventoryPostingService,
-        protected SalesReturnAccountingPostingService $accountingPostingService
+        protected SalesReturnAccountingPostingService $accountingPostingService,
+        protected SalesReturnDueAmountService $dueAmountService
     ) {}
 
     public function execute(SalesReturn $salesReturn, ?string $reason = null): SalesReturn
@@ -39,14 +42,6 @@ class CancelSalesReturnAction
 
                 // Reverse GL journal entries
                 $this->accountingPostingService->reverse($salesReturn);
-
-                // Revert referenced Sale due amount
-                if ($sale) {
-                    $newDue = round((float) $sale->due_amount + (float) $salesReturn->grand_total, 4);
-                    $sale->update([
-                        'due_amount' => $newDue,
-                    ]);
-                }
             }
 
             $salesReturn->update([
@@ -55,6 +50,15 @@ class CancelSalesReturnAction
                 'cancelled_at' => now(),
                 'cancellation_reason' => $reason,
             ]);
+
+            // Recalculate only when a confirmed credit note is cancelled.
+            if (
+                $wasConfirmed
+                && $sale
+                && $salesReturn->refund_type === SalesReturnRefundType::CREDIT_NOTE
+            ) {
+                $this->dueAmountService->recalculate($sale);
+            }
 
             return $salesReturn->fresh([
                 'items.product',
