@@ -69,6 +69,11 @@ class StorePurchaseOrderRequest extends BaseRequest
                 'min:1',
             ],
 
+            'items.*' => [
+                'required',
+                'array:product_id,product_variant_id,warehouse_id,line_type,item_name,sku,description,unit_of_measure_id,quantity,unit_price,discount_type,discount_rate,tax_group_id,is_tax_inclusive',
+            ],
+
             'items.*.product_id' => [
                 'nullable',
                 'integer',
