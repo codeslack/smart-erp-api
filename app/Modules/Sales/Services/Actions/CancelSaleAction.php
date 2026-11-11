@@ -9,6 +9,7 @@ use App\Modules\Sales\Services\Posting\SaleInventoryPostingService;
 use App\Modules\Sales\Services\Validators\SaleValidator;
 use App\Modules\SalesOrder\Models\SalesOrderItem;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class CancelSaleAction
 {
