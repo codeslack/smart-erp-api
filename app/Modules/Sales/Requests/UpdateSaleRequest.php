@@ -45,12 +45,13 @@ class UpdateSaleRequest extends BaseRequest
             'items' => ['sometimes', 'array', 'min:1'],
             'items.*' => [
                 'required',
-                'array:product_id,product_uuid,product_variant_id,product_variant_uuid,warehouse_id,warehouse_uuid,line_type,item_name,sku,description,unit_id,unit_uuid,quantity,unit_price,discount_type,discount_rate,discount_amount,tax_id,tax_uuid,tax_rate,tax_amount,batches,serials',
+                'array:product_id,product_uuid,product_variant_id,product_variant_uuid,sales_order_item_uuid,warehouse_id,warehouse_uuid,line_type,item_name,sku,description,unit_id,unit_uuid,quantity,unit_price,discount_type,discount_rate,discount_amount,tax_id,tax_uuid,tax_rate,tax_amount,batches,serials',
             ],
             'items.*.product_id' => ['nullable', 'integer', TenantRule::exists('products', 'id')],
             'items.*.product_uuid' => ['nullable', 'string', TenantRule::exists('products', 'uuid')],
             'items.*.product_variant_id' => ['nullable', 'integer', TenantRule::exists('product_variants', 'id')],
             'items.*.product_variant_uuid' => ['nullable', 'string', TenantRule::exists('product_variants', 'uuid')],
+            'items.*.sales_order_item_uuid' => ['nullable', 'string', TenantRule::exists('sales_order_items', 'uuid')],
             'items.*.warehouse_id' => ['nullable', 'integer', TenantRule::exists('warehouses', 'id')],
             'items.*.warehouse_uuid' => ['nullable', 'string', TenantRule::exists('warehouses', 'uuid')],
 
