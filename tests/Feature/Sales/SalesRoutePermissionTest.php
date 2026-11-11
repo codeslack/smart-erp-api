@@ -58,6 +58,16 @@ class SalesRoutePermissionTest extends TestCase
         $this->withToken($this->token)
             ->getJson(route('sales-orders.index'))
             ->assertOk();
+
+        $this->withToken($this->token)
+            ->getJson(route('sales-quotations.index'))
+            ->assertForbidden();
+
+        $this->grantPermissions(['sales-quotation.view']);
+
+        $this->withToken($this->token)
+            ->getJson(route('sales-quotations.index'))
+            ->assertOk();
     }
 
     public function test_sales_custom_actions_require_their_explicit_permissions(): void
@@ -91,6 +101,23 @@ class SalesRoutePermissionTest extends TestCase
 
         $this->withToken($this->token)
             ->postJson(route('sales-orders.confirm', ['uuid' => $uuid]))
+            ->assertNotFound();
+    }
+
+    public function test_sales_quotation_custom_actions_require_their_explicit_permissions(): void
+    {
+        $uuid = (string) str()->uuid();
+
+        $this->grantPermissions(['sales-quotation.view']);
+
+        $this->withToken($this->token)
+            ->postJson(route('sales-quotations.send', ['uuid' => $uuid]))
+            ->assertForbidden();
+
+        $this->grantPermissions(['sales-quotation.send']);
+
+        $this->withToken($this->token)
+            ->postJson(route('sales-quotations.send', ['uuid' => $uuid]))
             ->assertNotFound();
     }
 
