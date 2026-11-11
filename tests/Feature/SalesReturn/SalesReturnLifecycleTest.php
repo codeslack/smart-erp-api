@@ -10,11 +10,13 @@ use App\Modules\Customer\Models\Customer;
 use App\Modules\Inventory\Data\InventoryMovementData;
 use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
 use App\Modules\Inventory\Enums\ProductSerialStatusEnum;
+use App\Modules\Inventory\Models\ProductBatch;
 use App\Modules\Inventory\Models\ProductSerial;
 use App\Modules\Inventory\Models\ProductStock;
 use App\Modules\Inventory\Services\InventoryPostingService;
 use App\Modules\Inventory\Services\InventorySerialService;
 use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
+use App\Modules\Product\Enums\ProductTypeEnum;
 use App\Modules\Product\Models\Product;
 use App\Modules\ProductUnit\Models\ProductUnit;
 use App\Modules\Unit\Models\Unit;
@@ -376,6 +378,176 @@ class SalesReturnLifecycleTest extends TestCase
             ->firstOrFail();
 
         $this->assertEquals(6, (float) $stock->quantity);
+    }
+
+    public function test_batch_sales_return_requires_original_batch_and_posts_converted_base_quantity(): void
+    {
+        $baseUnit = Unit::create([
+            'tenant_id' => $this->tenant->id,
+            'code' => 'SR-BATCH-EACH',
+            'name' => 'Sales Return Batch Each',
+            'short_name' => 'ea',
+            'is_active' => true,
+        ]);
+
+        $boxUnit = Unit::create([
+            'tenant_id' => $this->tenant->id,
+            'code' => 'SR-BATCH-BOX',
+            'name' => 'Sales Return Batch Box',
+            'short_name' => 'box',
+            'is_active' => true,
+        ]);
+
+        $batchProduct = Product::create([
+            'tenant_id' => $this->tenant->id,
+            'unit_id' => $baseUnit->id,
+            'code' => 'SR-BATCH-PRODUCT',
+            'sku' => 'SR-BATCH-SKU',
+            'name' => 'Sales Return Batch Product',
+            'slug' => 'sales-return-batch-product',
+            'product_type' => ProductTypeEnum::PRODUCT,
+            'inventory_tracking_type' => InventoryTrackingTypeEnum::BATCH,
+            'is_active' => true,
+            'purchase_price' => 50,
+            'selling_price' => 100,
+        ]);
+
+        ProductUnit::create([
+            'product_id' => $batchProduct->id,
+            'unit_id' => $baseUnit->id,
+            'conversion_factor' => 1,
+            'is_purchase_unit' => true,
+            'is_sales_unit' => true,
+            'is_active' => true,
+        ]);
+
+        ProductUnit::create([
+            'product_id' => $batchProduct->id,
+            'unit_id' => $boxUnit->id,
+            'conversion_factor' => 10,
+            'is_purchase_unit' => true,
+            'is_sales_unit' => true,
+            'is_active' => true,
+        ]);
+
+        $supplier = Supplier::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Sales Return Batch Supplier',
+            'is_active' => true,
+        ]);
+
+        $purchaseService = app(PurchaseService::class);
+        $purchase = $purchaseService->create([
+            'supplier_uuid' => $supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [[
+                'product_uuid' => $batchProduct->uuid,
+                'unit_uuid' => $boxUnit->uuid,
+                'quantity' => 2,
+                'unit_cost' => 500,
+                'batches' => [[
+                    'batch_no' => 'SR-LOT-BOX-01',
+                    'quantity' => 2,
+                ]],
+            ]],
+        ]);
+        $purchaseService->confirm($purchase);
+
+        $batch = ProductBatch::query()
+            ->where('product_id', $batchProduct->id)
+            ->where('batch_no', 'SR-LOT-BOX-01')
+            ->firstOrFail();
+
+        $saleService = app(SaleService::class);
+        $sale = $saleService->create([
+            'customer_uuid' => $this->customer->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_uuid' => $batchProduct->uuid,
+                'unit_uuid' => $boxUnit->uuid,
+                'quantity' => 1,
+                'unit_price' => 1000,
+                'batches' => [[
+                    'batch_no' => 'SR-LOT-BOX-01',
+                    'quantity' => 1,
+                ]],
+            ]],
+        ]);
+        $sale = $saleService->confirm($sale->uuid);
+        $saleItem = $sale->items->first();
+
+        $this->assertEquals(10, (float) $saleItem->base_quantity);
+        $this->assertDatabaseHas('sale_item_batches', [
+            'sale_item_id' => $saleItem->id,
+            'product_batch_id' => $batch->id,
+            'quantity' => 1,
+            'base_quantity' => 10,
+        ]);
+
+        $basePayload = [
+            'sale_uuid' => $sale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'sale_item_uuid' => $saleItem->uuid,
+                'returned_quantity' => 0.5,
+                'unit_price' => 1000,
+            ]],
+        ];
+
+        $this->postJson(route('sales-returns.store'), $basePayload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0.batches');
+
+        $unknownBatchPayload = $basePayload;
+        $unknownBatchPayload['items'][0]['batches'] = [[
+            'batch_no' => 'NOT-ON-THIS-SALE',
+            'quantity' => 0.5,
+        ]];
+
+        $this->postJson(route('sales-returns.store'), $unknownBatchPayload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0.batches.0.batch_no');
+
+        $validPayload = $basePayload;
+        $validPayload['items'][0]['batches'] = [[
+            'batch_no' => 'SR-LOT-BOX-01',
+            'quantity' => 0.5,
+        ]];
+
+        $createResponse = $this->postJson(route('sales-returns.store'), $validPayload);
+        $createResponse->assertCreated();
+        $returnUuid = $createResponse->json('data.uuid');
+
+        $return = SalesReturn::query()->where('uuid', $returnUuid)->firstOrFail();
+        $returnItem = $return->items()->firstOrFail();
+
+        $this->assertEquals(5, (float) $returnItem->base_quantity);
+        $this->assertDatabaseHas('sale_return_item_batches', [
+            'sales_return_item_id' => $returnItem->id,
+            'product_batch_id' => $batch->id,
+            'batch_no' => 'SR-LOT-BOX-01',
+            'quantity' => 0.5,
+        ]);
+
+        $excessPayload = $validPayload;
+        $excessPayload['items'][0]['returned_quantity'] = 0.6;
+        $excessPayload['items'][0]['batches'][0]['quantity'] = 0.6;
+
+        $this->postJson(route('sales-returns.store'), $excessPayload)
+            ->assertUnprocessable();
+
+        $this->postJson(route('sales-returns.confirm', ['uuid' => $returnUuid]))
+            ->assertOk();
+
+        $this->assertEquals(15, (float) $batch->fresh()->remaining_quantity);
+        $this->assertDatabaseHas('stock_ledgers', [
+            'product_id' => $batchProduct->id,
+            'product_batch_id' => $batch->id,
+            'quantity_in' => 5,
+            'transaction_type' => 'SALE_RETURN',
+        ]);
     }
 
     public function test_sales_return_can_be_cancelled(): void
