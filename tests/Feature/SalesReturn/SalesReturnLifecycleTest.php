@@ -5,6 +5,8 @@ namespace Tests\Feature\SalesReturn;
 use App\Core\Tenant\TenantManager;
 use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
 use App\Modules\Accounting\Models\JournalEntry;
+use App\Modules\Accounting\Models\ChartOfAccount;
+use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Services\AccountingSetupService;
 use App\Modules\Customer\Models\Customer;
 use App\Modules\Inventory\Data\InventoryMovementData;
@@ -700,4 +702,97 @@ class SalesReturnLifecycleTest extends TestCase
         ]);
         $updateRes->assertUnprocessable();
     }
+    public function test_cash_refund_requires_a_refund_account(): void
+    {
+        $saleItem = $this->sale->items->first();
+
+        $response = $this->postJson(route('sales-returns.store'), [
+            'sale_uuid' => $this->sale->uuid,
+            'return_date' => now()->toDateString(),
+            'refund_type' => 'cash_refund',
+            'items' => [[
+                'sale_item_uuid' => $saleItem->uuid,
+                'returned_quantity' => 1,
+                'unit_price' => 100,
+            ]],
+        ]);
+
+        $response
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('refund_account_id');
+    }
+
+    public function test_header_only_refund_type_update_recalculates_refund_amounts_and_posts_to_cash(): void
+    {
+        $uuid = $this->makeReturn(2);
+        $cashAccount = ChartOfAccount::query()
+            ->where('account_code', AccountingAccounts::CASH)
+            ->firstOrFail();
+        $dueBefore = (float) $this->sale->fresh()->due_amount;
+
+        $this->putJson(route('sales-returns.update', ['uuid' => $uuid]), [
+            'refund_type' => 'cash_refund',
+            'refund_account_id' => $cashAccount->id,
+        ])->assertOk();
+
+        $this->assertDatabaseHas('sales_returns', [
+            'uuid' => $uuid,
+            'refund_type' => 'cash_refund',
+            'refund_amount' => 200.0000,
+            'credited_amount' => 0.0000,
+        ]);
+
+        $this->postJson(route('sales-returns.confirm', ['uuid' => $uuid]))
+            ->assertOk();
+
+        $this->assertEquals($dueBefore, (float) $this->sale->fresh()->due_amount);
+
+        $salesReturn = SalesReturn::query()->where('uuid', $uuid)->firstOrFail();
+        $journalEntry = JournalEntry::query()
+            ->where('voucher_type', JournalVoucherTypeEnum::SALES_RETURN->value)
+            ->where('reference_type', SalesReturn::class)
+            ->where('reference_id', $salesReturn->id)
+            ->orderBy('id')
+            ->firstOrFail();
+
+        $this->assertTrue(
+            $journalEntry->lines()
+                ->where('chart_of_account_id', $cashAccount->id)
+                ->where('debit', 0)
+                ->where('credit', 200)
+                ->exists()
+        );
+
+        $receivableAccount = ChartOfAccount::query()
+            ->where('account_code', AccountingAccounts::ACCOUNTS_RECEIVABLE)
+            ->firstOrFail();
+
+        $this->assertFalse(
+            $journalEntry->lines()
+                ->where('chart_of_account_id', $receivableAccount->id)
+                ->exists()
+        );
+    }
+
+    public function test_credit_note_cancellation_restores_only_the_due_amount_that_was_outstanding(): void
+    {
+        $this->sale->update([
+            'paid_amount' => 950,
+            'due_amount' => 50,
+        ]);
+
+        $uuid = $this->makeReturn(2);
+
+        $this->postJson(route('sales-returns.confirm', ['uuid' => $uuid]))
+            ->assertOk();
+
+        $this->assertEquals(0, (float) $this->sale->fresh()->due_amount);
+
+        $this->postJson(route('sales-returns.cancel', ['uuid' => $uuid]), [
+            'reason' => 'Credit note cancelled',
+        ])->assertOk();
+
+        $this->assertEquals(50, (float) $this->sale->fresh()->due_amount);
+    }
+
 }
