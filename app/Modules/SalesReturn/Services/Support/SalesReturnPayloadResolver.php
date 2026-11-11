@@ -9,6 +9,7 @@ use App\Modules\Product\Models\Product;
 use App\Modules\Product\Models\ProductVariant;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
+use App\Modules\Sales\Models\SaleItemBatch;
 use App\Modules\Tax\Models\Tax;
 use App\Modules\Unit\Models\Unit;
 use App\Modules\Warehouse\Models\Warehouse;
@@ -144,6 +145,17 @@ class SalesReturnPayloadResolver
                         && (int) $item['product_variant_id'] !== (int) $saleItem->product_variant_id
                     ) {
                         throw new BusinessException('Product variant does not match the original sale item.');
+                    }
+
+                    if ($saleItem->product?->isBatchTracked()) {
+                        foreach (($item['batches'] ?? []) as $batchIndex => $batchData) {
+                            $allocation = SaleItemBatch::query()
+                                ->where('sale_item_id', $saleItem->id)
+                                ->where('batch_no', $batchData['batch_no'] ?? '')
+                                ->first();
+
+                            $item['batches'][$batchIndex]['product_batch_id'] = $allocation?->product_batch_id;
+                        }
                     }
 
                     $item['product_id'] = $saleItem->product_id;
