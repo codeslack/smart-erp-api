@@ -236,6 +236,12 @@ class SalesReturnInventoryPostingService
                 remarks: "Cancellation of Sales Return {$salesReturn->return_no}"
             );
 
+            // A cancelled return puts the serial back into its original sold state.
+            if ($ledger->product_serial_id !== null) {
+                $serial = $this->serialService->lock((int) $ledger->product_serial_id);
+                $this->serialService->markSold($serial);
+            }
+
             $this->stockInReversalService->reverse($ledger, $reversalData);
         }
     }
