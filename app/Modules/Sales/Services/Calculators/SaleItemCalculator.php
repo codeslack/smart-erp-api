@@ -39,6 +39,7 @@ class SaleItemCalculator
         return array_merge($item, [
             'quantity' => $quantity,
             'unit_price' => $unitPrice,
+            'cost_price' => 0,
             'discount_type' => $discountType,
             'discount_rate' => $discountRate,
             'discount_amount' => round($discountAmount, 4),
