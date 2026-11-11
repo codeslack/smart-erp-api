@@ -7,7 +7,6 @@ use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
 use App\Modules\Inventory\Models\StockLedger;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
-use App\Modules\SalesReturn\Models\SaleReturnItemBatch;
 
 class SalesReturnPayloadResolver
 {
