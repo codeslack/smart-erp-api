@@ -65,7 +65,7 @@ class TaxServiceProvider extends ServiceProvider
         Route::middleware('api')
             ->prefix('api')
             ->group(
-                __DIR__ . '/../Routes/api.php'
+                __DIR__ . '/../routes/api.php'
             );
     }
 }
