@@ -50,10 +50,12 @@ class SalePayloadResolver
             ->value('id');
 
         if (isset($data[$idKey]) && (int) $data[$idKey] !== (int) $resolvedId) {
+            $field = $errorKey ?? $uuidKey;
+
             throw new BusinessException(
                 "{$label} ID and UUID references do not match.",
                 'BUSINESS_ERROR',
-                [$errorKey ?? $uuidKey => ["{$label} ID and UUID references do not match."]]
+                [$field => ["{$label} ID and UUID references do not match."]]
             );
         }
 
