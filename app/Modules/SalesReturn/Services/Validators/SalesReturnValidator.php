@@ -8,6 +8,7 @@ use App\Modules\Sales\Models\SaleItem;
 use App\Modules\Sales\Models\SaleItemBatch;
 use App\Modules\Sales\Models\SaleItemSerial;
 use App\Modules\SalesReturn\Enums\SalesReturnStatus;
+use App\Modules\SalesReturn\Enums\SalesReturnRefundType;
 use App\Modules\SalesReturn\Models\SaleReturnItemBatch;
 use App\Modules\SalesReturn\Models\SaleReturnItemSerial;
 use App\Modules\SalesReturn\Models\SalesReturn;
@@ -18,6 +19,8 @@ class SalesReturnValidator
 {
     public function validateForSave(array $header, array $items, ?int $ignoreReturnId = null): void
     {
+        $this->validateRefundDetails($header);
+
         $sale = ! empty($header['sale_id'])
             ? Sale::query()->lockForUpdate()->find($header['sale_id'])
             : null;
@@ -279,6 +282,26 @@ class SalesReturnValidator
         }
     }
 
+    public function validateRefundDetails(array $header): void
+    {
+        $refundType = $header['refund_type'] ?? SalesReturnRefundType::CREDIT_NOTE->value;
+
+        if ($refundType instanceof SalesReturnRefundType) {
+            $refundType = $refundType->value;
+        }
+
+        if (
+            $refundType !== SalesReturnRefundType::CREDIT_NOTE->value
+            && empty($header['refund_account_id'])
+        ) {
+            throw ValidationException::withMessages([
+                'refund_account_id' => [
+                    'A refund account is required for cash or bank Sales Returns.',
+                ],
+            ]);
+        }
+    }
+
     public function validateForUpdate(SalesReturn $return): void
     {
         $status = $return->status instanceof SalesReturnStatus
@@ -327,6 +350,8 @@ class SalesReturnValidator
             [
                 'sale_id' => $return->sale_id,
                 'customer_id' => $return->customer_id,
+                'refund_type' => $return->refund_type,
+                'refund_account_id' => $return->refund_account_id,
             ],
             $items,
             $return->id

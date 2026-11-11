@@ -42,6 +42,10 @@ class UpdateSalesReturnAction
             }
 
             $headerData = $this->payloadResolver->resolveHeader($headerInput);
+            $this->validator->validateRefundDetails(
+                array_merge($salesReturn->toArray(), $headerData)
+            );
+
             $hasItems = isset($headerData['items']) && is_array($headerData['items']);
 
             if ($hasItems) {
@@ -62,7 +66,11 @@ class UpdateSalesReturnAction
                     $calculatedItems[] = $this->itemCalculator->calculate($item);
                 }
 
-                $totals = $this->calculator->calculate($calculatedItems, array_merge($salesReturn->toArray(), $headerData));
+                $totals = $this->calculateTotals(
+                    $calculatedItems,
+                    $salesReturn,
+                    $headerData
+                );
                 $headerData = array_merge($headerData, $totals);
 
                 // Sync items
@@ -100,6 +108,27 @@ class UpdateSalesReturnAction
                 }
             }
 
+            if (
+                ! $hasItems
+                && array_intersect(
+                    array_keys($headerData),
+                    ['refund_type', 'discount_amount', 'discount', 'rounding_amount']
+                ) !== []
+            ) {
+                $existingItems = $salesReturn->items()
+                    ->get()
+                    ->map(fn ($item) => $item->toArray())
+                    ->all();
+
+                $totals = $this->calculateTotals(
+                    $existingItems,
+                    $salesReturn,
+                    $headerData
+                );
+
+                $headerData = array_merge($headerData, $totals);
+            }
+
             unset($headerData['return_no'], $headerData['status']);
             $headerData['updated_by'] = auth()->id();
 
@@ -118,5 +147,37 @@ class UpdateSalesReturnAction
                 'refundAccount',
             ]);
         });
+    }
+
+    private function calculateTotals(
+        array $items,
+        SalesReturn $salesReturn,
+        array $headerData
+    ): array {
+        $headerForCalculation = array_merge(
+            $salesReturn->toArray(),
+            $headerData
+        );
+
+        if (array_key_exists('discount_amount', $headerData)) {
+            $headerForCalculation['discount_amount'] = $headerData['discount_amount'];
+        } elseif (array_key_exists('discount', $headerData)) {
+            $headerForCalculation['discount_amount'] = $headerData['discount'];
+        } else {
+            $itemDiscounts = array_sum(array_map(
+                fn (array $item) => (float) ($item['discount_amount'] ?? 0),
+                $items
+            ));
+
+            $headerForCalculation['discount_amount'] = max(
+                0,
+                (float) $salesReturn->discount_amount - $itemDiscounts
+            );
+        }
+
+        return $this->calculator->calculate(
+            $items,
+            $headerForCalculation
+        );
     }
 }

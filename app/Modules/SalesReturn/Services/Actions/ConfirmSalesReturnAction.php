@@ -4,9 +4,11 @@ namespace App\Modules\SalesReturn\Services\Actions;
 
 use App\Modules\Sales\Models\Sale;
 use App\Modules\SalesReturn\Enums\SalesReturnStatus;
+use App\Modules\SalesReturn\Enums\SalesReturnRefundType;
 use App\Modules\SalesReturn\Models\SalesReturn;
 use App\Modules\SalesReturn\Services\Posting\SalesReturnAccountingPostingService;
 use App\Modules\SalesReturn\Services\Posting\SalesReturnInventoryPostingService;
+use App\Modules\SalesReturn\Services\SalesReturnDueAmountService;
 use App\Modules\SalesReturn\Services\Validators\SalesReturnValidator;
 use Illuminate\Support\Facades\DB;
 
@@ -15,7 +17,8 @@ class ConfirmSalesReturnAction
     public function __construct(
         protected SalesReturnValidator $validator,
         protected SalesReturnInventoryPostingService $inventoryPostingService,
-        protected SalesReturnAccountingPostingService $accountingPostingService
+        protected SalesReturnAccountingPostingService $accountingPostingService,
+        protected SalesReturnDueAmountService $dueAmountService
     ) {}
 
     public function execute(SalesReturn $salesReturn): SalesReturn
@@ -43,12 +46,12 @@ class ConfirmSalesReturnAction
             // Post GL entries (revenue reversal, COGS restoration)
             $this->accountingPostingService->post($salesReturn);
 
-            // Adjust referenced Sale due amount
-            if ($sale) {
-                $newDue = max(0, round((float) $sale->due_amount - (float) $salesReturn->grand_total, 4));
-                $sale->update([
-                    'due_amount' => $newDue,
-                ]);
+            // Credit notes reduce the receivable; cash/bank refunds do not.
+            if (
+                $sale
+                && $salesReturn->refund_type === SalesReturnRefundType::CREDIT_NOTE
+            ) {
+                $this->dueAmountService->recalculate($sale);
             }
 
             return $salesReturn->fresh([
