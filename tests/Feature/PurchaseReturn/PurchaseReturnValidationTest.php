@@ -400,6 +400,35 @@ class PurchaseReturnValidationTest extends TestCase
         ]);
     }
 
+    public function test_update_cannot_change_supplier_away_from_source_purchase(): void
+    {
+        $purchaseItem = $this->purchase->items->first();
+
+        $createResponse = $this->postJson('/api/purchase-returns', [
+            'purchase_uuid' => $this->purchase->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'purchase_item_uuid' => $purchaseItem->uuid,
+                'returned_quantity' => 1,
+                'unit_cost' => 50,
+            ]],
+        ]);
+
+        $createResponse->assertCreated();
+        $returnUuid = $createResponse->json('data.uuid');
+
+        $otherSupplier = Supplier::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Different Return Supplier',
+            'is_active' => true,
+        ]);
+
+        $this->putJson("/api/purchase-returns/{$returnUuid}", [
+            'supplier_uuid' => $otherSupplier->uuid,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('supplier_uuid');
+    }
+
     public function test_cannot_return_against_unconfirmed_purchase(): void
     {
         $purchaseService = app(PurchaseService::class);
