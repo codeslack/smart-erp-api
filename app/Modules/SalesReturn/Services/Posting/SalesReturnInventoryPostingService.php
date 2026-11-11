@@ -238,7 +238,18 @@ class SalesReturnInventoryPostingService
 
             // A cancelled return puts the serial back into its original sold state.
             if ($ledger->product_serial_id !== null) {
-                $serial = $this->serialService->lock((int) $ledger->product_serial_id);
+                $serial = $this->serialService->lockForStockOut(
+                    serialId: (int) $ledger->product_serial_id,
+                    productId: (int) $ledger->product_id,
+                    warehouseId: (int) $ledger->warehouse_id,
+                    productVariantId: $ledger->product_variant_id !== null
+                        ? (int) $ledger->product_variant_id
+                        : null,
+                    productBatchId: $ledger->product_batch_id !== null
+                        ? (int) $ledger->product_batch_id
+                        : null,
+                );
+
                 $this->serialService->markSold($serial);
             }
 
