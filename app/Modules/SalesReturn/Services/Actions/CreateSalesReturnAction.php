@@ -68,7 +68,7 @@ class CreateSalesReturnAction
                         SaleReturnItemBatch::create([
                             'sales_return_id' => $salesReturn->id,
                             'sales_return_item_id' => $returnItem->id,
-                            'product_batch_id' => null,
+                            'product_batch_id' => $batch['product_batch_id'],
                             'batch_no' => $batch['batch_no'],
                             'quantity' => $batch['quantity'],
                         ]);
