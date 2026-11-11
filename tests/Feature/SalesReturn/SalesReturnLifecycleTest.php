@@ -65,7 +65,7 @@ class SalesReturnLifecycleTest extends TestCase
             'customer_uuid' => $this->customer->uuid,
             'warehouse_uuid' => $this->warehouse->uuid,
             'sale_date' => now()->toDateString(),
-            'items' => [['product_uuid' => $this->product->uuid, 'quantity' => 5, 'unit_price' => 100, 'unit_cost' => 50]],
+            'items' => [['product_uuid' => $this->product->uuid, 'quantity' => 5]],
         ]);
         $this->sale = $saleSvc->confirm($this->sale->uuid);
     }
@@ -76,10 +76,14 @@ class SalesReturnLifecycleTest extends TestCase
         $createRes = $this->postJson(route('sales-returns.store'), [
             'sale_uuid' => $this->sale->uuid,
             'return_date' => now()->toDateString(),
-            'items' => [['sale_item_uuid' => $saleItem->uuid, 'returned_quantity' => 2, 'unit_price' => 100, 'unit_cost' => 50]],
+            'items' => [['sale_item_uuid' => $saleItem->uuid, 'returned_quantity' => 2]],
         ]);
 
-        $createRes->assertCreated();
+        $createRes
+            ->assertCreated()
+            ->assertJsonPath('data.items.0.unit_price', 100)
+            ->assertJsonPath('data.items.0.unit_cost', 50)
+            ->assertJsonPath('data.items.0.base_quantity', 2);
         $uuid = $createRes->json('data.uuid');
 
         $confirmRes = $this->postJson(route('sales-returns.confirm', ['uuid' => $uuid]));
@@ -116,7 +120,7 @@ class SalesReturnLifecycleTest extends TestCase
         $createRes = $this->postJson(route('sales-returns.store'), [
             'sale_uuid' => $this->sale->uuid,
             'return_date' => now()->toDateString(),
-            'items' => [['sale_item_uuid' => $saleItem->uuid, 'returned_quantity' => 1, 'unit_price' => 100]],
+            'items' => [['sale_item_uuid' => $saleItem->uuid, 'returned_quantity' => 1]],
         ]);
 
         $uuid = $createRes->json('data.uuid');
@@ -130,7 +134,7 @@ class SalesReturnLifecycleTest extends TestCase
         $res = $this->postJson(route('sales-returns.store'), [
             'sale_uuid' => $this->sale->uuid,
             'return_date' => now()->toDateString(),
-            'items' => [['sale_item_uuid' => $saleItem->uuid, 'returned_quantity' => 6, 'unit_price' => 100]],
+            'items' => [['sale_item_uuid' => $saleItem->uuid, 'returned_quantity' => 6]],
         ]);
         $res->assertUnprocessable();
     }
@@ -141,7 +145,7 @@ class SalesReturnLifecycleTest extends TestCase
         $createRes = $this->postJson(route('sales-returns.store'), [
             'sale_uuid' => $this->sale->uuid,
             'return_date' => now()->toDateString(),
-            'items' => [['sale_item_uuid' => $saleItem->uuid, 'returned_quantity' => 1, 'unit_price' => 100]],
+            'items' => [['sale_item_uuid' => $saleItem->uuid, 'returned_quantity' => 1]],
         ]);
 
         $uuid = $createRes->json('data.uuid');
@@ -162,14 +166,14 @@ class SalesReturnLifecycleTest extends TestCase
         $createRes = $this->postJson(route('sales-returns.store'), [
             'sale_uuid' => $this->sale->uuid,
             'return_date' => now()->toDateString(),
-            'items' => [['sale_item_uuid' => $saleItem->uuid, 'returned_quantity' => 1, 'unit_price' => 100]],
+            'items' => [['sale_item_uuid' => $saleItem->uuid, 'returned_quantity' => 1]],
         ]);
 
         $uuid = $createRes->json('data.uuid');
         $this->postJson(route('sales-returns.confirm', ['uuid' => $uuid]))->assertOk();
 
         $updateRes = $this->putJson(route('sales-returns.update', ['uuid' => $uuid]), [
-            'items' => [['sale_item_uuid' => $saleItem->uuid, 'returned_quantity' => 2, 'unit_price' => 100]],
+            'items' => [['sale_item_uuid' => $saleItem->uuid, 'returned_quantity' => 2]],
         ]);
         $updateRes->assertUnprocessable();
     }
