@@ -13,7 +13,11 @@ use App\Modules\Inventory\Services\InventoryBatchService;
 use App\Modules\Inventory\Services\InventoryPostingService;
 use App\Modules\Inventory\Services\InventorySerialService;
 use App\Modules\Inventory\Services\Reversal\InventoryStockOutReversalService;
+use App\Core\Exceptions\BusinessException;
+use App\Modules\ProductUnit\Models\ProductUnit;
+use App\Modules\ProductUnit\Services\ProductUnitService;
 use App\Modules\Sales\Models\Sale;
+use App\Modules\Sales\Models\SaleItem;
 
 class SaleInventoryPostingService
 {
@@ -21,7 +25,8 @@ class SaleInventoryPostingService
         protected InventoryPostingService $inventoryPostingService,
         protected InventoryBatchService $inventoryBatchService,
         protected InventorySerialService $serialService,
-        protected InventoryStockOutReversalService $stockOutReversalService
+        protected InventoryStockOutReversalService $stockOutReversalService,
+        protected ProductUnitService $productUnitService
     ) {}
 
     public function post(Sale $sale): void
@@ -29,15 +34,50 @@ class SaleInventoryPostingService
         $sale->loadMissing(['items.product', 'items.batches', 'items.serials']);
 
         foreach ($sale->items as $item) {
-            if ($item->product && ! $item->product->requiresStock()) {
+            if (! $item->product || ! $item->product->requiresStock()) {
                 continue;
             }
 
+            $productUnit = $this->resolveProductUnit($item);
+
+            $baseQuantity = $item->base_quantity !== null
+                ? (float) $item->base_quantity
+                : ($productUnit
+                    ? $this->productUnitService->toBaseQuantity(
+                        $productUnit,
+                        (float) $item->quantity
+                    )
+                    : (float) $item->quantity);
+
             $warehouseId = $item->warehouse_id;
 
-            // Batch tracked
-            if ($item->product->isBatchTracked() && $item->batches->isNotEmpty()) {
+            if ($item->product->isBatchTracked()) {
+                if ($item->batches->isEmpty()) {
+                    throw new BusinessException(
+                        "Product [{$item->product->name}] requires batch details."
+                    );
+                }
+
+                $batchQuantitySum = (float) $item->batches->sum('quantity');
+
+                if (abs($batchQuantitySum - (float) $item->quantity) > 0.0001) {
+                    throw new BusinessException(
+                        'Sale batch quantities do not match the document quantity.'
+                    );
+                }
+
+                $postedBaseQuantity = 0.0;
+
                 foreach ($item->batches as $batchItem) {
+                    $batchBaseQuantity = $batchItem->base_quantity !== null
+                        ? (float) $batchItem->base_quantity
+                        : ($productUnit
+                            ? $this->productUnitService->toBaseQuantity(
+                                $productUnit,
+                                (float) $batchItem->quantity
+                            )
+                            : (float) $batchItem->quantity);
+
                     $batch = $batchItem->product_batch_id
                         ? ProductBatch::query()->find($batchItem->product_batch_id)
                         : $this->inventoryBatchService->findByBatchNumber(
@@ -47,40 +87,77 @@ class SaleInventoryPostingService
                             $item->product_variant_id
                         );
 
-                    if ($batch && ! $batchItem->product_batch_id) {
+                    if (! $batch) {
+                        throw new BusinessException(
+                            "Batch [{$batchItem->batch_no}] was not found for this product and warehouse."
+                        );
+                    }
+
+                    if (! $batchItem->product_batch_id) {
                         $batchItem->update(['product_batch_id' => $batch->id]);
                     }
+
+                    $postedBaseQuantity += $batchBaseQuantity;
 
                     $movement = new InventoryMovementData(
                         productId: $item->product_id,
                         productVariantId: $item->product_variant_id,
                         warehouseId: $warehouseId,
-                        quantity: (float) $batchItem->quantity,
+                        quantity: $batchBaseQuantity,
                         unitCost: (float) $item->unit_price,
                         transactionType: InventoryTransactionTypeEnum::SALE->value,
                         transactionDate: $sale->sale_date,
                         referenceType: Sale::class,
                         referenceId: $sale->id,
                         referenceNo: $sale->sale_no,
-                        batchId: $batch?->id,
+                        batchId: $batch->id,
                         serialId: null,
                         remarks: "Sale {$sale->sale_no} Batch {$batchItem->batch_no}",
                     );
 
                     $this->inventoryPostingService->stockOut($movement);
                 }
+
+                if (abs($postedBaseQuantity - $baseQuantity) > 0.0001) {
+                    throw new BusinessException(
+                        'Sale batch base quantities do not match the item base quantity.'
+                    );
+                }
+
                 continue;
             }
 
-            // Serial tracked
-            if ($item->product->isSerialTracked() && $item->serials->isNotEmpty()) {
+            if ($item->product->isSerialTracked()) {
+                if ($item->serials->isEmpty()) {
+                    throw new BusinessException(
+                        "Product [{$item->product->name}] requires serial numbers."
+                    );
+                }
+
+                if (abs($baseQuantity - round($baseQuantity)) > 0.0001) {
+                    throw new BusinessException(
+                        'Serial-tracked sale quantity must resolve to a whole number of base units.'
+                    );
+                }
+
+                if ($item->serials->count() !== (int) round($baseQuantity)) {
+                    throw new BusinessException(
+                        'Sale serial count does not match the item base quantity.'
+                    );
+                }
+
                 foreach ($item->serials as $serialItem) {
-                    /** @var ProductSerial|null $serial */
                     $serial = $serialItem->product_serial_id
                         ? ProductSerial::query()->find($serialItem->product_serial_id)
                         : $this->serialService->findBySerialNumber($serialItem->serial_number);
 
-                    if ($serial && ! $serialItem->product_serial_id) {
+                    if (! $serial) {
+                        throw new BusinessException(
+                            "Serial [{$serialItem->serial_number}] was not found for this product."
+                        );
+                    }
+
+                    if (! $serialItem->product_serial_id) {
                         $serialItem->update(['product_serial_id' => $serial->id]);
                     }
 
@@ -96,28 +173,26 @@ class SaleInventoryPostingService
                         referenceId: $sale->id,
                         referenceNo: $sale->sale_no,
                         batchId: null,
-                        serialId: $serial?->id,
+                        serialId: $serial->id,
                         remarks: "Sale {$sale->sale_no} Serial {$serialItem->serial_number}",
                     );
 
                     $this->inventoryPostingService->stockOut($movement);
 
-                    if ($serial) {
-                        $serial->update([
-                            'status' => ProductSerialStatusEnum::SOLD,
-                            'sold_at' => now(),
-                        ]);
-                    }
+                    $serial->update([
+                        'status' => ProductSerialStatusEnum::SOLD,
+                        'sold_at' => now(),
+                    ]);
                 }
+
                 continue;
             }
 
-            // Standard products
             $movement = new InventoryMovementData(
                 productId: $item->product_id,
                 productVariantId: $item->product_variant_id,
                 warehouseId: $warehouseId,
-                quantity: (float) ($item->base_quantity ?? $item->quantity),
+                quantity: $baseQuantity,
                 unitCost: (float) $item->unit_price,
                 transactionType: InventoryTransactionTypeEnum::SALE->value,
                 transactionDate: $sale->sale_date,
@@ -129,6 +204,51 @@ class SaleInventoryPostingService
 
             $this->inventoryPostingService->stockOut($movement);
         }
+    }
+
+    protected function resolveProductUnit(
+        SaleItem $item
+    ): ?ProductUnit {
+        $product = $item->product;
+
+        if (! $product || ! $product->requiresStock()) {
+            return null;
+        }
+
+        $unitId = (int) (
+            $item->unit_id
+            ?? $product->unit_id
+            ?? 0
+        );
+
+        if ($unitId <= 0) {
+            return null;
+        }
+
+        $productUnit = $this->productUnitService
+            ->findByProductAndUnit(
+                (int) $item->product_id,
+                $unitId
+            );
+
+        if (
+            ! $productUnit
+            && (int) ($product->unit_id ?? 0) === $unitId
+        ) {
+            $productUnit = $this->productUnitService
+                ->syncBaseUnit($product);
+        }
+
+        if (! $productUnit) {
+            throw new BusinessException(
+                'The sales unit is not configured for this product.'
+            );
+        }
+
+        $this->productUnitService
+            ->ensureSalesUnit($productUnit);
+
+        return $productUnit;
     }
 
     public function reverse(Sale $sale): void
