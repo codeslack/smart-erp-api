@@ -38,7 +38,8 @@ class SalePayloadResolver
         string $uuidKey,
         string $idKey,
         string $modelClass,
-        string $label
+        string $label,
+        ?string $errorKey = null
     ): void {
         if (! isset($data[$uuidKey])) {
             return;
@@ -52,7 +53,7 @@ class SalePayloadResolver
             throw new BusinessException(
                 "{$label} ID and UUID references do not match.",
                 'BUSINESS_ERROR',
-                [$uuidKey => ["{$label} ID and UUID references do not match."]]
+                [$errorKey ?? $uuidKey => ["{$label} ID and UUID references do not match."]]
             );
         }
 
@@ -64,17 +65,17 @@ class SalePayloadResolver
     {
         $resolved = [];
 
-        foreach ($rawItems as $item) {
-            $this->resolveUuidReference($item, 'product_uuid', 'product_id', Product::class, 'Product');
-            $this->resolveUuidReference($item, 'product_variant_uuid', 'product_variant_id', ProductVariant::class, 'Product variant');
-            $this->resolveUuidReference($item, 'warehouse_uuid', 'warehouse_id', Warehouse::class, 'Warehouse');
+        foreach ($rawItems as $index => $item) {
+            $this->resolveUuidReference($item, 'product_uuid', 'product_id', Product::class, 'Product', "items.{$index}.product_uuid");
+            $this->resolveUuidReference($item, 'product_variant_uuid', 'product_variant_id', ProductVariant::class, 'Product variant', "items.{$index}.product_variant_uuid");
+            $this->resolveUuidReference($item, 'warehouse_uuid', 'warehouse_id', Warehouse::class, 'Warehouse', "items.{$index}.warehouse_uuid");
 
             if (! isset($item['warehouse_id']) && $defaultWarehouseId) {
                 $item['warehouse_id'] = $defaultWarehouseId;
             }
 
-            $this->resolveUuidReference($item, 'unit_uuid', 'unit_id', Unit::class, 'Unit');
-            $this->resolveUuidReference($item, 'tax_uuid', 'tax_id', Tax::class, 'Tax');
+            $this->resolveUuidReference($item, 'unit_uuid', 'unit_id', Unit::class, 'Unit', "items.{$index}.unit_uuid");
+            $this->resolveUuidReference($item, 'tax_uuid', 'tax_id', Tax::class, 'Tax', "items.{$index}.tax_uuid");
 
             if (! empty($item['product_id']) && (empty($item['item_name']) || empty($item['sku']))) {
                 $product = Product::query()->find($item['product_id']);
