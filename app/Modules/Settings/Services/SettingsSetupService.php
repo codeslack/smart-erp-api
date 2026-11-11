@@ -121,6 +121,15 @@ class SettingsSetupService
             [
                 'tenant_id' => $tenant->id,
                 'group' => SettingGroupEnum::COMPANY->value,
+                'key' => 'state_code',
+                'value' => '19',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+
+            [
+                'tenant_id' => $tenant->id,
+                'group' => SettingGroupEnum::COMPANY->value,
                 'key' => 'city',
                 'value' => 'Kolkata',
                 'created_at' => $now,
