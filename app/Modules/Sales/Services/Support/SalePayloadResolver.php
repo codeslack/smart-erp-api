@@ -123,7 +123,9 @@ class SalePayloadResolver
                 $saleVariantId = isset($item['product_variant_id']) ? (int) $item['product_variant_id'] : null;
                 $orderVariantId = $orderItem->product_variant_id !== null ? (int) $orderItem->product_variant_id : null;
                 $saleUnitId = isset($item['unit_id']) ? (int) $item['unit_id'] : null;
-                $orderUnitId = $orderItem->unit_of_measure_id !== null ? (int) $orderItem->unit_of_measure_id : null;
+                $orderUnitId = $orderItem->unit_of_measure_id !== null
+                    ? (int) $orderItem->unit_of_measure_id
+                    : ($orderItem->product?->unit_id !== null ? (int) $orderItem->product->unit_id : null);
 
                 if (
                     $saleProductId !== $orderProductId
