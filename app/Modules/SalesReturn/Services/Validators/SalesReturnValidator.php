@@ -2,6 +2,9 @@
 
 namespace App\Modules\SalesReturn\Services\Validators;
 
+use App\Modules\Accounting\Enums\AccountType;
+use App\Modules\Accounting\Enums\AccountingAccounts;
+use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Sales\Enums\SaleStatusEnum;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
@@ -290,16 +293,84 @@ class SalesReturnValidator
             $refundType = $refundType->value;
         }
 
-        if (
-            $refundType !== SalesReturnRefundType::CREDIT_NOTE->value
-            && empty($header['refund_account_id'])
-        ) {
+        if ($refundType === SalesReturnRefundType::CREDIT_NOTE->value) {
+            return;
+        }
+
+        if (empty($header['refund_account_id'])) {
             throw ValidationException::withMessages([
                 'refund_account_id' => [
                     'A refund account is required for cash or bank Sales Returns.',
                 ],
             ]);
         }
+
+        $requiredRootCode = match ($refundType) {
+            SalesReturnRefundType::CASH_REFUND->value => AccountingAccounts::CASH,
+            SalesReturnRefundType::BANK_REFUND->value => AccountingAccounts::BANK,
+            default => null,
+        };
+
+        $account = ChartOfAccount::query()->find($header['refund_account_id']);
+
+        $rootAccount = $requiredRootCode !== null
+            ? ChartOfAccount::query()
+                ->where('account_code', $requiredRootCode)
+                ->first()
+            : null;
+
+        if (
+            ! $account
+            || ! $rootAccount
+            || ! $this->belongsToActiveAssetAccountBranch($account, $rootAccount)
+        ) {
+            $accountLabel = $refundType === SalesReturnRefundType::CASH_REFUND->value
+                ? 'Cash'
+                : 'Bank';
+
+            throw ValidationException::withMessages([
+                'refund_account_id' => [
+                    "The selected refund account must be an active {$accountLabel} account or one of its subaccounts.",
+                ],
+            ]);
+        }
+    }
+
+    private function belongsToActiveAssetAccountBranch(
+        ChartOfAccount $account,
+        ChartOfAccount $rootAccount
+    ): bool {
+        $visited = [];
+
+        while ($account) {
+            $accountId = (int) $account->id;
+
+            if (
+                isset($visited[$accountId])
+                || ! $account->is_active
+                || $account->account_type !== AccountType::ASSET
+            ) {
+                return false;
+            }
+
+            if ($accountId === (int) $rootAccount->id) {
+                return true;
+            }
+
+            $visited[$accountId] = true;
+
+            if ($account->parent_id === null) {
+                return false;
+            }
+
+            $account = ChartOfAccount::query()->find($account->parent_id);
+
+            if (! $account) {
+                return false;
+            }
+        }
+
+        return false;
     }
 
     public function validateForUpdate(SalesReturn $return): void
