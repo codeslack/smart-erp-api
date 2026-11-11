@@ -57,6 +57,7 @@ class CancelSaleAction
 
             return $sale->fresh([
                 'items.product',
+                'items.salesOrderItem',
                 'items.variant',
                 'items.warehouse',
                 'items.unit',
