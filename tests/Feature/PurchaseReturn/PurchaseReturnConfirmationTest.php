@@ -134,7 +134,7 @@ class PurchaseReturnConfirmationTest extends TestCase
         $purchaseItem = $taxedPurchase->items->first();
 
         $createRes = $this->postJson('/api/purchase-returns', [
-            'purchase_uuid' => $this->purchase->uuid,
+            'purchase_uuid' => $taxedPurchase->uuid,
             'return_date' => now()->toDateString(),
             'items' => [[
                 'purchase_item_uuid' => $purchaseItem->uuid,
