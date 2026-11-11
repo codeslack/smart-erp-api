@@ -17,6 +17,7 @@ use Tests\Support\CreatesProduct;
 use Tests\Support\CreatesTenant;
 use Tests\Support\CreatesUser;
 use Tests\Support\CreatesWarehouse;
+use Tests\Support\GrantsSalesPermissions;
 use Tests\TestCase;
 
 class SaleCrudTest extends TestCase
@@ -27,6 +28,7 @@ class SaleCrudTest extends TestCase
     use CreatesCustomer;
     use CreatesWarehouse;
     use CreatesProduct;
+    use GrantsSalesPermissions;
 
     protected Tenant $tenant;
     protected User $user;
@@ -43,6 +45,7 @@ class SaleCrudTest extends TestCase
         Sanctum::actingAs($this->user);
 
         app(TenantManager::class)->setTenant($this->tenant);
+        $this->grantSalesPermissions($this->user, $this->tenant);
         app(AccountingSetupService::class)->setup($this->tenant);
 
         $this->customer = $this->createCustomer();
