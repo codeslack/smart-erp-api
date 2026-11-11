@@ -2,7 +2,9 @@
 
 namespace App\Modules\Sales\Services\Posting;
 
+use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
 use App\Modules\Accounting\Models\JournalEntry;
+use App\Modules\Accounting\Services\AccountingReversalService;
 use App\Modules\Accounting\Services\Postings\CustomerAdvanceAdjustmentPostingService;
 use App\Modules\Accounting\Services\Postings\SalesPostingService;
 use App\Modules\AdvanceAllocation\Services\CustomerAdvanceAutoAdjustmentService;
@@ -14,7 +16,8 @@ class SaleAccountingPostingService
     public function __construct(
         protected SalesPostingService $salesPostingService,
         protected CustomerAdvanceAutoAdjustmentService $customerAdvanceAutoAdjustmentService,
-        protected CustomerAdvanceAdjustmentPostingService $customerAdvanceAdjustmentPostingService
+        protected CustomerAdvanceAdjustmentPostingService $customerAdvanceAdjustmentPostingService,
+        protected AccountingReversalService $accountingReversalService
     ) {}
 
     public function post(Sale $sale): void
@@ -37,10 +40,20 @@ class SaleAccountingPostingService
 
     public function reverse(Sale $sale): void
     {
-        JournalEntry::query()
+        $this->customerAdvanceAutoAdjustmentService->reverse($sale);
+
+        $entries = JournalEntry::query()
             ->where('tenant_id', tenantId())
             ->where('reference_type', Sale::class)
             ->where('reference_id', $sale->id)
-            ->delete();
+            ->whereNull('reversal_of_journal_entry_id')
+            ->where('status', JournalEntryStatusEnum::POSTED->value)
+            ->whereDoesntHave('reversal')
+            ->orderBy('id')
+            ->get();
+
+        foreach ($entries as $entry) {
+            $this->accountingReversalService->reverse($entry);
+        }
     }
 }
