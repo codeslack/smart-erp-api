@@ -220,6 +220,7 @@ class SalesReturnCrudTest extends TestCase
         $uuid = $this->makeReturn(1);
         $otherTenant = $this->createTestTenant();
         $otherUser = $this->createTestUser(['tenant_id' => $otherTenant->id]);
+        $this->grantSalesPermissions($otherUser, $otherTenant);
         Sanctum::actingAs($otherUser);
         app(TenantManager::class)->setTenant($otherTenant);
 
