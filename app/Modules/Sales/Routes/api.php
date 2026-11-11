@@ -6,31 +6,34 @@ use Illuminate\Support\Facades\Route;
 Route::middleware([
     'auth:sanctum',
     'tenant',
+    'permission.tenant',
 ])->group(function () {
     Route::post(
         'sales/{uuid}/confirm',
         [SaleController::class, 'confirm']
-    )->name('sales.confirm');
+    )->middleware('permission.auto:sale.confirm')->name('sales.confirm');
 
     Route::post(
         'sales/{uuid}/approve',
         [SaleController::class, 'approve']
-    )->name('sales.approve');
+    )->middleware('permission.auto:sale.confirm')->name('sales.approve');
 
     Route::post(
         'sales/{uuid}/cancel',
         [SaleController::class, 'cancel']
-    )->name('sales.cancel');
+    )->middleware('permission.auto:sale.cancel')->name('sales.cancel');
 
     Route::get(
         'sales/{uuid}/items',
         [SaleController::class, 'items']
-    )->name('sales.items');
+    )->middleware('permission.auto:sale.view')->name('sales.items');
 
-    Route::apiResource(
-        'sales',
-        SaleController::class
-    )->parameters([
-        'sales' => 'uuid',
-    ]);
+    Route::middleware('permission.auto')->group(function () {
+        Route::apiResource(
+            'sales',
+            SaleController::class
+        )->parameters([
+            'sales' => 'uuid',
+        ]);
+    });
 });
