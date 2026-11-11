@@ -110,6 +110,27 @@ class SalesPostingService extends BasePostingService
             $item->update(['tax_snapshot' => $snapshot]);
         }
 
+        $aggregatedTaxLines = [];
+        foreach ($taxLines as $line) {
+            $accountUuid = $line['chart_of_account_uuid'];
+            if (! isset($aggregatedTaxLines[$accountUuid])) {
+                $aggregatedTaxLines[$accountUuid] = $line;
+                continue;
+            }
+
+            $aggregatedTaxLines[$accountUuid]['credit'] = bcadd(
+                $aggregatedTaxLines[$accountUuid]['credit'],
+                $line['credit'],
+                4,
+            );
+            $aggregatedTaxLines[$accountUuid]['foreign_credit'] = bcadd(
+                $aggregatedTaxLines[$accountUuid]['foreign_credit'],
+                $line['foreign_credit'],
+                4,
+            );
+        }
+        $taxLines = array_values($aggregatedTaxLines);
+
         if (bccomp($foreignTaxTotal, $this->decimal($sale->tax_amount), 4) !== 0) {
             if (bccomp($this->decimal($sale->tax_amount), '0.0000', 4) > 0) {
                 throw new BusinessException('Sale tax snapshot totals do not match the Sale tax amount.');
