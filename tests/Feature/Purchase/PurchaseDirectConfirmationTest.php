@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Purchase;
 
+use App\Core\Tenant\TenantManager;
 use App\Modules\Tenant\Models\Tenant;
 use App\Modules\User\Models\User;
 use App\Modules\Supplier\Models\Supplier;
@@ -197,6 +198,8 @@ class PurchaseDirectConfirmationTest extends TestCase
             ->assertJsonPath('data.items.0.base_unit_cost', 50);
 
         $purchaseUuid = $createResponse->json('data.uuid');
+        app(TenantManager::class)->setTenant($this->tenant);
+
         $purchaseId = Purchase::query()
             ->where('uuid', $purchaseUuid)
             ->value('id');
