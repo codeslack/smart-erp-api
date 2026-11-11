@@ -87,16 +87,13 @@ class SaleValidator
             ]);
         }
 
-        $advanceAllocatedAmount = (float) AdvanceAllocation::query()
-            ->where('target_type', Sale::class)
-            ->where('target_id', $sale->id)
-            ->sum('allocated_amount');
-
-        $advanceAllocatedAmount = number_format(
-            $advanceAllocatedAmount,
-            4,
-            '.',
-            ''
+        $advanceAllocatedAmount = bcadd(
+            (string) AdvanceAllocation::query()
+                ->where('target_type', Sale::class)
+                ->where('target_id', $sale->id)
+                ->sum('allocated_amount'),
+            '0',
+            4
         );
 
         if (
