@@ -66,6 +66,11 @@ class UpdateSalesReturnAction
                     $calculatedItems[] = $this->itemCalculator->calculate($item);
                 }
 
+                $headerData = $this->payloadResolver->applySourceHeaderDiscount(
+                    array_merge(['sale_id' => $salesReturn->sale_id], $headerData),
+                    $calculatedItems
+                );
+
                 $totals = $this->calculateTotals(
                     $calculatedItems,
                     $salesReturn,

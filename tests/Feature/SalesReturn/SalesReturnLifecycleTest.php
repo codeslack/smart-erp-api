@@ -492,6 +492,24 @@ class SalesReturnLifecycleTest extends TestCase
             ->firstOrFail();
 
         $this->assertEquals(6, (float) $stock->quantity);
+
+        $this->postJson(route('sales-returns.cancel', ['uuid' => $returnUuid]), [
+            'reason' => 'Serial return cancelled',
+        ])->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $this->assertSame(
+            ProductSerialStatusEnum::SOLD,
+            ProductSerial::query()->findOrFail($serial->id)->status
+        );
+
+        $stock = ProductStock::query()
+            ->where('product_id', $this->product->id)
+            ->where('warehouse_id', $this->warehouse->id)
+            ->firstOrFail();
+
+        $this->assertEquals(5, (float) $stock->quantity);
     }
 
     public function test_batch_sales_return_requires_original_batch_and_posts_converted_base_quantity(): void
