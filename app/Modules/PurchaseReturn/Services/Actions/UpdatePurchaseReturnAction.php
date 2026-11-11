@@ -26,11 +26,15 @@ class UpdatePurchaseReturnAction
 
     public function execute(PurchaseReturn $purchaseReturn, array $data): PurchaseReturn
     {
-        if ($purchaseReturn->status !== PurchaseReturnStatus::DRAFT) {
-            throw new BusinessException('Only draft purchase returns can be modified.');
-        }
-
         return DB::transaction(function () use ($purchaseReturn, $data) {
+            $purchaseReturn = PurchaseReturn::query()
+                ->lockForUpdate()
+                ->findOrFail($purchaseReturn->id);
+
+            if ($purchaseReturn->status !== PurchaseReturnStatus::DRAFT) {
+                throw new BusinessException('Only draft purchase returns can be modified.');
+            }
+
             $resolvedHeader = $this->resolver->resolveHeader($data);
             $rawItems = $resolvedHeader['items'] ?? null;
             unset($resolvedHeader['items']);
