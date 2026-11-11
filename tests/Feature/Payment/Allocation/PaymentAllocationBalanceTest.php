@@ -24,7 +24,13 @@ use App\Modules\Product\Enums\ProductTypeEnum;
 use App\Modules\Product\Models\Product;
 use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Sales\Services\SaleService;
+use App\Modules\SalesReturn\Models\SalesReturn;
+use App\Modules\SalesReturn\Enums\SalesReturnRefundType;
+use App\Modules\SalesReturn\Enums\SalesReturnStatus;
 use App\Modules\Purchase\Services\PurchaseService;
+use App\Modules\PurchaseReturn\Models\PurchaseReturn;
+use App\Modules\PurchaseReturn\Enums\PurchaseReturnRefundType;
+use App\Modules\PurchaseReturn\Enums\PurchaseReturnStatus;
 
 use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Models\ChartOfAccount;
@@ -1095,12 +1101,30 @@ class PaymentAllocationBalanceTest extends TestCase
         $this->assertEquals(40, (float) $sale->paid_amount);
         $this->assertEquals(60, (float) $sale->due_amount);
 
+        SalesReturn::create([
+            'sale_id' => $sale->id,
+            'customer_id' => $this->customer->id,
+            'return_no' => 'SR-PAY-REV-001',
+            'return_date' => now()->toDateString(),
+            'subtotal' => 20,
+            'discount_amount' => 0,
+            'tax_amount' => 0,
+            'rounding_amount' => 0,
+            'grand_total' => 20,
+            'refund_amount' => 0,
+            'credited_amount' => 20,
+            'refund_type' => SalesReturnRefundType::CREDIT_NOTE,
+            'status' => SalesReturnStatus::CONFIRMED,
+        ]);
+
+        $sale->update(['due_amount' => 40]);
+
         app(PaymentServiceInterface::class)->reverse($payment);
 
         $sale->refresh();
 
         $this->assertEquals(0, (float) $sale->paid_amount);
-        $this->assertEquals(100, (float) $sale->due_amount);
+        $this->assertEquals(80, (float) $sale->due_amount);
         $this->assertSame(
             DocumentStatusEnum::REVERSED->value,
             $payment->fresh()->status
@@ -1151,12 +1175,30 @@ class PaymentAllocationBalanceTest extends TestCase
         $this->assertEquals(40, (float) $purchase->paid_amount);
         $this->assertEquals(60, (float) $purchase->due_amount);
 
+        PurchaseReturn::create([
+            'purchase_id' => $purchase->id,
+            'supplier_id' => $this->supplier->id,
+            'return_no' => 'PR-PAY-REV-001',
+            'return_date' => now()->toDateString(),
+            'subtotal' => 20,
+            'discount_amount' => 0,
+            'tax_amount' => 0,
+            'rounding_amount' => 0,
+            'grand_total' => 20,
+            'refund_amount' => 0,
+            'credited_amount' => 20,
+            'refund_type' => PurchaseReturnRefundType::CREDIT_NOTE,
+            'status' => PurchaseReturnStatus::CONFIRMED,
+        ]);
+
+        $purchase->update(['due_amount' => 40]);
+
         app(PaymentServiceInterface::class)->reverse($payment);
 
         $purchase->refresh();
 
         $this->assertEquals(0, (float) $purchase->paid_amount);
-        $this->assertEquals(100, (float) $purchase->due_amount);
+        $this->assertEquals(80, (float) $purchase->due_amount);
         $this->assertSame(
             DocumentStatusEnum::REVERSED->value,
             $payment->fresh()->status
