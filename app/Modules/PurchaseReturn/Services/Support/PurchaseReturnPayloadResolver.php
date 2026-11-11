@@ -2,6 +2,7 @@
 
 namespace App\Modules\PurchaseReturn\Services\Support;
 
+use App\Core\Exceptions\BusinessException;
 use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Product\Models\Product;
 use App\Modules\Product\Models\ProductVariant;
@@ -23,15 +24,33 @@ class PurchaseReturnPayloadResolver
             unset($data['purchase_uuid']);
         }
 
-        if (isset($data['purchase_id']) && ! isset($data['supplier_id']) && ! isset($data['supplier_uuid'])) {
-            $data['supplier_id'] = Purchase::query()
-                ->where('id', $data['purchase_id'])
-                ->value('supplier_id');
+        if (isset($data['supplier_uuid'])) {
+            $supplierId = Supplier::query()
+                ->where('uuid', $data['supplier_uuid'])
+                ->value('id');
+
+            if (isset($data['supplier_id']) && (int) $data['supplier_id'] !== (int) $supplierId) {
+                throw new BusinessException('Supplier references do not match.');
+            }
+
+            $data['supplier_id'] = $data['supplier_id'] ?? $supplierId;
+            unset($data['supplier_uuid']);
         }
 
-        if (isset($data['supplier_uuid']) && ! isset($data['supplier_id'])) {
-            $data['supplier_id'] = Supplier::query()->where('uuid', $data['supplier_uuid'])->value('id');
-            unset($data['supplier_uuid']);
+        if (isset($data['purchase_id'])) {
+            $purchaseSupplierId = Purchase::query()
+                ->whereKey($data['purchase_id'])
+                ->value('supplier_id');
+
+            if (
+                $purchaseSupplierId !== null
+                && isset($data['supplier_id'])
+                && (int) $data['supplier_id'] !== (int) $purchaseSupplierId
+            ) {
+                throw new BusinessException('Supplier does not match the referenced purchase.');
+            }
+
+            $data['supplier_id'] = $purchaseSupplierId ?? ($data['supplier_id'] ?? null);
         }
 
         if (isset($data['refund_account_uuid']) && ! isset($data['refund_account_id'])) {
