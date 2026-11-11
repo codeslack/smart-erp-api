@@ -78,6 +78,27 @@ class SalesReturnPostingService extends BasePostingService
             }
         }
 
+        $aggregatedTaxLines = [];
+        foreach ($taxLines as $line) {
+            $accountUuid = $line['chart_of_account_uuid'];
+            if (! isset($aggregatedTaxLines[$accountUuid])) {
+                $aggregatedTaxLines[$accountUuid] = $line;
+                continue;
+            }
+
+            $aggregatedTaxLines[$accountUuid]['debit'] = bcadd(
+                $aggregatedTaxLines[$accountUuid]['debit'],
+                $line['debit'],
+                4,
+            );
+            $aggregatedTaxLines[$accountUuid]['foreign_debit'] = bcadd(
+                $aggregatedTaxLines[$accountUuid]['foreign_debit'],
+                $line['foreign_debit'],
+                4,
+            );
+        }
+        $taxLines = array_values($aggregatedTaxLines);
+
         if (bccomp($foreignTaxTotal, $this->decimal($salesReturn->tax_amount), 4) !== 0
             && bccomp($this->decimal($salesReturn->tax_amount), '0.0000', 4) > 0) {
             throw new BusinessException('Sales Return tax snapshot totals do not match the return tax amount.');
