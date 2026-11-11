@@ -238,13 +238,15 @@ class SalesReturnCrudTest extends TestCase
                 'product_uuid' => $this->product->uuid,
                 'quantity' => 2,
                 'unit_price' => 100,
+                'discount_type' => 'percentage',
+                'discount_rate' => 10,
             ]],
         ]);
 
         $sale = app(SaleService::class)->confirm($sale->uuid);
         $saleItem = $sale->items->first();
 
-        $this->assertEquals(180, (float) $sale->grand_total);
+        $this->assertEquals(160, (float) $sale->grand_total);
 
         $firstReturn = $this->postJson(route('sales-returns.store'), [
             'sale_uuid' => $sale->uuid,
@@ -257,8 +259,8 @@ class SalesReturnCrudTest extends TestCase
 
         $firstReturn
             ->assertCreated()
-            ->assertJsonPath('data.grand_total', 90)
-            ->assertJsonPath('data.discount_amount', 10);
+            ->assertJsonPath('data.grand_total', 80)
+            ->assertJsonPath('data.discount_amount', 20);
 
         $secondReturn = $this->postJson(route('sales-returns.store'), [
             'sale_uuid' => $sale->uuid,
@@ -271,8 +273,8 @@ class SalesReturnCrudTest extends TestCase
 
         $secondReturn
             ->assertCreated()
-            ->assertJsonPath('data.grand_total', 90)
-            ->assertJsonPath('data.discount_amount', 10);
+            ->assertJsonPath('data.grand_total', 80)
+            ->assertJsonPath('data.discount_amount', 20);
 
         $updateResponse = $this->putJson(
             route('sales-returns.update', ['uuid' => $firstReturn->json('data.uuid')]),
@@ -286,8 +288,8 @@ class SalesReturnCrudTest extends TestCase
 
         $updateResponse
             ->assertOk()
-            ->assertJsonPath('data.grand_total', 45)
-            ->assertJsonPath('data.discount_amount', 5);
+            ->assertJsonPath('data.grand_total', 40)
+            ->assertJsonPath('data.discount_amount', 10);
     }
 
 }
