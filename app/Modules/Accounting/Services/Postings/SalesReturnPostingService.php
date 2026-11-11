@@ -24,10 +24,14 @@ class SalesReturnPostingService extends BasePostingService
     {
         $grandTotal = $this->decimal($salesReturn->grand_total);
         $this->validateAmount($grandTotal);
-        $salesReturn->loadMissing('refundAccount', 'items');
+        $salesReturn->loadMissing('sale', 'refundAccount', 'items');
 
-        $exchangeRate = $this->decimalRate($salesReturn->exchange_rate ?? '1.00000000');
-        $currencyCode = strtoupper((string) ($salesReturn->currency_code ?: 'INR'));
+        $exchangeRate = $this->decimalRate(
+            $salesReturn->exchange_rate ?? $salesReturn->sale?->exchange_rate ?? '1.00000000'
+        );
+        $currencyCode = strtoupper((string) (
+            $salesReturn->currency_code ?: $salesReturn->sale?->currency_code ?: 'INR'
+        ));
         $baseGrandTotal = $this->decimal(bcmul($grandTotal, $exchangeRate, 8));
 
         $foreignTaxTotal = '0.0000';
@@ -56,11 +60,10 @@ class SalesReturnPostingService extends BasePostingService
                 $account = ChartOfAccount::query()
                     ->where('tenant_id', tenantId())
                     ->where('uuid', $accountUuid)
-                    ->where('is_active', true)
                     ->first();
 
                 if (! $account) {
-                    throw new BusinessException('The original output tax account is missing or inactive.');
+                    throw new BusinessException('The original output tax account is missing.');
                 }
 
                 $baseAmount = $this->decimal(bcmul($foreignAmount, $exchangeRate, 8));
