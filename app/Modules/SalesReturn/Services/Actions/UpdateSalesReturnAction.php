@@ -30,7 +30,18 @@ class UpdateSalesReturnAction
 
             $this->validator->validateForUpdate($salesReturn);
 
-            $headerData = $this->payloadResolver->resolveHeader($data);
+            $headerInput = $data;
+            $sourceSaleProvided = isset($data['sale_id']) || isset($data['sale_uuid']);
+
+            if (! $sourceSaleProvided) {
+                $headerInput['sale_id'] = $salesReturn->sale_id;
+
+                if (! isset($data['customer_id']) && ! isset($data['customer_uuid'])) {
+                    $headerInput['customer_id'] = $salesReturn->customer_id;
+                }
+            }
+
+            $headerData = $this->payloadResolver->resolveHeader($headerInput);
             $hasItems = isset($headerData['items']) && is_array($headerData['items']);
 
             if ($hasItems) {
