@@ -118,6 +118,8 @@ class ConfirmSaleAction
 
             return $sale->fresh([
                 'items.product',
+                'items.taxGroup',
+                'items.taxApplicabilityRule',
                 'items.salesOrderItem',
                 'items.variant',
                 'items.warehouse',
