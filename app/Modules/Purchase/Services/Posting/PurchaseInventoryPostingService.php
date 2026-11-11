@@ -101,7 +101,8 @@ class PurchaseInventoryPostingService
                         $item,
                         $batchItem,
                         $warehouseId,
-                        $baseUnitCost
+                        $baseUnitCost,
+                        $batchBaseQuantity
                     );
 
                     $movement = new InventoryMovementData(
@@ -254,7 +255,8 @@ class PurchaseInventoryPostingService
         PurchaseItem $item,
         PurchaseItemBatch $batchItem,
         int $warehouseId,
-        float $baseUnitCost
+        float $baseUnitCost,
+        float $batchBaseQuantity
     ) {
         $batch = $this->inventoryBatchService->findByBatchNumber(
             $batchItem->batch_no,
@@ -283,7 +285,7 @@ class PurchaseInventoryPostingService
 
         $this->inventoryBatchService->initializeOriginalQuantity(
             $draft,
-            (float) ($batchItem->base_quantity ?? $batchItem->quantity),
+            $batchBaseQuantity,
         );
 
         return $this->inventoryBatchService->activate($draft);
