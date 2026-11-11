@@ -26,15 +26,19 @@ class ConfirmPurchaseAction
 
     public function execute(Purchase $purchase): Purchase
     {
-        if (! $purchase->isDraft()) {
-            throw new BusinessException('Only draft purchases can be confirmed.');
-        }
-
-        if ($purchase->items()->count() === 0) {
-            throw new BusinessException('Cannot confirm a purchase invoice without line items.');
-        }
-
         return DB::transaction(function () use ($purchase) {
+            $purchase = Purchase::query()
+                ->lockForUpdate()
+                ->findOrFail($purchase->id);
+
+            if (! $purchase->isDraft()) {
+                throw new BusinessException('Only draft purchases can be confirmed.');
+            }
+
+            if ($purchase->items()->count() === 0) {
+                throw new BusinessException('Cannot confirm a purchase invoice without line items.');
+            }
+
             // Lock and re-validate cumulative quantities against GRN
             $this->validator->validateCumulativeBilledQuantities($purchase);
 
