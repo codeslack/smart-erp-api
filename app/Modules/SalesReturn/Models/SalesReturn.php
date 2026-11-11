@@ -22,7 +22,6 @@ class SalesReturn extends TenantModel
     protected $table = 'sales_returns';
 
     protected $fillable = [
-        'tenant_id',
         'uuid',
         'return_no',
         'sale_id',
