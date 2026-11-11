@@ -7,6 +7,11 @@ use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
 use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Accounting\Models\JournalEntry;
+use App\Modules\Tax\Models\TaxGroup;
+use App\Modules\Tax\Models\TaxComponent;
+use App\Modules\Tax\Models\TaxApplicabilityRule;
+use App\Modules\Tax\Models\TaxAccountingMapping;
+use App\Modules\Tax\Services\TaxSetupService;
 use App\Modules\AdvanceAllocation\Services\AdvanceAllocationService;
 use App\Modules\Accounting\Services\AccountingSetupService;
 use App\Modules\Customer\Models\Customer;
@@ -830,6 +835,118 @@ class SaleLifecycleTest extends TestCase
             app(AdvanceAllocationService::class)
                 ->getAvailableCustomerAdvance($advancePayment->fresh())
         );
+    }
+
+
+    public function test_sale_automatically_resolves_output_tax_and_posts_tax_separately(): void
+    {
+        app(TaxSetupService::class)->setup($this->tenant);
+        $this->customer->update(['country_code' => 'IN', 'state_code' => '19']);
+
+        $group = TaxGroup::query()->where('code', 'GST18-INTRA-OUT')->firstOrFail();
+        TaxApplicabilityRule::create([
+            'tax_group_id' => $group->id,
+            'source_country_code' => 'IN',
+            'source_state_code' => '19',
+            'destination_country_code' => 'IN',
+            'destination_state_code' => '19',
+            'place_of_supply_state_code' => '19',
+            'priority' => 1,
+            'is_active' => true,
+            'effective_from' => now()->toDateString(),
+        ]);
+
+        $taxAccount = ChartOfAccount::query()
+            ->where('account_code', AccountingAccounts::OUTPUT_TAX_PAYABLE)
+            ->firstOrFail();
+
+        foreach (['CGST', 'SGST'] as $componentType) {
+            $component = TaxComponent::query()
+                ->where('component_type', $componentType)
+                ->firstOrFail();
+
+            TaxAccountingMapping::create([
+                'tax_component_id' => $component->id,
+                'account_id' => $taxAccount->id,
+                'direction' => 'OUTPUT',
+                'is_active' => true,
+                'effective_from' => now()->toDateString(),
+            ]);
+        }
+
+        $create = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $this->product->id,
+                'quantity' => 1,
+                'unit_price' => 100,
+            ]],
+        ])->assertCreated();
+
+        $uuid = $create->json('data.uuid');
+        $this->postJson(route('sales.confirm', $uuid))
+            ->assertOk()
+            ->assertJsonPath('data.tax_amount', 18);
+
+        app(TenantManager::class)->setTenant($this->tenant);
+        $sale = Sale::query()->where('uuid', $uuid)->firstOrFail();
+        $item = $sale->items()->firstOrFail();
+
+        $this->assertEquals(18, (float) $item->tax_amount);
+        $this->assertSame($group->id, $item->tax_group_id);
+        $this->assertSame('STANDARD', $item->tax_snapshot['treatment']);
+        $this->assertCount(2, $item->tax_snapshot['components']);
+
+        $entry = JournalEntry::query()
+            ->where('reference_type', Sale::class)
+            ->where('reference_id', $sale->id)
+            ->orderBy('id')
+            ->firstOrFail();
+        $receivable = ChartOfAccount::query()->where('account_code', AccountingAccounts::ACCOUNTS_RECEIVABLE)->firstOrFail();
+        $revenue = ChartOfAccount::query()->where('account_code', AccountingAccounts::SALES_REVENUE)->firstOrFail();
+
+        $this->assertTrue($entry->lines()->where('chart_of_account_id', $receivable->id)->where('debit', 118)->exists());
+        $this->assertTrue($entry->lines()->where('chart_of_account_id', $revenue->id)->where('credit', 100)->exists());
+        $this->assertTrue($entry->lines()->where('chart_of_account_id', $taxAccount->id)->where('credit', 18)->exists());
+        $this->assertNotEmpty($item->fresh()->tax_snapshot['components'][0]['tax_account_uuid']);
+    }
+
+    public function test_foreign_currency_sale_posts_base_and_transaction_currency_amounts(): void
+    {
+        $create = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sale_date' => now()->toDateString(),
+            'currency_code' => 'USD',
+            'exchange_rate' => 83.25,
+            'items' => [[
+                'product_id' => $this->product->id,
+                'quantity' => 1,
+                'unit_price' => 100,
+            ]],
+        ])->assertCreated();
+
+        $uuid = $create->json('data.uuid');
+        $this->postJson(route('sales.confirm', $uuid))->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+        $sale = Sale::query()->where('uuid', $uuid)->firstOrFail();
+        $entry = JournalEntry::query()
+            ->where('reference_type', Sale::class)
+            ->where('reference_id', $sale->id)
+            ->orderBy('id')
+            ->firstOrFail();
+        $receivable = ChartOfAccount::query()->where('account_code', AccountingAccounts::ACCOUNTS_RECEIVABLE)->firstOrFail();
+
+        $this->assertSame('USD', $entry->currency_code);
+        $this->assertEquals(83.25, (float) $entry->exchange_rate);
+        $this->assertTrue($entry->lines()
+            ->where('chart_of_account_id', $receivable->id)
+            ->where('debit', 8325)
+            ->where('foreign_debit', 100)
+            ->exists());
     }
 
 }
