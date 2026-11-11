@@ -35,7 +35,18 @@ class UpdatePurchaseReturnAction
                 throw new BusinessException('Only draft purchase returns can be modified.');
             }
 
-            $resolvedHeader = $this->resolver->resolveHeader($data);
+            $headerInput = $data;
+            $sourcePurchaseProvided = isset($data['purchase_id']) || isset($data['purchase_uuid']);
+
+            if (! $sourcePurchaseProvided) {
+                $headerInput['purchase_id'] = $purchaseReturn->purchase_id;
+
+                if (! isset($data['supplier_id']) && ! isset($data['supplier_uuid'])) {
+                    $headerInput['supplier_id'] = $purchaseReturn->supplier_id;
+                }
+            }
+
+            $resolvedHeader = $this->resolver->resolveHeader($headerInput);
             $rawItems = $resolvedHeader['items'] ?? null;
             unset($resolvedHeader['items']);
 
