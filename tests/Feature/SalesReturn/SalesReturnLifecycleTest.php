@@ -703,6 +703,57 @@ class SalesReturnLifecycleTest extends TestCase
         );
     }
 
+    public function test_service_sales_return_can_be_confirmed_after_source_product_is_soft_deleted(): void
+    {
+        $serviceProduct = $this->createProduct([
+            'name' => 'Soft Deleted Service Product',
+            'product_type' => ProductTypeEnum::SERVICE,
+            'inventory_tracking_type' => InventoryTrackingTypeEnum::NONE,
+            'selling_price' => 100,
+        ]);
+
+        $sale = app(SaleService::class)->create([
+            'customer_uuid' => $this->customer->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_uuid' => $serviceProduct->uuid,
+                'line_type' => 'service',
+                'quantity' => 1,
+                'unit_price' => 100,
+            ]],
+        ]);
+
+        $sale = app(SaleService::class)->confirm($sale->uuid);
+        $saleItem = $sale->items->first();
+
+        app(\App\Modules\Product\Services\ProductService::class)
+            ->delete($serviceProduct);
+
+        $this->assertSoftDeleted('products', [
+            'id' => $serviceProduct->id,
+        ]);
+
+        $createResponse = $this->postJson(route('sales-returns.store'), [
+            'sale_uuid' => $sale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'sale_item_uuid' => $saleItem->uuid,
+                'returned_quantity' => 1,
+            ]],
+        ]);
+
+        $createResponse
+            ->assertCreated()
+            ->assertJsonPath('data.items.0.product', null);
+
+        $returnUuid = $createResponse->json('data.uuid');
+
+        $this->postJson(route('sales-returns.confirm', ['uuid' => $returnUuid]))
+            ->assertOk()
+            ->assertJsonPath('data.status', 'confirmed');
+    }
+
     public function test_sales_return_can_be_cancelled(): void
     {
         $saleItem = $this->sale->items->first();
