@@ -14,7 +14,6 @@ class PurchaseReturnItemBatch extends TenantModel
     protected $table = 'purchase_return_item_batches';
 
     protected $fillable = [
-        'tenant_id',
         'purchase_return_id',
         'purchase_return_item_id',
         'product_batch_id',
