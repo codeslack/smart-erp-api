@@ -123,6 +123,60 @@ class SalesOrderCrudTest extends TestCase
         ]);
     }
 
+    public function test_sales_order_rejects_client_controlled_fulfillment_counters(): void
+    {
+        $payload = [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'order_date' => '2026-10-30',
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 2,
+                    'unit_price' => 50,
+                    'delivered_quantity' => 2,
+                    'invoiced_quantity' => 2,
+                    'cancelled_quantity' => 2,
+                ],
+            ],
+        ];
+
+        $this->postJson(route('sales-orders.store'), $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0');
+
+        $createResponse = $this->postJson(route('sales-orders.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'order_date' => '2026-10-30',
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 2,
+                    'unit_price' => 50,
+                ],
+            ],
+        ]);
+
+        $createResponse->assertCreated();
+
+        $uuid = $createResponse->json('data.uuid');
+        $updatePayload = [
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 2,
+                    'unit_price' => 50,
+                    'delivered_quantity' => 2,
+                ],
+            ],
+        ];
+
+        $this->putJson(route('sales-orders.update', $uuid), $updatePayload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0');
+    }
+
     public function test_sales_order_can_be_retrieved_by_uuid(): void
     {
         $createResponse = $this->postJson(route('sales-orders.store'), [
