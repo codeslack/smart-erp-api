@@ -39,11 +39,12 @@ use Tests\Support\CreatesProduct;
 use Tests\Support\CreatesTenant;
 use Tests\Support\CreatesUser;
 use Tests\Support\CreatesWarehouse;
+use Tests\Support\GrantsSalesPermissions;
 use Tests\TestCase;
 
 class SalesReturnLifecycleTest extends TestCase
 {
-    use RefreshDatabase, CreatesTenant, CreatesUser, CreatesCustomer, CreatesWarehouse, CreatesProduct;
+    use RefreshDatabase, CreatesTenant, CreatesUser, CreatesCustomer, CreatesWarehouse, CreatesProduct, GrantsSalesPermissions;
 
     protected Tenant $tenant;
     protected User $user;
@@ -59,6 +60,7 @@ class SalesReturnLifecycleTest extends TestCase
         $this->user = $this->createTestUser();
         Sanctum::actingAs($this->user);
         app(TenantManager::class)->setTenant($this->tenant);
+        $this->grantSalesPermissions($this->user, $this->tenant);
         app(AccountingSetupService::class)->setup($this->tenant);
 
         $this->customer = $this->createCustomer();

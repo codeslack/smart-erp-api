@@ -6,31 +6,34 @@ use Illuminate\Support\Facades\Route;
 Route::middleware([
     'auth:sanctum',
     'tenant',
+    'permission.tenant',
 ])->group(function () {
     Route::post(
         'sales-returns/{uuid}/confirm',
         [SalesReturnController::class, 'confirm']
-    )->name('sales-returns.confirm');
+    )->middleware('permission.auto:sales-return.confirm')->name('sales-returns.confirm');
 
     Route::post(
         'sales-returns/{uuid}/approve',
         [SalesReturnController::class, 'approve']
-    )->name('sales-returns.approve');
+    )->middleware('permission.auto:sales-return.approve')->name('sales-returns.approve');
 
     Route::post(
         'sales-returns/{uuid}/cancel',
         [SalesReturnController::class, 'cancel']
-    )->name('sales-returns.cancel');
+    )->middleware('permission.auto:sales-return.cancel')->name('sales-returns.cancel');
 
     Route::get(
         'sales-returns/{uuid}/items',
         [SalesReturnController::class, 'items']
-    )->name('sales-returns.items');
+    )->middleware('permission.auto:sales-return.view')->name('sales-returns.items');
 
-    Route::apiResource(
-        'sales-returns',
-        SalesReturnController::class
-    )->parameters([
-        'sales-returns' => 'uuid',
-    ]);
+    Route::middleware('permission.auto')->group(function () {
+        Route::apiResource(
+            'sales-returns',
+            SalesReturnController::class
+        )->parameters([
+            'sales-returns' => 'uuid',
+        ]);
+    });
 });
