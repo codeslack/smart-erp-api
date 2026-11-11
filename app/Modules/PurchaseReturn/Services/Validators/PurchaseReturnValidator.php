@@ -29,6 +29,15 @@ class PurchaseReturnValidator
             throw new BusinessException('Purchase returns can only be created against confirmed purchases.');
         }
 
+        if (
+            isset($headerData['supplier_id'])
+            && (int) $headerData['supplier_id'] !== (int) $purchase->supplier_id
+        ) {
+            throw ValidationException::withMessages([
+                'supplier_uuid' => ['Supplier does not match the referenced purchase.'],
+            ]);
+        }
+
         if (empty($items)) {
             throw new BusinessException('Purchase return must contain at least one item.');
         }
@@ -77,7 +86,10 @@ class PurchaseReturnValidator
         ])->all();
 
         $this->validateForSave(
-            ['purchase_id' => $purchaseReturn->purchase_id],
+            [
+                'purchase_id' => $purchaseReturn->purchase_id,
+                'supplier_id' => $purchaseReturn->supplier_id,
+            ],
             $items,
             $purchaseReturn->id
         );
