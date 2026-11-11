@@ -30,6 +30,10 @@ class UpdatePurchaseRequest extends BaseRequest
             'notes' => ['nullable', 'string', 'max:1000'],
 
             'items' => ['sometimes', 'required', 'array', 'min:1'],
+            'items.*' => [
+                'required',
+                'array:product_id,product_uuid,product_variant_id,product_variant_uuid,warehouse_id,warehouse_uuid,goods_receipt_note_item_id,goods_receipt_note_item_uuid,purchase_order_item_id,purchase_order_item_uuid,unit_id,unit_uuid,quantity,unit_cost,discount_type,discount_rate,discount_percentage,discount_amount,tax_id,tax_uuid,tax_rate,tax_amount,batches,serials',
+            ],
             'items.*.product_id' => ['nullable', 'integer', TenantRule::exists('products', 'id')],
             'items.*.product_uuid' => ['nullable', 'string', TenantRule::exists('products', 'uuid')],
             'items.*.product_variant_id' => ['nullable', 'integer', TenantRule::exists('product_variants', 'id')],
@@ -43,7 +47,6 @@ class UpdatePurchaseRequest extends BaseRequest
             'items.*.unit_id' => ['nullable', 'integer', TenantRule::exists('units', 'id')],
             'items.*.unit_uuid' => ['nullable', 'string', TenantRule::exists('units', 'uuid')],
             'items.*.quantity' => ['required_with:items', 'numeric', 'gt:0'],
-            'items.*.base_quantity' => ['nullable', 'numeric', 'gt:0'],
             'items.*.unit_cost' => ['required_with:items', 'numeric', 'gte:0'],
             'items.*.discount_type' => ['nullable', 'in:none,fixed,percentage'],
             'items.*.discount_rate' => ['nullable', 'numeric', 'min:0'],
@@ -54,15 +57,22 @@ class UpdatePurchaseRequest extends BaseRequest
             'items.*.tax_rate' => ['nullable', 'numeric', 'min:0'],
             'items.*.tax_amount' => ['nullable', 'numeric', 'min:0'],
             'items.*.batches' => ['nullable', 'array'],
+            'items.*.batches.*' => [
+                'required',
+                'array:batch_no,quantity,manufacturing_date,expiry_date',
+            ],
             'items.*.batches.*.batch_no' => ['required_with:items.*.batches', 'string', 'max:100'],
             'items.*.batches.*.quantity' => ['required_with:items.*.batches', 'numeric', 'gt:0'],
-            'items.*.batches.*.base_quantity' => ['nullable', 'numeric', 'gt:0'],
             'items.*.batches.*.manufacturing_date' => ['nullable', 'date'],
             'items.*.batches.*.expiry_date' => ['nullable', 'date'],
             'items.*.serials' => ['nullable', 'array'],
             'items.*.serials.*' => ['nullable'],
 
             'charges' => ['sometimes', 'nullable', 'array'],
+            'charges.*' => [
+                'required',
+                'array:charge_type,name,calculation_method,calculation_value,amount,tax_id,tax_uuid,tax_rate,tax_amount,treatment,allocation_method,affects_inventory_cost,chart_of_account_id,chart_of_account_uuid,sort_order',
+            ],
             'charges.*.charge_type' => ['required_with:charges', 'string', 'max:50'],
             'charges.*.name' => ['required_with:charges', 'string', 'max:150'],
             'charges.*.calculation_method' => ['nullable', 'in:fixed,percentage'],
