@@ -380,7 +380,10 @@ class SaleLifecycleTest extends TestCase
             ->where('uuid', $orderUuid)
             ->firstOrFail();
 
-        return $order->items()->firstOrFail();
+        $orderItem = $order->items()->firstOrFail();
+        $orderItem->load('salesOrder');
+
+        return $orderItem;
     }
 
     public function test_sale_invoice_updates_linked_sales_order_item_quantity(): void
