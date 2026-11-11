@@ -40,6 +40,11 @@ class CreateSalesReturnAction
                 $calculatedItems[] = $this->itemCalculator->calculate($item);
             }
 
+            $headerData = $this->payloadResolver->applySourceHeaderDiscount(
+                $headerData,
+                $calculatedItems
+            );
+
             $totals = $this->calculator->calculate($calculatedItems, $headerData);
 
             $returnNo = $headerData['return_no'] ?? nextDocumentNumber(DocumentType::SALES_RETURN);
