@@ -360,6 +360,8 @@ class SalesReturnLifecycleTest extends TestCase
         $this->postJson(route('sales-returns.confirm', ['uuid' => $returnUuid]))
             ->assertOk();
 
+        app(TenantManager::class)->setTenant($this->tenant);
+
         $this->assertSame(
             ProductSerialStatusEnum::AVAILABLE,
             ProductSerial::query()->findOrFail($serial->id)->status
@@ -520,6 +522,8 @@ class SalesReturnLifecycleTest extends TestCase
         $createResponse->assertCreated();
         $returnUuid = $createResponse->json('data.uuid');
 
+        app(TenantManager::class)->setTenant($this->tenant);
+
         $return = SalesReturn::query()->where('uuid', $returnUuid)->firstOrFail();
         $returnItem = $return->items()->firstOrFail();
 
@@ -540,6 +544,8 @@ class SalesReturnLifecycleTest extends TestCase
 
         $this->postJson(route('sales-returns.confirm', ['uuid' => $returnUuid]))
             ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
 
         $this->assertEquals(7.5, (float) $batch->fresh()->remaining_quantity);
         $this->assertDatabaseHas('stock_ledgers', [
