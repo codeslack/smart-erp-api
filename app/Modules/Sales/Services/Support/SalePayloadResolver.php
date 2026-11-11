@@ -2,6 +2,8 @@
 
 namespace App\Modules\Sales\Services\Support;
 
+use App\Core\Exceptions\BusinessException;
+use App\Modules\ProductUnit\Services\ProductUnitService;
 use App\Modules\Customer\Models\Customer;
 use App\Modules\DeliveryNote\Models\DeliveryNote;
 use App\Modules\PaymentTerm\Models\PaymentTerm;
@@ -15,6 +17,10 @@ use App\Modules\Warehouse\Models\Warehouse;
 
 class SalePayloadResolver
 {
+    public function __construct(
+        protected ProductUnitService $productUnitService
+    ) {}
+
     public function resolveHeader(array $data): array
     {
         if (isset($data['customer_uuid']) && ! isset($data['customer_id'])) {
@@ -112,6 +118,68 @@ class SalePayloadResolver
                     if (! isset($item['unit_id']) && $product->unit_id) {
                         $item['unit_id'] = $product->unit_id;
                     }
+                }
+            }
+
+            $product = ! empty($item['product_id'])
+                ? Product::query()->find((int) $item['product_id'])
+                : null;
+
+            if (
+                $product
+                && ! isset($item['unit_id'])
+                && $product->unit_id
+            ) {
+                $item['unit_id'] = (int) $product->unit_id;
+            }
+
+            $productUnit = null;
+            $conversionFactor = 1.0;
+
+            if ($product && $product->requiresStock() && isset($item['unit_id'])) {
+                $productUnit = $this->productUnitService
+                    ->findByProductAndUnit(
+                        $product->id,
+                        (int) $item['unit_id']
+                    );
+
+                if (
+                    ! $productUnit
+                    && (int) ($product->unit_id ?? 0) === (int) $item['unit_id']
+                ) {
+                    $productUnit = $this->productUnitService
+                        ->syncBaseUnit($product);
+                }
+
+                if (! $productUnit) {
+                    throw new BusinessException(
+                        'The selected sales unit is not configured for this product.'
+                    );
+                }
+
+                $this->productUnitService
+                    ->ensureSalesUnit($productUnit);
+
+                $conversionFactor = (float) $productUnit->conversion_factor;
+            }
+
+            if ($conversionFactor <= 0) {
+                throw new BusinessException(
+                    'The selected sales unit has an invalid conversion factor.'
+                );
+            }
+
+            $item['base_quantity'] = round(
+                (float) ($item['quantity'] ?? 0) * $conversionFactor,
+                4
+            );
+
+            if (isset($item['batches']) && is_array($item['batches'])) {
+                foreach ($item['batches'] as $index => $batch) {
+                    $item['batches'][$index]['base_quantity'] = round(
+                        (float) ($batch['quantity'] ?? 0) * $conversionFactor,
+                        4
+                    );
                 }
             }
 
