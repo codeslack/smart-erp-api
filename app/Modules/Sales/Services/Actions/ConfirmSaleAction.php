@@ -68,6 +68,12 @@ class ConfirmSaleAction
                         'sales_order_id' => ['Only an active, confirmed sales order can be invoiced.'],
                     ]);
                 }
+
+                if ((int) $salesOrder->customer_id !== (int) $sale->customer_id) {
+                    throw ValidationException::withMessages([
+                        'customer_id' => ['The sale customer must match the linked sales order customer.'],
+                    ]);
+                }
             }
 
             $quantities = $linkedItems
