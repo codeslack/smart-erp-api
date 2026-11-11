@@ -840,6 +840,8 @@ class SalesReturnLifecycleTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors('refund_account_id');
 
+        app(TenantManager::class)->setTenant($this->tenant);
+
         $bankSubaccount = ChartOfAccount::create([
             'account_group_id' => $bankAccount->account_group_id,
             'parent_id' => $bankAccount->id,
