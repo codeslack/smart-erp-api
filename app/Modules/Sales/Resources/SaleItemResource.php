@@ -52,8 +52,8 @@ class SaleItemResource extends JsonResource
             'net_unit_price' => (float) $this->net_unit_price,
             'subtotal' => (float) $this->subtotal,
 
-            'tax_group_uuid' => $this->tax_group_id ? $this->taxGroup?->uuid : null,
-            'tax_applicability_rule_uuid' => $this->tax_applicability_rule_id ? $this->taxApplicabilityRule?->uuid : null,
+            'tax_group_uuid' => $this->whenLoaded('taxGroup', fn () => $this->taxGroup?->uuid),
+            'tax_applicability_rule_uuid' => $this->whenLoaded('taxApplicabilityRule', fn () => $this->taxApplicabilityRule?->uuid),
             'tax_snapshot' => $this->tax_snapshot,
             'tax_rate' => (float) $this->tax_rate,
             'tax_amount' => (float) $this->tax_amount,
