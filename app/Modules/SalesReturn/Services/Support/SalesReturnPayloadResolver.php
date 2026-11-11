@@ -51,7 +51,7 @@ class SalesReturnPayloadResolver
                     isset($data['customer_id'])
                     && (int) $data['customer_id'] !== (int) $sale->customer_id
                 ) {
-                    throw new BusinessException('Customer does not match the referenced sale.');
+                    throw new BusinessException('Customer does not match the referenced sale.', 'BUSINESS_ERROR', ['customer_uuid' => ['Customer does not match the referenced sale.']]);
                 }
 
                 $data['customer_id'] = $sale->customer_id;
