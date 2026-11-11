@@ -53,7 +53,7 @@ class PurchaseReturnPayloadResolver
                 && isset($data['supplier_id'])
                 && (int) $data['supplier_id'] !== (int) $purchaseSupplierId
             ) {
-                throw new BusinessException('Supplier does not match the referenced purchase.');
+                throw new BusinessException('Supplier does not match the referenced purchase.', 'BUSINESS_ERROR', ['supplier_uuid' => ['Supplier does not match the referenced purchase.']]);
             }
 
             $data['supplier_id'] = $purchaseSupplierId ?? ($data['supplier_id'] ?? null);
