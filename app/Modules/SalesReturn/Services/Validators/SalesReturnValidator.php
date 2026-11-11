@@ -372,6 +372,34 @@ class SalesReturnValidator
                 'items' => ['Cannot confirm a sales return without items.'],
             ]);
         }
+
+        $return->loadMissing([
+            'items.batches',
+            'items.serials',
+        ]);
+
+        $items = $return->items->map(fn (SalesReturnItem $item) => [
+            'sale_item_id' => $item->sale_item_id,
+            'returned_quantity' => (float) $item->returned_quantity,
+            'batches' => $item->batches->map(fn ($batch) => [
+                'batch_no' => $batch->batch_no,
+                'quantity' => (float) $batch->quantity,
+                'base_quantity' => (float) (
+                    $batch->base_quantity
+                    ?? $batch->quantity
+                ),
+            ])->all(),
+            'serials' => $item->serials->map(fn ($serial) => [
+                'serial_number' => $serial->serial_number,
+            ])->all(),
+        ])->all();
+
+        // Recheck source sale, quantities, batches and serials at confirmation time.
+        $this->validateForSave(
+            ['sale_id' => $return->sale_id],
+            $items,
+            $return->id
+        );
     }
 
     public function validateForCancellation(SalesReturn $return): void
