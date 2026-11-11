@@ -31,6 +31,15 @@ class SalesReturnValidator
             ]);
         }
 
+        if (
+            isset($header['customer_id'])
+            && (int) $header['customer_id'] !== (int) $sale->customer_id
+        ) {
+            throw ValidationException::withMessages([
+                'customer_uuid' => ['Customer does not match the referenced sale.'],
+            ]);
+        }
+
         if (empty($items)) {
             throw ValidationException::withMessages([
                 'items' => ['Sales return must have at least one line item.'],
@@ -132,7 +141,10 @@ class SalesReturnValidator
         ])->all();
 
         $this->validateForSave(
-            ['sale_id' => $return->sale_id],
+            [
+                'sale_id' => $return->sale_id,
+                'customer_id' => $return->customer_id,
+            ],
             $items,
             $return->id
         );
