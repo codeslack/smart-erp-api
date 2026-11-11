@@ -794,6 +794,71 @@ class SalesReturnLifecycleTest extends TestCase
             ->assertJsonValidationErrors('refund_account_id');
     }
 
+    public function test_refund_accounts_must_match_the_cash_or_bank_refund_type(): void
+    {
+        $saleItem = $this->sale->items->first();
+
+        $cashAccount = ChartOfAccount::query()
+            ->where('account_code', AccountingAccounts::CASH)
+            ->firstOrFail();
+
+        $bankAccount = ChartOfAccount::query()
+            ->where('account_code', AccountingAccounts::BANK)
+            ->firstOrFail();
+
+        $incomeAccount = ChartOfAccount::query()
+            ->where('account_code', AccountingAccounts::SALES_REVENUE)
+            ->firstOrFail();
+
+        $basePayload = [
+            'sale_uuid' => $this->sale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'sale_item_uuid' => $saleItem->uuid,
+                'returned_quantity' => 1,
+            ]],
+        ];
+
+        $this->postJson(route('sales-returns.store'), array_merge($basePayload, [
+            'refund_type' => 'cash_refund',
+            'refund_account_id' => $incomeAccount->id,
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('refund_account_id');
+
+        $this->postJson(route('sales-returns.store'), array_merge($basePayload, [
+            'refund_type' => 'cash_refund',
+            'refund_account_id' => $bankAccount->id,
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('refund_account_id');
+
+        $this->postJson(route('sales-returns.store'), array_merge($basePayload, [
+            'refund_type' => 'bank_refund',
+            'refund_account_id' => $cashAccount->id,
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('refund_account_id');
+
+        $bankSubaccount = ChartOfAccount::create([
+            'account_group_id' => $bankAccount->account_group_id,
+            'parent_id' => $bankAccount->id,
+            'account_code' => '1010-001',
+            'account_name' => 'Operating Bank Account',
+            'account_type' => 'asset',
+            'opening_balance' => 0,
+            'current_balance' => 0,
+            'is_system' => false,
+            'is_active' => true,
+        ]);
+
+        $this->postJson(route('sales-returns.store'), array_merge($basePayload, [
+            'refund_type' => 'bank_refund',
+            'refund_account_id' => $bankSubaccount->id,
+        ]))
+            ->assertCreated();
+    }
+
     public function test_header_only_refund_type_update_recalculates_refund_amounts_and_posts_to_cash(): void
     {
         $uuid = $this->makeReturn(2);
