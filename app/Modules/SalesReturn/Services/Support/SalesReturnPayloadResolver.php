@@ -138,13 +138,6 @@ class SalesReturnPayloadResolver
                     $item['product_variant_id'] = $saleItem->product_variant_id;
                     $item['warehouse_id'] = $item['warehouse_id'] ?? $defaultWarehouseId ?? $saleItem->warehouse_id;
                     $item['unit_id'] = $saleItem->unit_id;
-                    $item['base_quantity'] = $originalQuantity > 0
-                        ? round(
-                            (float) ($saleItem->base_quantity ?? $saleItem->quantity)
-                                * ($returnQuantity / $originalQuantity),
-                            4
-                        )
-                        : 0.0;
                     $item['unit_price'] = (float) $saleItem->unit_price;
                     $item['unit_cost'] = (float) $saleItem->cost_price;
                     $item['line_type'] = $saleItem->line_type;
@@ -154,6 +147,13 @@ class SalesReturnPayloadResolver
 
                     $originalQuantity = (float) $saleItem->quantity;
                     $returnQuantity = (float) ($item['returned_quantity'] ?? $item['quantity'] ?? 0);
+                    $item['base_quantity'] = $originalQuantity > 0
+                        ? round(
+                            (float) ($saleItem->base_quantity ?? $saleItem->quantity)
+                                * ($returnQuantity / $originalQuantity),
+                            4
+                        )
+                        : 0.0;
                     $discountType = $saleItem->discount_type ?: 'fixed';
                     $discountRate = (float) $saleItem->discount_rate;
                     $originalDiscount = (float) $saleItem->discount_amount;
