@@ -5,7 +5,9 @@ namespace App\Modules\SalesReturn\Services\Validators;
 use App\Modules\Sales\Enums\SaleStatusEnum;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
+use App\Modules\Sales\Models\SaleItemBatch;
 use App\Modules\SalesReturn\Enums\SalesReturnStatus;
+use App\Modules\SalesReturn\Models\SaleReturnItemBatch;
 use App\Modules\SalesReturn\Models\SalesReturn;
 use App\Modules\SalesReturn\Models\SalesReturnItem;
 use Illuminate\Validation\ValidationException;
@@ -47,11 +49,24 @@ class SalesReturnValidator
         }
 
         $quantitiesBySaleItem = [];
+        $batchQuantitiesBySaleItem = [];
+
         foreach ($items as $item) {
             $saleItemId = (int) ($item['sale_item_id'] ?? 0);
-            if ($saleItemId > 0) {
-                $quantitiesBySaleItem[$saleItemId] = ($quantitiesBySaleItem[$saleItemId] ?? 0.0)
-                    + (float) ($item['returned_quantity'] ?? $item['quantity'] ?? 0);
+            if ($saleItemId <= 0) {
+                continue;
+            }
+
+            $quantitiesBySaleItem[$saleItemId] = ($quantitiesBySaleItem[$saleItemId] ?? 0.0)
+                + (float) ($item['returned_quantity'] ?? $item['quantity'] ?? 0);
+
+            foreach (($item['batches'] ?? []) as $batch) {
+                $batchId = (int) ($batch['product_batch_id'] ?? 0);
+                if ($batchId > 0) {
+                    $batchQuantitiesBySaleItem[$saleItemId][$batchId] =
+                        ($batchQuantitiesBySaleItem[$saleItemId][$batchId] ?? 0.0)
+                        + (float) ($batch['quantity'] ?? 0);
+                }
             }
         }
 
@@ -70,7 +85,7 @@ class SalesReturnValidator
             }
 
             /** @var SaleItem|null $saleItem */
-            $saleItem = SaleItem::query()->find($item['sale_item_id']);
+            $saleItem = SaleItem::query()->with('product')->find($item['sale_item_id']);
             if (! $saleItem || (int) $saleItem->sale_id !== (int) $sale->id) {
                 throw ValidationException::withMessages([
                     "items.{$index}.sale_item_uuid" => ['The selected item does not belong to the referenced sale.'],
@@ -106,6 +121,83 @@ class SalesReturnValidator
                     ],
                 ]);
             }
+
+            if ($saleItem->product?->isBatchTracked()) {
+                $batches = $item['batches'] ?? [];
+                if ($batches === []) {
+                    throw ValidationException::withMessages([
+                        "items.{$index}.batches" => ['Batch details are required for this batch-tracked product.'],
+                    ]);
+                }
+
+                $batchQuantity = array_sum(array_map(
+                    fn (array $batch) => (float) ($batch['quantity'] ?? 0),
+                    $batches
+                ));
+
+                if (abs($batchQuantity - $qty) > 0.0001) {
+                    throw ValidationException::withMessages([
+                        "items.{$index}.batches" => ['Return batch quantities must equal the returned item quantity.'],
+                    ]);
+                }
+
+                foreach ($batches as $batchIndex => $batch) {
+                    $batchId = (int) ($batch['product_batch_id'] ?? 0);
+                    $batchNo = (string) ($batch['batch_no'] ?? '');
+
+                    $sourceAllocation = $batchId > 0
+                        ? SaleItemBatch::query()
+                            ->where('sale_item_id', $saleItem->id)
+                            ->where('product_batch_id', $batchId)
+                            ->where('batch_no', $batchNo)
+                            ->first()
+                        : null;
+
+                    if (! $sourceAllocation) {
+                        throw ValidationException::withMessages([
+                            "items.{$index}.batches.{$batchIndex}.batch_no" => [
+                                'The batch was not allocated to this original sale item.',
+                            ],
+                        ]);
+                    }
+                }
+            }
+        }
+
+        foreach ($batchQuantitiesBySaleItem as $saleItemId => $batchQuantities) {
+            foreach ($batchQuantities as $batchId => $requestedQuantity) {
+                $sourceAllocation = SaleItemBatch::query()
+                    ->where('sale_item_id', $saleItemId)
+                    ->where('product_batch_id', $batchId)
+                    ->first();
+
+                if (! $sourceAllocation) {
+                    continue;
+                }
+
+                $alreadyReturned = (float) SaleReturnItemBatch::query()
+                    ->where('product_batch_id', $batchId)
+                    ->whereHas('salesReturnItem', fn ($q) => $q->where('sale_item_id', $saleItemId))
+                    ->whereHas('salesReturn', function ($q) use ($ignoreReturnId) {
+                        $q->whereIn('status', [
+                            SalesReturnStatus::DRAFT->value,
+                            SalesReturnStatus::CONFIRMED->value,
+                        ]);
+                        if ($ignoreReturnId !== null) {
+                            $q->where('id', '!=', $ignoreReturnId);
+                        }
+                    })
+                    ->sum('quantity');
+
+                $maxReturnable = max(0, (float) $sourceAllocation->quantity - $alreadyReturned);
+                if ($requestedQuantity > $maxReturnable + 0.0001) {
+                    throw ValidationException::withMessages([
+                        'items' => [
+                            "Batch {$sourceAllocation->batch_no} return quantity exceeds its remaining returnable quantity ({$maxReturnable}).",
+                        ],
+                    ]);
+                }
+            }
         }
     }
 
@@ -134,10 +226,15 @@ class SalesReturnValidator
             ]);
         }
 
-        $items = $return->items()->get()->map(fn ($item) => [
+        $items = $return->items()->with('batches')->get()->map(fn ($item) => [
             'sale_item_id' => $item->sale_item_id,
             'product_id' => $item->product_id,
             'returned_quantity' => (float) $item->returned_quantity,
+            'batches' => $item->batches->map(fn ($batch) => [
+                'product_batch_id' => $batch->product_batch_id,
+                'batch_no' => $batch->batch_no,
+                'quantity' => (float) $batch->quantity,
+            ])->all(),
         ])->all();
 
         $this->validateForSave(
