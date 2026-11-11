@@ -30,12 +30,12 @@ class SalesPostingService extends BasePostingService
         $grandTotal = $this->decimal($sale->grand_total);
         $this->validateAmount($grandTotal);
 
-        $currencyCode = strtoupper((string) $sale->currency_code);
-        $exchangeRate = $this->decimalRate($sale->exchange_rate);
         $baseCurrency = (string) (Setting::query()
             ->where('group', Setting::GROUP_COMPANY)
             ->where('key', 'currency')
             ->value('value') ?? 'INR');
+        $currencyCode = strtoupper((string) ($sale->currency_code ?: $baseCurrency));
+        $exchangeRate = $this->decimalRate($sale->exchange_rate ?? '1.00000000');
 
         if (! preg_match('/^[A-Z]{3}$/', $currencyCode)) {
             throw new BusinessException('Sale currency code must be a valid three-letter code.');
