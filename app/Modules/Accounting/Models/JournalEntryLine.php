@@ -18,6 +18,8 @@ class JournalEntryLine extends TenantModel
 
         'debit',
         'credit',
+        'foreign_debit',
+        'foreign_credit',
 
         'description',
     ];
@@ -29,6 +31,8 @@ class JournalEntryLine extends TenantModel
             [
                 'debit'  => 'decimal:4',
                 'credit' => 'decimal:4',
+                'foreign_debit' => 'decimal:4',
+                'foreign_credit' => 'decimal:4',
             ]
         );
     }
