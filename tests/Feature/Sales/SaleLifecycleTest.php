@@ -538,4 +538,36 @@ class SaleLifecycleTest extends TestCase
             ->assertJsonValidationErrors('items.0.sales_order_item_uuid');
     }
 
+
+    public function test_sales_order_cannot_be_cancelled_after_linked_invoice_confirmation(): void
+    {
+        $orderItem = $this->createConfirmedSalesOrder(5);
+
+        $saleResponse = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sales_order_uuid' => $orderItem->salesOrder->uuid,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $this->product->id,
+                'sales_order_item_uuid' => $orderItem->uuid,
+                'quantity' => 2,
+                'unit_price' => 100,
+            ]],
+        ])->assertCreated();
+
+        $this->postJson(route('sales.confirm', $saleResponse->json('data.uuid')))
+            ->assertOk();
+
+        $this->postJson(route('sales-orders.cancel', $orderItem->salesOrder->uuid), [
+            'reason' => 'Attempted cancellation after invoicing',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('status');
+
+        $this->assertDatabaseHas('sales_orders', [
+            'id' => $orderItem->sales_order_id,
+            'status' => 'confirmed',
+        ]);
+    }
+
 }
