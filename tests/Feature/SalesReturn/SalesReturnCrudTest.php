@@ -226,4 +226,68 @@ class SalesReturnCrudTest extends TestCase
 
         $this->getJson(route('sales-returns.show', ['uuid' => $uuid]))->assertNotFound();
     }
+
+    public function test_sales_return_prorates_the_original_sale_header_discount(): void
+    {
+        $sale = app(SaleService::class)->create([
+            'customer_uuid' => $this->customer->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'sale_date' => now()->toDateString(),
+            'discount_amount' => 20,
+            'items' => [[
+                'product_uuid' => $this->product->uuid,
+                'quantity' => 2,
+                'unit_price' => 100,
+            ]],
+        ]);
+
+        $sale = app(SaleService::class)->confirm($sale->uuid);
+        $saleItem = $sale->items->first();
+
+        $this->assertEquals(180, (float) $sale->grand_total);
+
+        $firstReturn = $this->postJson(route('sales-returns.store'), [
+            'sale_uuid' => $sale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'sale_item_uuid' => $saleItem->uuid,
+                'returned_quantity' => 1,
+            ]],
+        ]);
+
+        $firstReturn
+            ->assertCreated()
+            ->assertJsonPath('data.grand_total', 90)
+            ->assertJsonPath('data.discount_amount', 10);
+
+        $secondReturn = $this->postJson(route('sales-returns.store'), [
+            'sale_uuid' => $sale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'sale_item_uuid' => $saleItem->uuid,
+                'returned_quantity' => 1,
+            ]],
+        ]);
+
+        $secondReturn
+            ->assertCreated()
+            ->assertJsonPath('data.grand_total', 90)
+            ->assertJsonPath('data.discount_amount', 10);
+
+        $updateResponse = $this->putJson(
+            route('sales-returns.update', ['uuid' => $firstReturn->json('data.uuid')]),
+            [
+                'items' => [[
+                    'sale_item_uuid' => $saleItem->uuid,
+                    'returned_quantity' => 0.5,
+                ]],
+            ]
+        );
+
+        $updateResponse
+            ->assertOk()
+            ->assertJsonPath('data.grand_total', 45)
+            ->assertJsonPath('data.discount_amount', 5);
+    }
+
 }
