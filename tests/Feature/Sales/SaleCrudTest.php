@@ -186,6 +186,80 @@ class SaleCrudTest extends TestCase
             ->assertJsonPath('data.notes', 'Updated sale notes');
     }
 
+    public function test_updating_header_amounts_recalculates_sale_totals_without_resending_items(): void
+    {
+        $createResponse = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sale_date' => '2026-10-30',
+            'items' => [[
+                'product_id' => $this->product->id,
+                'quantity' => 2,
+                'unit_price' => 100,
+                'discount_type' => 'percentage',
+                'discount_rate' => 10,
+                'tax_rate' => 10,
+            ]],
+        ])->assertCreated();
+
+        $uuid = $createResponse->json('data.uuid');
+
+        $updateResponse = $this->putJson(route('sales.update', $uuid), [
+            'discount_amount' => 10,
+            'charges_subtotal' => 5,
+            'charges_tax_amount' => 1,
+            'rounding_amount' => 0.5,
+        ]);
+
+        $updateResponse->assertOk()
+            ->assertJsonPath('data.subtotal', 180)
+            ->assertJsonPath('data.discount_amount', 30)
+            ->assertJsonPath('data.tax_amount', 18)
+            ->assertJsonPath('data.grand_total', 194.5)
+            ->assertJsonPath('data.due_amount', 194.5);
+
+        $this->assertDatabaseHas('sales', [
+            'tenant_id' => $this->tenant->id,
+            'uuid' => $uuid,
+            'discount_amount' => 30,
+            'grand_total' => 194.5,
+            'due_amount' => 194.5,
+        ]);
+    }
+
+    public function test_replacing_items_does_not_reapply_existing_item_discounts_as_header_discount(): void
+    {
+        $createResponse = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sale_date' => '2026-10-30',
+            'items' => [[
+                'product_id' => $this->product->id,
+                'quantity' => 2,
+                'unit_price' => 100,
+                'discount_type' => 'percentage',
+                'discount_rate' => 10,
+            ]],
+        ])->assertCreated();
+
+        $uuid = $createResponse->json('data.uuid');
+
+        $updateResponse = $this->putJson(route('sales.update', $uuid), [
+            'items' => [[
+                'product_id' => $this->product->id,
+                'quantity' => 3,
+                'unit_price' => 100,
+                'discount_type' => 'percentage',
+                'discount_rate' => 10,
+            ]],
+        ]);
+
+        $updateResponse->assertOk()
+            ->assertJsonPath('data.subtotal', 270)
+            ->assertJsonPath('data.discount_amount', 30)
+            ->assertJsonPath('data.grand_total', 270);
+    }
+
     public function test_sale_can_be_deleted_in_draft_state(): void
     {
         $createResponse = $this->postJson(route('sales.store'), [
