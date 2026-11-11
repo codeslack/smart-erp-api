@@ -17,17 +17,29 @@ class SalesReturnPayloadResolver
 {
     public function resolveHeader(array $data): array
     {
-        if (isset($data['customer_uuid']) && ! isset($data['customer_id'])) {
-            $data['customer_id'] = Customer::query()
+        if (isset($data['customer_uuid'])) {
+            $customerId = Customer::query()
                 ->where('uuid', $data['customer_uuid'])
                 ->value('id');
+
+            if (isset($data['customer_id']) && (int) $data['customer_id'] !== (int) $customerId) {
+                throw new BusinessException('Customer references do not match.');
+            }
+
+            $data['customer_id'] = $data['customer_id'] ?? $customerId;
             unset($data['customer_uuid']);
         }
 
-        if (isset($data['sale_uuid']) && ! isset($data['sale_id'])) {
-            $data['sale_id'] = Sale::query()
+        if (isset($data['sale_uuid'])) {
+            $saleId = Sale::query()
                 ->where('uuid', $data['sale_uuid'])
                 ->value('id');
+
+            if (isset($data['sale_id']) && (int) $data['sale_id'] !== (int) $saleId) {
+                throw new BusinessException('Sale references do not match.');
+            }
+
+            $data['sale_id'] = $data['sale_id'] ?? $saleId;
             unset($data['sale_uuid']);
         }
 
