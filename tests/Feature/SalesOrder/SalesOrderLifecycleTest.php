@@ -192,6 +192,7 @@ class SalesOrderLifecycleTest extends TestCase
         $secondUser = $this->createTestUser(['tenant_id' => $secondTenant->id]);
         Sanctum::actingAs($secondUser);
         app(TenantManager::class)->setTenant($secondTenant);
+        $this->grantSalesPermissions($secondUser, $secondTenant);
 
         // Accessing first tenant's order must return 404
         $response = $this->getJson(route('sales-orders.show', $uuid));
