@@ -9,6 +9,7 @@ use Tests\Support\CreatesTenant;
 use App\Core\Exceptions\BusinessException;
 
 use App\Modules\Tenant\Models\Tenant;
+use App\Modules\Customer\Models\Customer;
 
 use App\Modules\Tax\Enums\TaxRegistrationTypeEnum;
 use App\Modules\Tax\Models\TaxRegistration;
@@ -25,11 +26,29 @@ class TaxRegistrationServiceTest extends TestCase
 
     protected TaxRegistrationService $service;
 
+    protected Customer $customer;
+
+    protected Customer $secondCustomer;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->tenant = $this->createTestTenant();
+
+        $this->customer = Customer::create([
+            'tenant_id' => $this->tenant->id,
+            'code' => 'TAX-SVC-CUS-1',
+            'name' => 'Tax Service Customer',
+            'is_active' => true,
+        ]);
+
+        $this->secondCustomer = Customer::create([
+            'tenant_id' => $this->tenant->id,
+            'code' => 'TAX-SVC-CUS-2',
+            'name' => 'Second Tax Service Customer',
+            'is_active' => true,
+        ]);
 
         $this->service = app(
             TaxRegistrationService::class
@@ -40,7 +59,7 @@ class TaxRegistrationServiceTest extends TestCase
     {
         $registration = $this->service->create([
             'registrable_type' => 'customer',
-            'registrable_id' => 1001,
+            'registrable_id' => $this->customer->id,
             'registration_type' =>
                 TaxRegistrationTypeEnum::GSTIN->value,
             'registration_number' => '22AAAAA0000A1Z5',
@@ -62,7 +81,7 @@ class TaxRegistrationServiceTest extends TestCase
             [
                 'tenant_id' => $this->tenant->id,
                 'registrable_type' => 'customer',
-                'registrable_id' => 1001,
+                'registrable_id' => $this->customer->id,
                 'registration_type' =>
                     TaxRegistrationTypeEnum::GSTIN->value,
                 'registration_number' => '22AAAAA0000A1Z5',
@@ -76,7 +95,7 @@ class TaxRegistrationServiceTest extends TestCase
     {
         $registration = $this->service->create([
             'registrable_type' => 'customer',
-            'registrable_id' => 1001,
+            'registrable_id' => $this->customer->id,
             'registration_type' =>
                 TaxRegistrationTypeEnum::GSTIN->value,
             'registration_number' => ' 22AAAAA0000A1Z5 ',
@@ -97,7 +116,7 @@ class TaxRegistrationServiceTest extends TestCase
 
         $this->service->create([
             'registrable_type' => 'customer',
-            'registrable_id' => 1001,
+            'registrable_id' => $this->customer->id,
             'registration_type' => 'INVALID',
             'registration_number' => '22AAAAA0000A1Z5',
             'is_primary' => false,
@@ -112,7 +131,7 @@ class TaxRegistrationServiceTest extends TestCase
 
         $this->service->create([
             'registrable_type' => 'customer',
-            'registrable_id' => 1001,
+            'registrable_id' => $this->customer->id,
             'registration_type' =>
                 TaxRegistrationTypeEnum::GSTIN->value,
             'registration_number' => 'INVALID-GSTIN',
@@ -128,7 +147,7 @@ class TaxRegistrationServiceTest extends TestCase
 
         $this->service->create([
             'registrable_type' => 'customer',
-            'registrable_id' => 1001,
+            'registrable_id' => $this->customer->id,
             'registration_type' =>
                 TaxRegistrationTypeEnum::GSTIN->value,
             'registration_number' => '22AAAAA0000A1Z5',
@@ -145,7 +164,7 @@ class TaxRegistrationServiceTest extends TestCase
 
         $this->service->create([
             'registrable_type' => 'customer',
-            'registrable_id' => 1001,
+            'registrable_id' => $this->customer->id,
             'registration_type' =>
                 TaxRegistrationTypeEnum::GSTIN->value,
             'registration_number' => '22AAAAA0000A1Z5',
@@ -159,7 +178,7 @@ class TaxRegistrationServiceTest extends TestCase
     {
         $this->service->create([
             'registrable_type' => 'customer',
-            'registrable_id' => 1001,
+            'registrable_id' => $this->customer->id,
             'registration_type' =>
                 TaxRegistrationTypeEnum::GSTIN->value,
             'registration_number' => '22AAAAA0000A1Z5',
@@ -172,7 +191,7 @@ class TaxRegistrationServiceTest extends TestCase
 
         $this->service->create([
             'registrable_type' => 'customer',
-            'registrable_id' => 1002,
+            'registrable_id' => $this->secondCustomer->id,
             'registration_type' =>
                 TaxRegistrationTypeEnum::GSTIN->value,
             'registration_number' => '22AAAAA0000A1Z5',
@@ -186,7 +205,7 @@ class TaxRegistrationServiceTest extends TestCase
     {
         $this->service->create([
             'registrable_type' => 'customer',
-            'registrable_id' => 1001,
+            'registrable_id' => $this->customer->id,
             'registration_type' =>
                 TaxRegistrationTypeEnum::GSTIN->value,
             'registration_number' => '22AAAAA0000A1Z5',
@@ -199,7 +218,7 @@ class TaxRegistrationServiceTest extends TestCase
 
         $this->service->create([
             'registrable_type' => 'customer',
-            'registrable_id' => 1001,
+            'registrable_id' => $this->customer->id,
             'registration_type' =>
                 TaxRegistrationTypeEnum::GSTIN->value,
             'registration_number' => '19BBBBB1111B2Z6',
@@ -213,7 +232,7 @@ class TaxRegistrationServiceTest extends TestCase
     {
         $first = $this->service->create([
             'registrable_type' => 'customer',
-            'registrable_id' => 1001,
+            'registrable_id' => $this->customer->id,
             'registration_type' =>
                 TaxRegistrationTypeEnum::GSTIN->value,
             'registration_number' => '22AAAAA0000A1Z5',
@@ -224,7 +243,7 @@ class TaxRegistrationServiceTest extends TestCase
 
         $second = $this->service->create([
             'registrable_type' => 'customer',
-            'registrable_id' => 1002,
+            'registrable_id' => $this->secondCustomer->id,
             'registration_type' =>
                 TaxRegistrationTypeEnum::GSTIN->value,
             'registration_number' => '19BBBBB1111B2Z6',
@@ -246,7 +265,7 @@ class TaxRegistrationServiceTest extends TestCase
     {
         $registration = $this->service->create([
             'registrable_type' => 'customer',
-            'registrable_id' => 1001,
+            'registrable_id' => $this->customer->id,
             'registration_type' =>
                 TaxRegistrationTypeEnum::GSTIN->value,
             'registration_number' => '22AAAAA0000A1Z5',
@@ -283,7 +302,7 @@ class TaxRegistrationServiceTest extends TestCase
     {
         $registration = $this->service->create([
             'registrable_type' => 'customer',
-            'registrable_id' => 1001,
+            'registrable_id' => $this->customer->id,
             'registration_type' =>
                 TaxRegistrationTypeEnum::GSTIN->value,
             'registration_number' => '22AAAAA0000A1Z5',
@@ -312,7 +331,7 @@ class TaxRegistrationServiceTest extends TestCase
     {
         $registration = $this->service->create([
             'registrable_type' => 'customer',
-            'registrable_id' => 1001,
+            'registrable_id' => $this->customer->id,
             'registration_type' =>
                 TaxRegistrationTypeEnum::GSTIN->value,
             'registration_number' => '22AAAAA0000A1Z5',
