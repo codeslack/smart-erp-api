@@ -16,11 +16,11 @@ class SalesReturnItemResource extends JsonResource
             'sku' => $this->sku,
             'description' => $this->description,
 
-            'product' => $this->whenLoaded('product', fn () => [
+            'product' => $this->whenLoaded('product', fn () => $this->product ? [
                 'uuid' => $this->product->uuid,
                 'name' => $this->product->name,
                 'sku' => $this->product->sku,
-            ]),
+            ] : null),
 
             'variant' => $this->whenLoaded('variant', fn () => [
                 'uuid' => $this->variant->uuid,
