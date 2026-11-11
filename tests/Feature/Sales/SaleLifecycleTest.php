@@ -12,7 +12,6 @@ use App\Modules\Tax\Models\TaxComponent;
 use App\Modules\Tax\Models\TaxApplicabilityRule;
 use App\Modules\Tax\Models\TaxAccountingMapping;
 use App\Modules\Tax\Services\TaxSetupService;
-use App\Modules\Settings\Services\SettingsSetupService;
 use App\Modules\AdvanceAllocation\Services\AdvanceAllocationService;
 use App\Modules\Accounting\Services\AccountingSetupService;
 use App\Modules\Customer\Models\Customer;
@@ -841,15 +840,14 @@ class SaleLifecycleTest extends TestCase
 
     public function test_sale_automatically_resolves_output_tax_and_posts_tax_separately(): void
     {
-        app(SettingsSetupService::class)->setup($this->tenant);
         app(TaxSetupService::class)->setup($this->tenant);
         $this->customer->update(['country_code' => 'IN', 'state_code' => '19']);
 
         $group = TaxGroup::query()->where('code', 'GST18-INTRA-OUT')->firstOrFail();
         TaxApplicabilityRule::create([
             'tax_group_id' => $group->id,
-            'source_country_code' => 'IN',
-            'source_state_code' => '19',
+            'source_country_code' => null,
+            'source_state_code' => null,
             'destination_country_code' => 'IN',
             'destination_state_code' => '19',
             'place_of_supply_state_code' => '19',
