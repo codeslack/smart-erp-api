@@ -115,8 +115,34 @@ class PurchasePayloadResolver
 
             $productUnit = null;
             $conversionFactor = 1.0;
+            $grnItem = isset($item['goods_receipt_note_item_id'])
+                ? GoodsReceiptNoteItem::query()->find(
+                    (int) $item['goods_receipt_note_item_id']
+                )
+                : null;
 
-            if ($product && $product->requiresStock()) {
+            if (
+                $grnItem
+                && ! isset($item['unit_id'])
+            ) {
+                $item['unit_id'] = $grnItem->unit_id;
+            }
+
+            $usesGrnUnitSnapshot = $grnItem
+                && isset($item['unit_id'])
+                && (int) $grnItem->unit_id === (int) $item['unit_id'];
+
+            if ($usesGrnUnitSnapshot) {
+                $grnQuantity = (float) $grnItem->quantity_received;
+                $grnBaseQuantity = (float) (
+                    $grnItem->base_quantity
+                    ?? $grnItem->quantity_received
+                );
+
+                $conversionFactor = $grnQuantity > 0
+                    ? $grnBaseQuantity / $grnQuantity
+                    : 1.0;
+            } elseif ($product && $product->requiresStock()) {
                 if (! isset($item['unit_id']) && $product->unit_id) {
                     $item['unit_id'] = (int) $product->unit_id;
                 }
@@ -149,6 +175,12 @@ class PurchasePayloadResolver
                 }
             }
 
+            if ($conversionFactor <= 0) {
+                throw new BusinessException(
+                    'The selected purchase unit has an invalid conversion factor.'
+                );
+            }
+
             $quantity = (float) ($item['quantity'] ?? 0);
             $unitCost = (float) ($item['unit_cost'] ?? 0);
 
@@ -163,7 +195,7 @@ class PurchasePayloadResolver
                     $productUnit,
                     $unitCost
                 )
-                : $unitCost;
+                : round($unitCost / $conversionFactor, 8);
 
             if (isset($item['batches']) && is_array($item['batches'])) {
                 foreach ($item['batches'] as $index => $batch) {
