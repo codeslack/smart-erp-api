@@ -97,7 +97,7 @@ class SaleService
         $sale = $this->findByUuid($uuid) ?? $this->find($uuid);
 
         return $sale->items()
-            ->with(['product', 'variant', 'warehouse', 'unit', 'tax', 'batches', 'serials'])
+            ->with(['product', 'variant', 'warehouse', 'unit', 'tax', 'batches', 'serials', 'salesOrderItem'])
             ->get();
     }
 }
