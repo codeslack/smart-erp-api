@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\PurchaseReturn;
 
+use App\Core\Tenant\TenantManager;
 use App\Modules\Accounting\Services\AccountingSetupService;
 use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 use App\Modules\Product\Enums\ProductTypeEnum;
@@ -416,6 +417,8 @@ class PurchaseReturnValidationTest extends TestCase
 
         $createResponse->assertCreated();
         $returnUuid = $createResponse->json('data.uuid');
+
+        app(TenantManager::class)->setTenant($this->tenant);
 
         $otherSupplier = Supplier::create([
             'tenant_id' => $this->tenant->id,
