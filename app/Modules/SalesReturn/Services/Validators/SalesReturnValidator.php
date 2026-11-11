@@ -45,6 +45,8 @@ class SalesReturnValidator
             ]);
         }
 
+        $seenSaleItemIds = [];
+
         foreach ($items as $item) {
             $quantity = (float) (
                 $item['returned_quantity']
@@ -65,6 +67,14 @@ class SalesReturnValidator
                     'items' => ['Every sales return line must reference an original sale item.'],
                 ]);
             }
+
+            if (isset($seenSaleItemIds[$saleItemId])) {
+                throw ValidationException::withMessages([
+                    'items' => ['An original sale item may appear only once in a sales return.'],
+                ]);
+            }
+
+            $seenSaleItemIds[$saleItemId] = true;
 
             /** @var SaleItem|null $saleItem */
             $saleItem = SaleItem::query()
