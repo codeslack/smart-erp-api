@@ -21,6 +21,8 @@ class JournalEntryResource extends JsonResource
                 => $this->voucher_type?->value,
 
             'entry_date' => $this->entry_date,
+            'currency_code' => $this->currency_code,
+            'exchange_rate' => $this->exchange_rate,
 
             'description' => $this->description,
 
@@ -52,6 +54,9 @@ class JournalEntryResource extends JsonResource
 
                         'credit'
                             => $line->credit,
+
+                        'foreign_debit' => $line->foreign_debit,
+                        'foreign_credit' => $line->foreign_credit,
 
                         'description'
                             => $line->description,
