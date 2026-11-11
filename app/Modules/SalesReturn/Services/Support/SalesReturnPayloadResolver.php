@@ -2,6 +2,7 @@
 
 namespace App\Modules\SalesReturn\Services\Support;
 
+use App\Core\Exceptions\BusinessException;
 use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Customer\Models\Customer;
 use App\Modules\Product\Models\Product;
@@ -62,84 +63,115 @@ class SalesReturnPayloadResolver
         $resolved = [];
 
         foreach ($rawItems as $item) {
-            if (isset($item['sale_item_uuid']) && ! isset($item['sale_item_id'])) {
-                $saleItem = SaleItem::query()
-                    ->where('uuid', $item['sale_item_uuid'])
-                    ->first();
-
-                if ($saleItem) {
-                    $item['sale_item_id'] = $saleItem->id;
-                    $item['product_id'] = $item['product_id'] ?? $saleItem->product_id;
-                    $item['product_variant_id'] = $item['product_variant_id'] ?? $saleItem->product_variant_id;
-                    $item['warehouse_id'] = $item['warehouse_id'] ?? $saleItem->warehouse_id;
-                    $item['unit_id'] = $item['unit_id'] ?? $saleItem->unit_id;
-                    $item['unit_price'] = $item['unit_price'] ?? (float) $saleItem->unit_price;
-                    $item['unit_cost'] = $item['unit_cost'] ?? (float) $saleItem->cost_price;
+            if (isset($item['product_uuid'])) {
+                $productId = Product::query()->where('uuid', $item['product_uuid'])->value('id');
+                if (isset($item['product_id']) && (int) $item['product_id'] !== (int) $productId) {
+                    throw new BusinessException('Product reference does not match the original sale item.');
                 }
-                unset($item['sale_item_uuid']);
-            } elseif (isset($item['sale_item_id'])) {
-                $saleItem = SaleItem::query()->find($item['sale_item_id']);
-                if ($saleItem) {
-                    $item['product_id'] = $item['product_id'] ?? $saleItem->product_id;
-                    $item['product_variant_id'] = $item['product_variant_id'] ?? $saleItem->product_variant_id;
-                    $item['warehouse_id'] = $item['warehouse_id'] ?? $saleItem->warehouse_id;
-                    $item['unit_id'] = $item['unit_id'] ?? $saleItem->unit_id;
-                    $item['unit_price'] = $item['unit_price'] ?? (float) $saleItem->unit_price;
-                    $item['unit_cost'] = $item['unit_cost'] ?? (float) $saleItem->cost_price;
-                }
-            }
-
-            if (isset($item['product_uuid']) && ! isset($item['product_id'])) {
-                $item['product_id'] = Product::query()
-                    ->where('uuid', $item['product_uuid'])
-                    ->value('id');
+                $item['product_id'] = $item['product_id'] ?? $productId;
                 unset($item['product_uuid']);
             }
 
-            if (isset($item['product_variant_uuid']) && ! isset($item['product_variant_id'])) {
-                $item['product_variant_id'] = ProductVariant::query()
-                    ->where('uuid', $item['product_variant_uuid'])
-                    ->value('id');
+            if (isset($item['product_variant_uuid'])) {
+                $variantId = ProductVariant::query()->where('uuid', $item['product_variant_uuid'])->value('id');
+                if (isset($item['product_variant_id']) && (int) $item['product_variant_id'] !== (int) $variantId) {
+                    throw new BusinessException('Product variant does not match the original sale item.');
+                }
+                $item['product_variant_id'] = $item['product_variant_id'] ?? $variantId;
                 unset($item['product_variant_uuid']);
             }
 
-            if (isset($item['warehouse_uuid']) && ! isset($item['warehouse_id'])) {
-                $item['warehouse_id'] = Warehouse::query()
-                    ->where('uuid', $item['warehouse_uuid'])
-                    ->value('id');
+            if (isset($item['warehouse_uuid'])) {
+                $warehouseId = Warehouse::query()->where('uuid', $item['warehouse_uuid'])->value('id');
+                if (isset($item['warehouse_id']) && (int) $item['warehouse_id'] !== (int) $warehouseId) {
+                    throw new BusinessException('Warehouse references do not match.');
+                }
+                $item['warehouse_id'] = $item['warehouse_id'] ?? $warehouseId;
                 unset($item['warehouse_uuid']);
-            } elseif (! isset($item['warehouse_id']) && $defaultWarehouseId) {
-                $item['warehouse_id'] = $defaultWarehouseId;
             }
 
-            if (isset($item['unit_uuid']) && ! isset($item['unit_id'])) {
-                $item['unit_id'] = Unit::query()
-                    ->where('uuid', $item['unit_uuid'])
-                    ->value('id');
+            if (isset($item['unit_uuid'])) {
+                $item['unit_id'] = $item['unit_id'] ?? Unit::query()->where('uuid', $item['unit_uuid'])->value('id');
                 unset($item['unit_uuid']);
             }
 
-            if (isset($item['tax_uuid']) && ! isset($item['tax_id'])) {
-                $item['tax_id'] = Tax::query()
-                    ->where('uuid', $item['tax_uuid'])
-                    ->value('id');
+            if (isset($item['tax_uuid'])) {
+                $item['tax_id'] = $item['tax_id'] ?? Tax::query()->where('uuid', $item['tax_uuid'])->value('id');
                 unset($item['tax_uuid']);
             }
 
-            if (! empty($item['product_id']) && (empty($item['item_name']) || empty($item['sku']))) {
-                $product = Product::query()->find($item['product_id']);
-                if ($product) {
-                    $item['item_name'] = $item['item_name'] ?? $product->name;
-                    $item['sku'] = $item['sku'] ?? $product->sku ?? null;
-                    if (! isset($item['unit_id']) && $product->unit_id) {
-                        $item['unit_id'] = $product->unit_id;
+            if (isset($item['sale_item_uuid']) && ! isset($item['sale_item_id'])) {
+                $item['sale_item_id'] = SaleItem::query()
+                    ->where('uuid', $item['sale_item_uuid'])
+                    ->value('id');
+            }
+            unset($item['sale_item_uuid']);
+
+            if (isset($item['sale_item_id'])) {
+                $saleItem = SaleItem::query()->find($item['sale_item_id']);
+
+                if ($saleItem) {
+                    if (
+                        isset($item['product_id'])
+                        && (int) $item['product_id'] !== (int) $saleItem->product_id
+                    ) {
+                        throw new BusinessException('Product does not match the original sale item.');
                     }
+
+                    if (
+                        ! empty($item['product_variant_id'])
+                        && (int) $item['product_variant_id'] !== (int) $saleItem->product_variant_id
+                    ) {
+                        throw new BusinessException('Product variant does not match the original sale item.');
+                    }
+
+                    $item['product_id'] = $saleItem->product_id;
+                    $item['product_variant_id'] = $saleItem->product_variant_id;
+                    $item['warehouse_id'] = $item['warehouse_id'] ?? $defaultWarehouseId ?? $saleItem->warehouse_id;
+                    $item['unit_id'] = $saleItem->unit_id;
+                    $item['unit_price'] = (float) $saleItem->unit_price;
+                    $item['unit_cost'] = (float) $saleItem->cost_price;
+                    $item['line_type'] = $saleItem->line_type;
+                    $item['item_name'] = $saleItem->item_name;
+                    $item['sku'] = $saleItem->sku;
+                    $item['description'] = $saleItem->description;
+
+                    $originalQuantity = (float) $saleItem->quantity;
+                    $returnQuantity = (float) ($item['returned_quantity'] ?? $item['quantity'] ?? 0);
+                    $discountType = $saleItem->discount_type ?: 'fixed';
+                    $discountRate = (float) $saleItem->discount_rate;
+                    $originalDiscount = (float) $saleItem->discount_amount;
+
+                    $item['discount_type'] = $discountType;
+                    if ($discountType === 'percentage') {
+                        $item['discount_rate'] = $discountRate;
+                        $item['discount_amount'] = 0;
+                    } else {
+                        $fixedDiscount = $originalDiscount > 0 ? $originalDiscount : $discountRate;
+                        $item['discount_rate'] = 0;
+                        $item['discount_amount'] = $originalQuantity > 0
+                            ? round($fixedDiscount * ($returnQuantity / $originalQuantity), 4)
+                            : 0;
+                    }
+
+                    $item['tax_id'] = $saleItem->tax_id;
+                    $item['tax_rate'] = (float) $saleItem->tax_rate;
+                    $item['tax_amount'] = $item['tax_rate'] > 0
+                        ? 0
+                        : ($originalQuantity > 0
+                            ? round((float) $saleItem->tax_amount * ($returnQuantity / $originalQuantity), 4)
+                            : 0);
                 }
+            }
+
+            if (! isset($item['warehouse_id']) && $defaultWarehouseId !== null) {
+                $item['warehouse_id'] = $defaultWarehouseId;
             }
 
             $item['line_type'] = $item['line_type'] ?? 'product';
             $item['item_name'] = $item['item_name'] ?? 'Item';
             $item['returned_quantity'] = $item['returned_quantity'] ?? $item['quantity'] ?? 0;
+            unset($item['quantity']);
 
             $resolved[] = $item;
         }
