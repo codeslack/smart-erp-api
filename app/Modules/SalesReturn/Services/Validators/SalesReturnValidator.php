@@ -26,7 +26,7 @@ class SalesReturnValidator
         }
 
         $saleId = (int) ($header['sale_id'] ?? 0);
-        $sale = $saleId > 0 ? Sale::query()->find($saleId) : null;
+        $sale = $saleId > 0 ? Sale::query()->lockForUpdate()->find($saleId) : null;
 
         $saleStatus = $sale?->status instanceof SaleStatusEnum
             ? $sale->status
@@ -71,6 +71,7 @@ class SalesReturnValidator
                 ->whereKey($saleItemId)
                 ->where('sale_id', $saleId)
                 ->with(['product', 'batches', 'serials'])
+                ->lockForUpdate()
                 ->first();
 
             if (! $saleItem) {
