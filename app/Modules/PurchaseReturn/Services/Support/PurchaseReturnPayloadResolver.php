@@ -17,10 +17,16 @@ class PurchaseReturnPayloadResolver
 {
     public function resolveHeader(array $data): array
     {
-        if (isset($data['purchase_uuid']) && ! isset($data['purchase_id'])) {
-            $data['purchase_id'] = Purchase::query()
+        if (isset($data['purchase_uuid'])) {
+            $purchaseId = Purchase::query()
                 ->where('uuid', $data['purchase_uuid'])
                 ->value('id');
+
+            if (isset($data['purchase_id']) && (int) $data['purchase_id'] !== (int) $purchaseId) {
+                throw new BusinessException('Purchase references do not match.');
+            }
+
+            $data['purchase_id'] = $data['purchase_id'] ?? $purchaseId;
             unset($data['purchase_uuid']);
         }
 
