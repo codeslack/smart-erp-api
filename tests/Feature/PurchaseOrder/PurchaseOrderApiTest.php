@@ -297,6 +297,37 @@ class PurchaseOrderApiTest extends TestCase
         );
     }
 
+    public function test_purchase_order_rejects_client_controlled_fulfillment_counters(): void
+    {
+        $payload = $this->validPurchaseOrder();
+        $payload['items'][0]['received_quantity'] = 999;
+        $payload['items'][0]['billed_quantity'] = 999;
+        $payload['items'][0]['cancelled_quantity'] = 999;
+
+        $this->postJson(route('purchase-orders.store'), $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0');
+
+        $createResponse = $this->postJson(
+            route('purchase-orders.store'),
+            $this->validPurchaseOrder()
+        );
+
+        $createResponse->assertCreated();
+
+        $purchaseOrderUuid = $createResponse->json('data.uuid');
+
+        $updatePayload = $this->validPurchaseOrder();
+        $updatePayload['items'][0]['received_quantity'] = 999;
+
+        $this->putJson(
+            route('purchase-orders.update', $purchaseOrderUuid),
+            $updatePayload
+        )
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0');
+    }
+
     public function test_purchase_order_can_be_listed(): void
     {
         $this->postJson(
