@@ -419,6 +419,7 @@ class PurchaseReturnValidationTest extends TestCase
         $returnUuid = $createResponse->json('data.uuid');
 
         app(TenantManager::class)->setTenant($this->tenant);
+        $this->assertSame($this->tenant->id, tenantId());
 
         $otherSupplier = Supplier::create([
             'tenant_id' => $this->tenant->id,
