@@ -772,6 +772,12 @@ class SalesReturnLifecycleTest extends TestCase
                 ->where('chart_of_account_id', $receivableAccount->id)
                 ->exists()
         );
+
+        $this->postJson(route('sales-returns.cancel', ['uuid' => $uuid]), [
+            'reason' => 'Cash refund reversed',
+        ])->assertOk();
+
+        $this->assertEquals($dueBefore, (float) $this->sale->fresh()->due_amount);
     }
 
     public function test_credit_note_cancellation_restores_only_the_due_amount_that_was_outstanding(): void
