@@ -18,7 +18,15 @@ class SaleItemSerial extends TenantModel
         'sale_item_id',
         'product_serial_id',
         'serial_number',
+        'unit_cost',
     ];
+
+    protected function casts(): array
+    {
+        return array_merge(parent::casts(), [
+            'unit_cost' => 'decimal:4',
+        ]);
+    }
 
     public function sale(): BelongsTo
     {

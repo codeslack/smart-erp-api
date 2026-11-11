@@ -67,6 +67,7 @@ class SaleInventoryPostingService
                 }
 
                 $postedBaseQuantity = 0.0;
+                $lineTotalCost = 0.0;
 
                 foreach ($item->batches as $batchItem) {
                     $batchBaseQuantity = $batchItem->base_quantity !== null
@@ -115,7 +116,13 @@ class SaleInventoryPostingService
                         remarks: "Sale {$sale->sale_no} Batch {$batchItem->batch_no}",
                     );
 
-                    $this->inventoryPostingService->stockOut($movement);
+                    $ledger = $this->inventoryPostingService->stockOut($movement);
+
+                    $batchItem->update([
+                        'unit_cost' => (float) $ledger->unit_cost,
+                    ]);
+
+                    $lineTotalCost += (float) $ledger->total_cost;
                 }
 
                 if (abs($postedBaseQuantity - $baseQuantity) > 0.0001) {
@@ -123,6 +130,13 @@ class SaleInventoryPostingService
                         'Sale batch base quantities do not match the item base quantity.'
                     );
                 }
+
+                $item->update([
+                    'cost_price' => round(
+                        $lineTotalCost / max((float) $item->quantity, 0.0001),
+                        4
+                    ),
+                ]);
 
                 continue;
             }
@@ -145,6 +159,8 @@ class SaleInventoryPostingService
                         'Sale serial count does not match the item base quantity.'
                     );
                 }
+
+                $lineTotalCost = 0.0;
 
                 foreach ($item->serials as $serialItem) {
                     $serial = $serialItem->product_serial_id
@@ -177,13 +193,26 @@ class SaleInventoryPostingService
                         remarks: "Sale {$sale->sale_no} Serial {$serialItem->serial_number}",
                     );
 
-                    $this->inventoryPostingService->stockOut($movement);
+                    $ledger = $this->inventoryPostingService->stockOut($movement);
+
+                    $serialItem->update([
+                        'unit_cost' => (float) $ledger->unit_cost,
+                    ]);
+
+                    $lineTotalCost += (float) $ledger->total_cost;
 
                     $serial->update([
                         'status' => ProductSerialStatusEnum::SOLD,
                         'sold_at' => now(),
                     ]);
                 }
+
+                $item->update([
+                    'cost_price' => round(
+                        $lineTotalCost / max((float) $item->quantity, 0.0001),
+                        4
+                    ),
+                ]);
 
                 continue;
             }
@@ -202,7 +231,14 @@ class SaleInventoryPostingService
                 remarks: "Sale {$sale->sale_no}",
             );
 
-            $this->inventoryPostingService->stockOut($movement);
+            $ledger = $this->inventoryPostingService->stockOut($movement);
+
+            $item->update([
+                'cost_price' => round(
+                    (float) $ledger->total_cost / max((float) $item->quantity, 0.0001),
+                    4
+                ),
+            ]);
         }
     }
 

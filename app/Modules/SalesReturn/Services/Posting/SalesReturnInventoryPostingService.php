@@ -11,6 +11,7 @@ use App\Modules\Inventory\Models\ProductBatch;
 use App\Modules\Inventory\Models\ProductSerial;
 use App\Modules\Inventory\Models\StockLedger;
 use App\Modules\Sales\Models\SaleItemBatch;
+use App\Modules\Sales\Models\SaleItemSerial;
 use App\Modules\Inventory\Services\InventoryBatchService;
 use App\Modules\Inventory\Services\InventoryPostingService;
 use App\Modules\Inventory\Services\InventorySerialService;
@@ -65,6 +66,7 @@ class SalesReturnInventoryPostingService
                         ->where('sale_item_id', $item->sale_item_id)
                         ->where('product_batch_id', $batchItem->product_batch_id)
                         ->where('batch_no', $batchItem->batch_no)
+                        ->lockForUpdate()
                         ->first();
 
                     if (! $sourceAllocation || (float) $sourceAllocation->quantity <= 0) {
@@ -94,7 +96,7 @@ class SalesReturnInventoryPostingService
                         productVariantId: $item->product_variant_id,
                         warehouseId: $warehouseId,
                         quantity: $batchBaseQuantity,
-                        unitCost: (float) $item->unit_cost,
+                        unitCost: (float) $sourceAllocation->unit_cost,
                         transactionType: InventoryTransactionTypeEnum::SALE_RETURN->value,
                         transactionDate: $salesReturn->return_date,
                         referenceType: SalesReturn::class,
@@ -133,9 +135,31 @@ class SalesReturnInventoryPostingService
                 }
 
                 foreach ($item->serials as $serialItem) {
+                    $sourceAllocation = SaleItemSerial::query()
+                        ->where('sale_item_id', $item->sale_item_id)
+                        ->where('serial_number', $serialItem->serial_number)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (! $sourceAllocation) {
+                        throw new BusinessException(
+                            "Serial [{$serialItem->serial_number}] was not allocated to the original sale item."
+                        );
+                    }
+
+                    if (
+                        $serialItem->product_serial_id !== null
+                        && $sourceAllocation->product_serial_id !== null
+                        && (int) $serialItem->product_serial_id !== (int) $sourceAllocation->product_serial_id
+                    ) {
+                        throw new BusinessException(
+                            "Serial [{$serialItem->serial_number}] does not match the original sale allocation."
+                        );
+                    }
+
                     /** @var ProductSerial|null $serial */
-                    $serial = $serialItem->product_serial_id
-                        ? ProductSerial::query()->find($serialItem->product_serial_id)
+                    $serial = $sourceAllocation->product_serial_id
+                        ? ProductSerial::query()->find($sourceAllocation->product_serial_id)
                         : $this->serialService->findBySerialNumber($serialItem->serial_number);
 
                     if (! $serial) {
@@ -153,7 +177,7 @@ class SalesReturnInventoryPostingService
                         productVariantId: $item->product_variant_id,
                         warehouseId: $warehouseId,
                         quantity: 1,
-                        unitCost: (float) $item->unit_cost,
+                        unitCost: (float) $sourceAllocation->unit_cost,
                         transactionType: InventoryTransactionTypeEnum::SALE_RETURN->value,
                         transactionDate: $salesReturn->return_date,
                         referenceType: SalesReturn::class,
