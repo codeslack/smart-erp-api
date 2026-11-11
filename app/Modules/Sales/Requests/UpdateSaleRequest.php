@@ -43,6 +43,10 @@ class UpdateSaleRequest extends BaseRequest
             'terms_and_conditions' => ['nullable', 'string'],
 
             'items' => ['sometimes', 'array', 'min:1'],
+            'items.*' => [
+                'required',
+                'array:product_id,product_uuid,product_variant_id,product_variant_uuid,warehouse_id,warehouse_uuid,line_type,item_name,sku,description,unit_id,unit_uuid,quantity,unit_price,discount_type,discount_rate,discount_amount,tax_id,tax_uuid,tax_rate,tax_amount,batches,serials',
+            ],
             'items.*.product_id' => ['nullable', 'integer', TenantRule::exists('products', 'id')],
             'items.*.product_uuid' => ['nullable', 'string', TenantRule::exists('products', 'uuid')],
             'items.*.product_variant_id' => ['nullable', 'integer', TenantRule::exists('product_variants', 'id')],
@@ -71,6 +75,10 @@ class UpdateSaleRequest extends BaseRequest
             'items.*.tax_amount' => ['nullable', 'numeric', 'gte:0'],
 
             'items.*.batches' => ['nullable', 'array'],
+            'items.*.batches.*' => [
+                'required',
+                'array:batch_no,quantity',
+            ],
             'items.*.serials' => ['nullable', 'array'],
         ];
     }

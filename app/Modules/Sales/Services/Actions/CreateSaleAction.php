@@ -67,6 +67,7 @@ class CreateSaleAction
                             'product_batch_id' => $batch['product_batch_id'] ?? null,
                             'batch_no' => $batch['batch_no'],
                             'quantity' => $batch['quantity'],
+                            'base_quantity' => $batch['base_quantity'] ?? $batch['quantity'],
                         ]);
                     }
                 }

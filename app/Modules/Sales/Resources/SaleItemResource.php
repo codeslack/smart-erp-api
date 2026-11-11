@@ -39,6 +39,7 @@ class SaleItemResource extends JsonResource
             ]),
 
             'quantity' => (float) $this->quantity,
+            'base_quantity' => $this->base_quantity !== null ? (float) $this->base_quantity : null,
             'unit_price' => (float) $this->unit_price,
             'cost_price' => (float) $this->cost_price,
 
@@ -59,6 +60,7 @@ class SaleItemResource extends JsonResource
                 'uuid' => $b->uuid,
                 'batch_no' => $b->batch_no,
                 'quantity' => (float) $b->quantity,
+                'base_quantity' => $b->base_quantity !== null ? (float) $b->base_quantity : (float) $b->quantity,
             ])),
 
             'serials' => $this->whenLoaded('serials', fn () => $this->serials->map(fn ($s) => [
