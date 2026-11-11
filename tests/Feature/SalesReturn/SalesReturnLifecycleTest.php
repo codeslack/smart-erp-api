@@ -9,6 +9,8 @@ use App\Modules\Accounting\Services\AccountingSetupService;
 use App\Modules\Customer\Models\Customer;
 use App\Modules\Inventory\Models\ProductStock;
 use App\Modules\Product\Models\Product;
+use App\Modules\ProductUnit\Models\ProductUnit;
+use App\Modules\Unit\Models\Unit;
 use App\Modules\Purchase\Services\PurchaseService;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Services\SaleService;
@@ -133,6 +135,108 @@ class SalesReturnLifecycleTest extends TestCase
             'items' => [['sale_item_uuid' => $saleItem->uuid, 'returned_quantity' => 6, 'unit_price' => 100]],
         ]);
         $res->assertUnprocessable();
+    }
+
+    public function test_sales_return_restores_converted_base_quantity(): void
+    {
+        $baseUnit = Unit::create([
+            'tenant_id' => $this->tenant->id,
+            'code' => 'RET-EACH',
+            'name' => 'Return Each',
+            'short_name' => 'ea',
+            'is_active' => true,
+        ]);
+
+        $boxUnit = Unit::create([
+            'tenant_id' => $this->tenant->id,
+            'code' => 'RET-BOX',
+            'name' => 'Return Box',
+            'short_name' => 'box',
+            'is_active' => true,
+        ]);
+
+        $this->product->update(['unit_id' => $baseUnit->id]);
+
+        ProductUnit::create([
+            'product_id' => $this->product->id,
+            'unit_id' => $baseUnit->id,
+            'conversion_factor' => 1,
+            'is_purchase_unit' => true,
+            'is_sales_unit' => true,
+            'is_active' => true,
+        ]);
+
+        ProductUnit::create([
+            'product_id' => $this->product->id,
+            'unit_id' => $boxUnit->id,
+            'conversion_factor' => 10,
+            'is_purchase_unit' => true,
+            'is_sales_unit' => true,
+            'is_active' => true,
+        ]);
+
+        $purchaseService = app(PurchaseService::class);
+        $extraPurchase = $purchaseService->create([
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [[
+                'product_uuid' => $this->product->uuid,
+                'unit_uuid' => $baseUnit->uuid,
+                'quantity' => 10,
+                'unit_cost' => 50,
+            ]],
+        ]);
+        $purchaseService->confirm($extraPurchase);
+
+        $saleService = app(SaleService::class);
+        $unitSale = $saleService->create([
+            'customer_uuid' => $this->customer->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_uuid' => $this->product->uuid,
+                'unit_uuid' => $boxUnit->uuid,
+                'quantity' => 1,
+                'unit_price' => 1000,
+            ]],
+        ]);
+        $unitSale = $saleService->confirm($unitSale->uuid);
+        $saleItem = $unitSale->items->first();
+
+        $this->assertEquals(10, (float) $saleItem->base_quantity);
+
+        $response = $this->postJson(route('sales-returns.store'), [
+            'sale_uuid' => $unitSale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'sale_item_uuid' => $saleItem->uuid,
+                'returned_quantity' => 1,
+                'unit_price' => 1000,
+            ]],
+        ]);
+
+        $response->assertCreated();
+        $returnUuid = $response->json('data.uuid');
+
+        $this->postJson(route('sales-returns.confirm', ['uuid' => $returnUuid]))
+            ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $stock = ProductStock::query()
+            ->where('product_id', $this->product->id)
+            ->where('warehouse_id', $this->warehouse->id)
+            ->firstOrFail();
+
+        $this->assertEquals(15, (float) $stock->quantity);
+
+        $this->assertDatabaseHas('stock_ledgers', [
+            'product_id' => $this->product->id,
+            'warehouse_id' => $this->warehouse->id,
+            'quantity_in' => 10,
+            'transaction_type' => 'SALE_RETURN',
+        ]);
     }
 
     public function test_sales_return_can_be_cancelled(): void
