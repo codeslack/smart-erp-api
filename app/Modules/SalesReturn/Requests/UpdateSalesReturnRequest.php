@@ -30,6 +30,10 @@ class UpdateSalesReturnRequest extends BaseRequest
             'rounding_amount' => ['nullable', 'numeric'],
 
             'items' => ['sometimes', 'array', 'min:1'],
+            'items.*' => [
+                'required',
+                'array:sale_item_id,sale_item_uuid,product_id,product_uuid,product_variant_id,product_variant_uuid,warehouse_id,warehouse_uuid,returned_quantity,quantity,unit_price,unit_cost,discount_type,discount_rate,discount_amount,tax_id,tax_uuid,tax_rate,tax_amount,condition,reason,batches,serials',
+            ],
             'items.*.sale_item_id' => ['nullable', 'integer', TenantRule::exists('sale_items', 'id')],
             'items.*.sale_item_uuid' => ['nullable', 'string', TenantRule::exists('sale_items', 'uuid')],
             'items.*.product_id' => ['nullable', 'integer', TenantRule::exists('products', 'id')],
