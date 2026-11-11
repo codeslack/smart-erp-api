@@ -24,7 +24,6 @@ class Payment extends TenantModel
 
     protected $fillable = [
         'uuid',
-        'tenant_id',
         'payment_no',
         'payment_type',
         'payment_date',
