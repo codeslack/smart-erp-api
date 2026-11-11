@@ -2,6 +2,7 @@
 
 namespace App\Modules\SalesReturn\Services\Actions;
 
+use App\Core\Exceptions\BusinessException;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\SalesReturn\Enums\SalesReturnStatus;
 use App\Modules\SalesReturn\Models\SalesReturn;
@@ -34,7 +35,7 @@ class ConfirmSalesReturnAction
             $this->validator->validateForConfirmation($salesReturn);
 
             if (! $sale) {
-                throw new \App\Core\Exceptions\BusinessException(
+                throw new BusinessException(
                     'The source Sale for this Sales Return could not be found.'
                 );
             }
