@@ -2,6 +2,8 @@
 
 namespace App\Modules\Purchase\Services\Calculators;
 
+use App\Core\Exceptions\BusinessException;
+
 class PurchaseItemCalculator
 {
     public function calculate(array $data): array
@@ -14,6 +16,17 @@ class PurchaseItemCalculator
         $discountRate = (float) ($data['discount_rate'] ?? $data['discount_percentage'] ?? 0);
         $discountAmount = (float) ($data['discount_amount'] ?? 0);
 
+        if (
+            ($discountType === 'percentage' || ($discountType === 'none' && $discountRate > 0))
+            && $discountRate > 100
+        ) {
+            throw new BusinessException('Percentage discounts must be between 0 and 100.');
+        }
+
+        if ($discountAmount > $lineTotal + 0.0001) {
+            throw new BusinessException('Item discount cannot exceed the line total.');
+        }
+
         if ($discountType === 'percentage' || ($discountType === 'none' && $discountRate > 0)) {
             $discountType = 'percentage';
             if ($discountAmount === 0.0 && $discountRate > 0) {
@@ -23,6 +36,10 @@ class PurchaseItemCalculator
             if ($discountAmount === 0.0 && $discountRate > 0) {
                 $discountAmount = round($discountRate, 4);
             }
+        }
+
+        if ($discountAmount > $lineTotal + 0.0001) {
+            throw new BusinessException('Item discount cannot exceed the line total.');
         }
 
         $subtotal = max(0, round($lineTotal - $discountAmount, 4));

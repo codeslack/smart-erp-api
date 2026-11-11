@@ -37,6 +37,24 @@ class InventorySerialMovementService
         );
     }
 
+    public function lockForSalesReturn(
+        int $serialId,
+        int $productId,
+        int $warehouseId,
+        ?int $productVariantId = null,
+        ?int $productBatchId = null,
+    ): ProductSerial {
+        return $this->lockForMovement(
+            serialId: $serialId,
+            productId: $productId,
+            warehouseId: $warehouseId,
+            productVariantId: $productVariantId,
+            productBatchId: $productBatchId,
+            expectedStatus: ProductSerialStatusEnum::SOLD,
+            statusMessage: 'Only sold serials can be received through a sales return.',
+        );
+    }
+
     public function lockForStockOut(
         int $serialId,
         int $productId,

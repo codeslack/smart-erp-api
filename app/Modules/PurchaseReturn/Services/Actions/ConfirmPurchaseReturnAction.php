@@ -5,11 +5,13 @@ namespace App\Modules\PurchaseReturn\Services\Actions;
 use App\Core\Exceptions\BusinessException;
 use App\Modules\Accounting\Services\Contracts\AccountingPostingServiceInterface;
 use App\Modules\Purchase\Enums\PurchaseStatusEnum;
+use App\Modules\Purchase\Models\Purchase;
 use App\Modules\PurchaseReturn\Enums\PurchaseReturnRefundType;
 use App\Modules\PurchaseReturn\Enums\PurchaseReturnStatus;
 use App\Modules\PurchaseReturn\Models\PurchaseReturn;
 use App\Modules\PurchaseReturn\Repositories\Contracts\PurchaseReturnRepositoryInterface;
 use App\Modules\PurchaseReturn\Services\Posting\PurchaseReturnInventoryPostingService;
+use App\Modules\PurchaseReturn\Services\Validators\PurchaseReturnValidator;
 use Illuminate\Support\Facades\DB;
 
 class ConfirmPurchaseReturnAction
@@ -17,6 +19,7 @@ class ConfirmPurchaseReturnAction
     public function __construct(
         protected PurchaseReturnRepositoryInterface $repository,
         protected PurchaseReturnInventoryPostingService $inventoryPostingService,
+        protected PurchaseReturnValidator $validator,
         protected AccountingPostingServiceInterface $accountingPostingService,
     ) {}
 
@@ -32,10 +35,18 @@ class ConfirmPurchaseReturnAction
                 throw new BusinessException('Only draft purchase returns can be confirmed.');
             }
 
-            $purchase = $purchaseReturn->purchase;
+            // Serialize confirmations for this purchase so concurrent returns cannot
+            // consume the same remaining purchased quantity.
+            $purchase = Purchase::query()
+                ->lockForUpdate()
+                ->find($purchaseReturn->purchase_id);
+
             if (! $purchase || $purchase->status !== PurchaseStatusEnum::CONFIRMED) {
                 throw new BusinessException('Referenced purchase must be confirmed.');
             }
+
+            // Re-check returnable quantities and tracked inventory at confirmation time.
+            $this->validator->validateForConfirmation($purchaseReturn);
 
             // 1. Post inventory stock out
             $this->inventoryPostingService->post($purchaseReturn);

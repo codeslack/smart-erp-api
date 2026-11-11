@@ -268,6 +268,76 @@ class SaleCrudTest extends TestCase
             ->assertJsonValidationErrors('items.0');
     }
 
+    public function test_sale_rejects_client_supplied_batch_and_serial_ids(): void
+    {
+        $response = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $this->product->id,
+                'quantity' => 1,
+                'unit_price' => 50,
+                'batches' => [[
+                    'batch_no' => 'BATCH-CLIENT',
+                    'quantity' => 1,
+                    'product_batch_id' => 123,
+                ]],
+                'serials' => [[
+                    'serial_number' => 'SERIAL-CLIENT',
+                    'product_serial_id' => 123,
+                ]],
+            ]],
+        ]);
+
+        $response
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'items.0.batches.0',
+                'items.0.serials.0',
+            ]);
+    }
+
+    public function test_sale_update_rejects_client_supplied_batch_and_serial_ids(): void
+    {
+        $createResponse = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $this->product->id,
+                'quantity' => 1,
+                'unit_price' => 50,
+            ]],
+        ]);
+
+        $uuid = $createResponse->json('data.uuid');
+
+        $response = $this->putJson(route('sales.update', $uuid), [
+            'items' => [[
+                'product_id' => $this->product->id,
+                'quantity' => 1,
+                'unit_price' => 50,
+                'batches' => [[
+                    'batch_no' => 'BATCH-CLIENT',
+                    'quantity' => 1,
+                    'product_batch_id' => 123,
+                ]],
+                'serials' => [[
+                    'serial_number' => 'SERIAL-CLIENT',
+                    'product_serial_id' => 123,
+                ]],
+            ]],
+        ]);
+
+        $response
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'items.0.batches.0',
+                'items.0.serials.0',
+            ]);
+    }
+
     public function test_sale_items_can_be_retrieved(): void
     {
         $createResponse = $this->postJson(route('sales.store'), [

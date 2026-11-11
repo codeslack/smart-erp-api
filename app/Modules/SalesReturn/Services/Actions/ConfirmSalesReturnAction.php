@@ -20,9 +20,17 @@ class ConfirmSalesReturnAction
 
     public function execute(SalesReturn $salesReturn): SalesReturn
     {
-        $this->validator->validateForConfirmation($salesReturn);
-
         return DB::transaction(function () use ($salesReturn) {
+            $salesReturn = SalesReturn::query()
+                ->lockForUpdate()
+                ->findOrFail($salesReturn->id);
+
+            $sale = Sale::query()
+                ->lockForUpdate()
+                ->find($salesReturn->sale_id);
+
+            $this->validator->validateForConfirmation($salesReturn);
+
             $salesReturn->update([
                 'status' => SalesReturnStatus::CONFIRMED,
                 'approved_by' => auth()->id(),
@@ -36,14 +44,11 @@ class ConfirmSalesReturnAction
             $this->accountingPostingService->post($salesReturn);
 
             // Adjust referenced Sale due amount
-            if ($salesReturn->sale_id) {
-                $sale = Sale::query()->find($salesReturn->sale_id);
-                if ($sale) {
-                    $newDue = max(0, round((float) $sale->due_amount - (float) $salesReturn->grand_total, 4));
-                    $sale->update([
-                        'due_amount' => $newDue,
-                    ]);
-                }
+            if ($sale) {
+                $newDue = max(0, round((float) $sale->due_amount - (float) $salesReturn->grand_total, 4));
+                $sale->update([
+                    'due_amount' => $newDue,
+                ]);
             }
 
             return $salesReturn->fresh([

@@ -76,6 +76,22 @@ class InventorySerialService
         );
     }
 
+    public function lockForSalesReturn(
+        int $serialId,
+        int $productId,
+        int $warehouseId,
+        ?int $productVariantId = null,
+        ?int $productBatchId = null,
+    ): ProductSerial {
+        return $this->movementService->lockForSalesReturn(
+            serialId: $serialId,
+            productId: $productId,
+            warehouseId: $warehouseId,
+            productVariantId: $productVariantId,
+            productBatchId: $productBatchId,
+        );
+    }
+
     public function lockForStockOut(
         int $serialId,
         int $productId,

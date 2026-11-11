@@ -118,10 +118,23 @@ class PurchaseReturnConfirmationTest extends TestCase
 
     public function test_purchase_return_with_tax_creates_balanced_voucher(): void
     {
-        $purchaseItem = $this->purchase->items->first();
+        $purchaseService = app(PurchaseService::class);
+        $taxedPurchase = $purchaseService->create([
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [[
+                'product_uuid' => $this->product->uuid,
+                'quantity' => 1,
+                'unit_cost' => 100,
+                'tax_rate' => 10,
+            ]],
+        ]);
+        $taxedPurchase = $purchaseService->confirm($taxedPurchase);
+        $purchaseItem = $taxedPurchase->items->first();
 
         $createRes = $this->postJson('/api/purchase-returns', [
-            'purchase_uuid' => $this->purchase->uuid,
+            'purchase_uuid' => $taxedPurchase->uuid,
             'return_date' => now()->toDateString(),
             'items' => [[
                 'purchase_item_uuid' => $purchaseItem->uuid,

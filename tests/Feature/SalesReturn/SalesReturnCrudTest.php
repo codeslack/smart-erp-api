@@ -133,6 +133,72 @@ class SalesReturnCrudTest extends TestCase
         $updateRes->assertOk()->assertJsonPath('data.grand_total', 400);
     }
 
+    public function test_sales_return_rejects_unvalidated_base_quantity_on_create(): void
+    {
+        $saleItem = $this->sale->items->first();
+
+        $response = $this->postJson(route('sales-returns.store'), [
+            'sale_uuid' => $this->sale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'sale_item_uuid' => $saleItem->uuid,
+                'returned_quantity' => 1,
+                'unit_price' => 100,
+                'base_quantity' => 500,
+            ]],
+        ]);
+
+        $response
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0');
+    }
+
+    public function test_sales_return_rejects_unvalidated_base_quantity_on_update(): void
+    {
+        $uuid = $this->makeReturn(1);
+        $saleItem = $this->sale->items->first();
+
+        $response = $this->putJson(route('sales-returns.update', ['uuid' => $uuid]), [
+            'items' => [[
+                'sale_item_uuid' => $saleItem->uuid,
+                'returned_quantity' => 2,
+                'unit_price' => 100,
+                'base_quantity' => 500,
+            ]],
+        ]);
+
+        $response
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0');
+    }
+
+    public function test_sales_return_uses_original_sale_price_and_cost(): void
+    {
+        $saleItem = $this->sale->items->first();
+
+        $response = $this->postJson(route('sales-returns.store'), [
+            'sale_uuid' => $this->sale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'sale_item_uuid' => $saleItem->uuid,
+                'returned_quantity' => 2,
+                'unit_price' => 999,
+                'unit_cost' => 999,
+            ]],
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.grand_total', 200);
+
+        $this->assertDatabaseHas('sales_return_items', [
+            'sale_item_id' => $saleItem->id,
+            'returned_quantity' => 2,
+            'unit_price' => 100,
+            'unit_cost' => $saleItem->cost_price,
+        ]);
+    }
+
     public function test_sales_return_items_can_be_retrieved(): void
     {
         $uuid = $this->makeReturn(2);

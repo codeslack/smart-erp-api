@@ -77,11 +77,15 @@ class PurchaseReturnService extends BaseService
 
     public function delete(PurchaseReturn $purchaseReturn): bool
     {
-        if (! $purchaseReturn->isDraft()) {
-            throw new BusinessException('Only draft purchase returns can be deleted.');
-        }
-
         return (bool) DB::transaction(function () use ($purchaseReturn) {
+            $purchaseReturn = PurchaseReturn::query()
+                ->lockForUpdate()
+                ->findOrFail($purchaseReturn->id);
+
+            if (! $purchaseReturn->isDraft()) {
+                throw new BusinessException('Only draft purchase returns can be deleted.');
+            }
+
             $purchaseReturn->batches()->delete();
             $purchaseReturn->serials()->delete();
             $purchaseReturn->items()->delete();

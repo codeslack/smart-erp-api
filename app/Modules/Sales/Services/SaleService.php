@@ -78,9 +78,14 @@ class SaleService
     public function delete(int|string|Sale $sale): bool
     {
         $model = $sale instanceof Sale ? $sale : $this->find($sale);
-        $this->validator->validateForDeletion($model);
 
         return DB::transaction(function () use ($model) {
+            $model = Sale::query()
+                ->lockForUpdate()
+                ->findOrFail($model->id);
+
+            $this->validator->validateForDeletion($model);
+
             $model->items()->delete();
 
             return (bool) $model->delete();

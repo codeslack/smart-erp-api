@@ -20,9 +20,17 @@ class CancelSalesReturnAction
 
     public function execute(SalesReturn $salesReturn, ?string $reason = null): SalesReturn
     {
-        $this->validator->validateForCancellation($salesReturn);
-
         return DB::transaction(function () use ($salesReturn, $reason) {
+            $salesReturn = SalesReturn::query()
+                ->lockForUpdate()
+                ->findOrFail($salesReturn->id);
+
+            $this->validator->validateForCancellation($salesReturn);
+
+            $sale = $salesReturn->sale_id
+                ? Sale::query()->lockForUpdate()->find($salesReturn->sale_id)
+                : null;
+
             $wasConfirmed = $salesReturn->status === SalesReturnStatus::CONFIRMED;
 
             if ($wasConfirmed) {
@@ -33,14 +41,11 @@ class CancelSalesReturnAction
                 $this->accountingPostingService->reverse($salesReturn);
 
                 // Revert referenced Sale due amount
-                if ($salesReturn->sale_id) {
-                    $sale = Sale::query()->find($salesReturn->sale_id);
-                    if ($sale) {
-                        $newDue = round((float) $sale->due_amount + (float) $salesReturn->grand_total, 4);
-                        $sale->update([
-                            'due_amount' => $newDue,
-                        ]);
-                    }
+                if ($sale) {
+                    $newDue = round((float) $sale->due_amount + (float) $salesReturn->grand_total, 4);
+                    $sale->update([
+                        'due_amount' => $newDue,
+                    ]);
                 }
             }
 

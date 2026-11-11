@@ -2,6 +2,7 @@
 
 namespace App\Modules\PurchaseReturn\Services\Support;
 
+use App\Core\Exceptions\BusinessException;
 use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Product\Models\Product;
 use App\Modules\Product\Models\ProductVariant;
@@ -16,22 +17,46 @@ class PurchaseReturnPayloadResolver
 {
     public function resolveHeader(array $data): array
     {
-        if (isset($data['purchase_uuid']) && ! isset($data['purchase_id'])) {
-            $data['purchase_id'] = Purchase::query()
+        if (isset($data['purchase_uuid'])) {
+            $purchaseId = Purchase::query()
                 ->where('uuid', $data['purchase_uuid'])
                 ->value('id');
+
+            if (isset($data['purchase_id']) && (int) $data['purchase_id'] !== (int) $purchaseId) {
+                throw new BusinessException('Purchase references do not match.');
+            }
+
+            $data['purchase_id'] = $data['purchase_id'] ?? $purchaseId;
             unset($data['purchase_uuid']);
         }
 
-        if (isset($data['purchase_id']) && ! isset($data['supplier_id']) && ! isset($data['supplier_uuid'])) {
-            $data['supplier_id'] = Purchase::query()
-                ->where('id', $data['purchase_id'])
-                ->value('supplier_id');
+        if (isset($data['supplier_uuid'])) {
+            $supplierId = Supplier::query()
+                ->where('uuid', $data['supplier_uuid'])
+                ->value('id');
+
+            if (isset($data['supplier_id']) && (int) $data['supplier_id'] !== (int) $supplierId) {
+                throw new BusinessException('Supplier references do not match.');
+            }
+
+            $data['supplier_id'] = $data['supplier_id'] ?? $supplierId;
+            unset($data['supplier_uuid']);
         }
 
-        if (isset($data['supplier_uuid']) && ! isset($data['supplier_id'])) {
-            $data['supplier_id'] = Supplier::query()->where('uuid', $data['supplier_uuid'])->value('id');
-            unset($data['supplier_uuid']);
+        if (isset($data['purchase_id'])) {
+            $purchaseSupplierId = Purchase::query()
+                ->whereKey($data['purchase_id'])
+                ->value('supplier_id');
+
+            if (
+                $purchaseSupplierId !== null
+                && isset($data['supplier_id'])
+                && (int) $data['supplier_id'] !== (int) $purchaseSupplierId
+            ) {
+                throw new BusinessException('Supplier does not match the referenced purchase.', 'BUSINESS_ERROR', ['supplier_uuid' => ['Supplier does not match the referenced purchase.']]);
+            }
+
+            $data['supplier_id'] = $purchaseSupplierId ?? ($data['supplier_id'] ?? null);
         }
 
         if (isset($data['refund_account_uuid']) && ! isset($data['refund_account_id'])) {
@@ -85,13 +110,27 @@ class PurchaseReturnPayloadResolver
                     $item['warehouse_id'] = $item['warehouse_id'] ?? $purchaseItem->warehouse_id ?? $defaultWarehouseId;
                     $item['unit_id'] = $purchaseItem->unit_id;
                     $item['unit_cost'] = (float) $purchaseItem->unit_cost;
+
                     $purchaseQuantity = (float) $purchaseItem->quantity;
-                    $purchaseBaseQuantity = (float) ($purchaseItem->base_quantity ?? $purchaseItem->quantity);
-                    $item['base_quantity'] = $purchaseQuantity > 0
-                        ? round(($purchaseBaseQuantity / $purchaseQuantity) * (float) ($item['returned_quantity'] ?? 0), 4)
+                    $returnedQuantity = (float) ($item['returned_quantity'] ?? 0);
+                    $quantityRatio = $purchaseQuantity > 0
+                        ? $returnedQuantity / $purchaseQuantity
                         : 0.0;
-                    $item['tax_id'] = $item['tax_id'] ?? $purchaseItem->tax_id;
-                    $item['tax_rate'] = $item['tax_rate'] ?? $purchaseItem->tax_rate;
+
+                    $purchaseBaseQuantity = (float) ($purchaseItem->base_quantity ?? $purchaseItem->quantity);
+                    $item['base_quantity'] = round($purchaseBaseQuantity * $quantityRatio, 4);
+
+                    // A return must reverse the original purchase line values, not client overrides.
+                    $item['discount_amount'] = round(
+                        (float) $purchaseItem->discount_amount * $quantityRatio,
+                        4
+                    );
+                    $item['tax_id'] = $purchaseItem->tax_id;
+                    $item['tax_rate'] = (float) $purchaseItem->tax_rate;
+                    $item['tax_amount'] = round(
+                        (float) $purchaseItem->tax_amount * $quantityRatio,
+                        4
+                    );
                 }
             }
 

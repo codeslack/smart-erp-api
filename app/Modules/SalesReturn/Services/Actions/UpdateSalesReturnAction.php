@@ -23,10 +23,25 @@ class UpdateSalesReturnAction
 
     public function execute(SalesReturn $salesReturn, array $data): SalesReturn
     {
-        $this->validator->validateForUpdate($salesReturn);
-
         return DB::transaction(function () use ($salesReturn, $data) {
-            $headerData = $this->payloadResolver->resolveHeader($data);
+            $salesReturn = SalesReturn::query()
+                ->lockForUpdate()
+                ->findOrFail($salesReturn->id);
+
+            $this->validator->validateForUpdate($salesReturn);
+
+            $headerInput = $data;
+            $sourceSaleProvided = isset($data['sale_id']) || isset($data['sale_uuid']);
+
+            if (! $sourceSaleProvided) {
+                $headerInput['sale_id'] = $salesReturn->sale_id;
+
+                if (! isset($data['customer_id']) && ! isset($data['customer_uuid'])) {
+                    $headerInput['customer_id'] = $salesReturn->customer_id;
+                }
+            }
+
+            $headerData = $this->payloadResolver->resolveHeader($headerInput);
             $hasItems = isset($headerData['items']) && is_array($headerData['items']);
 
             if ($hasItems) {
@@ -36,7 +51,11 @@ class UpdateSalesReturnAction
                 $defaultWarehouseId = $headerData['warehouse_id'] ?? $salesReturn->warehouse_id;
                 $resolvedItems = $this->payloadResolver->resolveItems($rawItems, $defaultWarehouseId);
 
-                $this->validator->validateForSave($headerData, $resolvedItems, $salesReturn->id);
+                $this->validator->validateForSave(
+                    array_merge(['sale_id' => $salesReturn->sale_id], $headerData),
+                    $resolvedItems,
+                    $salesReturn->id
+                );
 
                 $calculatedItems = [];
                 foreach ($resolvedItems as $item) {
@@ -64,7 +83,7 @@ class UpdateSalesReturnAction
                         SaleReturnItemBatch::create([
                             'sales_return_id' => $salesReturn->id,
                             'sales_return_item_id' => $returnItem->id,
-                            'product_batch_id' => $batch['product_batch_id'] ?? null,
+                            'product_batch_id' => $batch['product_batch_id'],
                             'batch_no' => $batch['batch_no'],
                             'quantity' => $batch['quantity'],
                         ]);
@@ -74,8 +93,8 @@ class UpdateSalesReturnAction
                         SaleReturnItemSerial::create([
                             'sales_return_id' => $salesReturn->id,
                             'sales_return_item_id' => $returnItem->id,
-                            'product_serial_id' => $serial['product_serial_id'] ?? null,
-                            'serial_number' => is_array($serial) ? ($serial['serial_number'] ?? '') : $serial,
+                            'product_serial_id' => null,
+                            'serial_number' => is_array($serial) ? ($serial['serial_number'] ?? $serial['serial_no'] ?? '') : $serial,
                         ]);
                     }
                 }

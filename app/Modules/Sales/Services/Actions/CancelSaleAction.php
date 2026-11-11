@@ -20,9 +20,13 @@ class CancelSaleAction
 
     public function execute(Sale $sale, ?string $reason = null): Sale
     {
-        $this->validator->validateForCancellation($sale);
-
         return DB::transaction(function () use ($sale, $reason) {
+            $sale = Sale::query()
+                ->lockForUpdate()
+                ->findOrFail($sale->id);
+
+            $this->validator->validateForCancellation($sale);
+
             $wasConfirmed = $sale->status === SaleStatusEnum::CONFIRMED;
 
             if ($wasConfirmed) {

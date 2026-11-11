@@ -80,6 +80,24 @@ class UpdateSaleRequest extends BaseRequest
                 'array:batch_no,quantity',
             ],
             'items.*.serials' => ['nullable', 'array'],
+            'items.*.serials.*' => [
+                function ($attribute, $value, $fail) {
+                    if (is_array($value)) {
+                        if (array_diff(array_keys($value), ['serial_number', 'serial_no']) !== []) {
+                            $fail('Serial entries may only contain a serial number.');
+                            return;
+                        }
+
+                        $serialNumber = $value['serial_number'] ?? $value['serial_no'] ?? null;
+                    } else {
+                        $serialNumber = $value;
+                    }
+
+                    if (! is_string($serialNumber) || trim($serialNumber) === '') {
+                        $fail('A valid serial number is required.');
+                    }
+                },
+            ],
         ];
     }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Modules\Sales\Services\Calculators;
 
+use App\Core\Exceptions\BusinessException;
+
 class SaleCalculator
 {
     public function calculate(array $items, array $headerData = []): array
@@ -17,6 +19,11 @@ class SaleCalculator
         }
 
         $headerDiscount = (float) ($headerData['discount_amount'] ?? $headerData['discount'] ?? 0);
+
+        if ($headerDiscount > $subtotal + 0.0001) {
+            throw new BusinessException('Header discount cannot exceed the net item subtotal.');
+        }
+
         $totalDiscount = $itemDiscounts + $headerDiscount;
 
         $chargesSubtotal = (float) ($headerData['charges_subtotal'] ?? 0);

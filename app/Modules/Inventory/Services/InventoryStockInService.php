@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use App\Modules\Product\Models\Product;
 
 use App\Modules\Inventory\Data\InventoryMovementData;
+use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
 use App\Modules\Inventory\Models\StockLedger;
 
 use App\Modules\Inventory\Repositories\Contracts\ProductStockRepositoryInterface;
@@ -53,9 +54,11 @@ class InventoryStockInService
             $movement
         );
 
-        $this->validator->validateStockInSerial(
-            $movement
-        );
+        // A sales return reintroduces a serial that was previously sold.
+        // Its SOLD state is validated under row lock in lockSerial().
+        if ($movement->transactionType !== InventoryTransactionTypeEnum::SALE_RETURN->value) {
+            $this->validator->validateStockInSerial($movement);
+        }
     }
 
     public function post(
@@ -146,6 +149,18 @@ class InventoryStockInService
         InventoryMovementData $movement
     ): void {
         if ($movement->serialId === null) {
+            return;
+        }
+
+        if ($movement->transactionType === InventoryTransactionTypeEnum::SALE_RETURN->value) {
+            $this->serialService->lockForSalesReturn(
+                serialId: $movement->serialId,
+                productId: $movement->productId,
+                warehouseId: $movement->warehouseId,
+                productVariantId: $movement->productVariantId,
+                productBatchId: $movement->batchId,
+            );
+
             return;
         }
 

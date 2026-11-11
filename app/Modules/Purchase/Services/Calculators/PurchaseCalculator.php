@@ -2,6 +2,8 @@
 
 namespace App\Modules\Purchase\Services\Calculators;
 
+use App\Core\Exceptions\BusinessException;
+
 class PurchaseCalculator
 {
     public function calculateTotals(
@@ -26,12 +28,20 @@ class PurchaseCalculator
         $discountType = $headerData['discount_type'] ?? 'none';
         $discountRate = (float) ($headerData['discount_rate'] ?? 0);
         $headerDiscountAmount = (float) ($headerData['discount_amount'] ?? 0);
+        $baseForHeaderDiscount = max(0, $itemsSubtotal - $itemDiscountTotal);
+
+        if ($discountType === 'percentage' && $discountRate > 100) {
+            throw new BusinessException('Header discount percentage must be between 0 and 100.');
+        }
 
         if ($discountType === 'percentage' && $headerDiscountAmount === 0.0 && $discountRate > 0) {
-            $baseForHeaderDiscount = max(0, $itemsSubtotal - $itemDiscountTotal);
             $headerDiscountAmount = round($baseForHeaderDiscount * ($discountRate / 100), 4);
         } elseif ($discountType === 'fixed' && $headerDiscountAmount === 0.0 && $discountRate > 0) {
             $headerDiscountAmount = round($discountRate, 4);
+        }
+
+        if ($headerDiscountAmount > $baseForHeaderDiscount + 0.0001) {
+            throw new BusinessException('Header discount cannot exceed the net item subtotal.');
         }
 
         $totalDiscountAmount = round($itemDiscountTotal + $headerDiscountAmount, 4);

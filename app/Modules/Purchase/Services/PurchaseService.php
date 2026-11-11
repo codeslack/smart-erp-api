@@ -12,6 +12,7 @@ use App\Modules\Purchase\Services\Actions\UpdatePurchaseAction;
 use App\Modules\Purchase\Services\Actions\ConfirmPurchaseAction;
 use App\Modules\Purchase\Services\Actions\CancelPurchaseAction;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 
 class PurchaseService extends BaseService
 {
@@ -71,10 +72,16 @@ class PurchaseService extends BaseService
 
     public function delete(Purchase $purchase): bool
     {
-        if (! $purchase->isDraft() && ! $purchase->isCancelled()) {
-            throw new BusinessException('Only draft or cancelled purchases can be deleted.');
-        }
+        return DB::transaction(function () use ($purchase) {
+            $purchase = Purchase::query()
+                ->lockForUpdate()
+                ->findOrFail($purchase->id);
 
-        return $this->repository->delete($purchase);
+            if (! $purchase->isDraft() && ! $purchase->isCancelled()) {
+                throw new BusinessException('Only draft or cancelled purchases can be deleted.');
+            }
+
+            return $this->repository->delete($purchase);
+        });
     }
 }

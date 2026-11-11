@@ -106,6 +106,84 @@ class SaleLifecycleTest extends TestCase
         ]);
     }
 
+    public function test_sale_rejects_conflicting_customer_id_and_uuid(): void
+    {
+        $otherCustomer = $this->createCustomer();
+
+        $response = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'customer_uuid' => $otherCustomer->uuid,
+            'warehouse_id' => $this->warehouse->id,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $this->product->id,
+                'quantity' => 1,
+                'unit_price' => 100,
+            ]],
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('customer_uuid');
+    }
+
+    public function test_sale_rejects_conflicting_product_id_and_uuid(): void
+    {
+        $otherProduct = $this->createProduct([
+            'purchase_price' => 20,
+            'selling_price' => 40,
+        ]);
+
+        $response = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $this->product->id,
+                'product_uuid' => $otherProduct->uuid,
+                'quantity' => 1,
+                'unit_price' => 100,
+            ]],
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0.product_uuid');
+    }
+
+    public function test_percentage_item_discount_cannot_exceed_one_hundred_percent(): void
+    {
+        $response = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $this->product->id,
+                'quantity' => 1,
+                'unit_price' => 100,
+                'discount_type' => 'percentage',
+                'discount_rate' => 101,
+            ]],
+        ]);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_header_discount_cannot_exceed_net_item_subtotal(): void
+    {
+        $response = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sale_date' => now()->toDateString(),
+            'discount_amount' => 101,
+            'items' => [[
+                'product_id' => $this->product->id,
+                'quantity' => 1,
+                'unit_price' => 100,
+            ]],
+        ]);
+
+        $response->assertStatus(422);
+    }
+
     public function test_sale_unit_conversion_posts_stock_in_base_units(): void
     {
         $baseUnit = Unit::create([

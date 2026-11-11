@@ -20,9 +20,13 @@ class ConfirmSaleAction
 
     public function execute(Sale $sale): Sale
     {
-        $this->validator->validateForConfirmation($sale);
-
         return DB::transaction(function () use ($sale) {
+            $sale = Sale::query()
+                ->lockForUpdate()
+                ->findOrFail($sale->id);
+
+            $this->validator->validateForConfirmation($sale);
+
             $sale->update([
                 'status' => SaleStatusEnum::CONFIRMED,
                 'confirmed_by' => auth()->id(),

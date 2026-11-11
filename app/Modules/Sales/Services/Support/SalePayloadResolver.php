@@ -23,92 +23,61 @@ class SalePayloadResolver
 
     public function resolveHeader(array $data): array
     {
-        if (isset($data['customer_uuid']) && ! isset($data['customer_id'])) {
-            $data['customer_id'] = Customer::query()
-                ->where('uuid', $data['customer_uuid'])
-                ->value('id');
-            unset($data['customer_uuid']);
-        }
-
-        if (isset($data['warehouse_uuid']) && ! isset($data['warehouse_id'])) {
-            $data['warehouse_id'] = Warehouse::query()
-                ->where('uuid', $data['warehouse_uuid'])
-                ->value('id');
-            unset($data['warehouse_uuid']);
-        }
-
-        if (isset($data['sales_order_uuid']) && ! isset($data['sales_order_id'])) {
-            $data['sales_order_id'] = SalesOrder::query()
-                ->where('uuid', $data['sales_order_uuid'])
-                ->value('id');
-            unset($data['sales_order_uuid']);
-        }
-
-        if (isset($data['delivery_note_uuid']) && ! isset($data['delivery_note_id'])) {
-            $data['delivery_note_id'] = DeliveryNote::query()
-                ->where('uuid', $data['delivery_note_uuid'])
-                ->value('id');
-            unset($data['delivery_note_uuid']);
-        }
-
-        if (isset($data['sales_quotation_uuid']) && ! isset($data['sales_quotation_id'])) {
-            $data['sales_quotation_id'] = SalesQuotation::query()
-                ->where('uuid', $data['sales_quotation_uuid'])
-                ->value('id');
-            unset($data['sales_quotation_uuid']);
-        }
-
-        if (isset($data['payment_term_uuid']) && ! isset($data['payment_term_id'])) {
-            $data['payment_term_id'] = PaymentTerm::query()
-                ->where('uuid', $data['payment_term_uuid'])
-                ->value('id');
-            unset($data['payment_term_uuid']);
-        }
+        $this->resolveUuidReference($data, 'customer_uuid', 'customer_id', Customer::class, 'Customer');
+        $this->resolveUuidReference($data, 'warehouse_uuid', 'warehouse_id', Warehouse::class, 'Warehouse');
+        $this->resolveUuidReference($data, 'sales_order_uuid', 'sales_order_id', SalesOrder::class, 'Sales order');
+        $this->resolveUuidReference($data, 'delivery_note_uuid', 'delivery_note_id', DeliveryNote::class, 'Delivery note');
+        $this->resolveUuidReference($data, 'sales_quotation_uuid', 'sales_quotation_id', SalesQuotation::class, 'Sales quotation');
+        $this->resolveUuidReference($data, 'payment_term_uuid', 'payment_term_id', PaymentTerm::class, 'Payment term');
 
         return $data;
+    }
+
+    protected function resolveUuidReference(
+        array &$data,
+        string $uuidKey,
+        string $idKey,
+        string $modelClass,
+        string $label,
+        ?string $errorKey = null
+    ): void {
+        if (! isset($data[$uuidKey])) {
+            return;
+        }
+
+        $resolvedId = $modelClass::query()
+            ->where('uuid', $data[$uuidKey])
+            ->value('id');
+
+        if (isset($data[$idKey]) && (int) $data[$idKey] !== (int) $resolvedId) {
+            $field = $errorKey ?? $uuidKey;
+
+            throw new BusinessException(
+                "{$label} ID and UUID references do not match.",
+                'BUSINESS_ERROR',
+                [$field => ["{$label} ID and UUID references do not match."]]
+            );
+        }
+
+        $data[$idKey] = $data[$idKey] ?? $resolvedId;
+        unset($data[$uuidKey]);
     }
 
     public function resolveItems(array $rawItems, ?int $defaultWarehouseId = null): array
     {
         $resolved = [];
 
-        foreach ($rawItems as $item) {
-            if (isset($item['product_uuid']) && ! isset($item['product_id'])) {
-                $item['product_id'] = Product::query()
-                    ->where('uuid', $item['product_uuid'])
-                    ->value('id');
-                unset($item['product_uuid']);
-            }
+        foreach ($rawItems as $index => $item) {
+            $this->resolveUuidReference($item, 'product_uuid', 'product_id', Product::class, 'Product', "items.{$index}.product_uuid");
+            $this->resolveUuidReference($item, 'product_variant_uuid', 'product_variant_id', ProductVariant::class, 'Product variant', "items.{$index}.product_variant_uuid");
+            $this->resolveUuidReference($item, 'warehouse_uuid', 'warehouse_id', Warehouse::class, 'Warehouse', "items.{$index}.warehouse_uuid");
 
-            if (isset($item['product_variant_uuid']) && ! isset($item['product_variant_id'])) {
-                $item['product_variant_id'] = ProductVariant::query()
-                    ->where('uuid', $item['product_variant_uuid'])
-                    ->value('id');
-                unset($item['product_variant_uuid']);
-            }
-
-            if (isset($item['warehouse_uuid']) && ! isset($item['warehouse_id'])) {
-                $item['warehouse_id'] = Warehouse::query()
-                    ->where('uuid', $item['warehouse_uuid'])
-                    ->value('id');
-                unset($item['warehouse_uuid']);
-            } elseif (! isset($item['warehouse_id']) && $defaultWarehouseId) {
+            if (! isset($item['warehouse_id']) && $defaultWarehouseId) {
                 $item['warehouse_id'] = $defaultWarehouseId;
             }
 
-            if (isset($item['unit_uuid']) && ! isset($item['unit_id'])) {
-                $item['unit_id'] = Unit::query()
-                    ->where('uuid', $item['unit_uuid'])
-                    ->value('id');
-                unset($item['unit_uuid']);
-            }
-
-            if (isset($item['tax_uuid']) && ! isset($item['tax_id'])) {
-                $item['tax_id'] = Tax::query()
-                    ->where('uuid', $item['tax_uuid'])
-                    ->value('id');
-                unset($item['tax_uuid']);
-            }
+            $this->resolveUuidReference($item, 'unit_uuid', 'unit_id', Unit::class, 'Unit', "items.{$index}.unit_uuid");
+            $this->resolveUuidReference($item, 'tax_uuid', 'tax_id', Tax::class, 'Tax', "items.{$index}.tax_uuid");
 
             if (! empty($item['product_id']) && (empty($item['item_name']) || empty($item['sku']))) {
                 $product = Product::query()->find($item['product_id']);

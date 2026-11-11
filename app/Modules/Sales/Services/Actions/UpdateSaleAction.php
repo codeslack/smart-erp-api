@@ -23,9 +23,13 @@ class UpdateSaleAction
 
     public function execute(Sale $sale, array $data): Sale
     {
-        $this->validator->validateForUpdate($sale);
-
         return DB::transaction(function () use ($sale, $data) {
+            $sale = Sale::query()
+                ->lockForUpdate()
+                ->findOrFail($sale->id);
+
+            $this->validator->validateForUpdate($sale);
+
             $headerData = $this->payloadResolver->resolveHeader($data);
             $hasItems = isset($headerData['items']) && is_array($headerData['items']);
 
@@ -62,7 +66,7 @@ class UpdateSaleAction
                         SaleItemBatch::create([
                             'sale_id' => $sale->id,
                             'sale_item_id' => $saleItem->id,
-                            'product_batch_id' => $batch['product_batch_id'] ?? null,
+                            'product_batch_id' => null,
                             'batch_no' => $batch['batch_no'],
                             'quantity' => $batch['quantity'],
                             'base_quantity' => $batch['base_quantity'] ?? $batch['quantity'],
@@ -73,8 +77,8 @@ class UpdateSaleAction
                         SaleItemSerial::create([
                             'sale_id' => $sale->id,
                             'sale_item_id' => $saleItem->id,
-                            'product_serial_id' => $serial['product_serial_id'] ?? null,
-                            'serial_number' => is_array($serial) ? ($serial['serial_number'] ?? '') : $serial,
+                            'product_serial_id' => null,
+                            'serial_number' => is_array($serial) ? ($serial['serial_number'] ?? $serial['serial_no'] ?? '') : $serial,
                         ]);
                     }
                 }

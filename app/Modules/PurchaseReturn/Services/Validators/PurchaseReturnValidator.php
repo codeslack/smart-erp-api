@@ -12,6 +12,7 @@ use App\Modules\Purchase\Models\Purchase;
 use App\Modules\Purchase\Models\PurchaseItem;
 use App\Modules\PurchaseReturn\Enums\PurchaseReturnRefundType;
 use App\Modules\PurchaseReturn\Enums\PurchaseReturnStatus;
+use App\Modules\PurchaseReturn\Models\PurchaseReturn;
 use App\Modules\PurchaseReturn\Models\PurchaseReturnItem;
 use Illuminate\Validation\ValidationException;
 
@@ -28,6 +29,15 @@ class PurchaseReturnValidator
             throw new BusinessException('Purchase returns can only be created against confirmed purchases.');
         }
 
+        if (
+            isset($headerData['supplier_id'])
+            && (int) $headerData['supplier_id'] !== (int) $purchase->supplier_id
+        ) {
+            throw ValidationException::withMessages([
+                'supplier_uuid' => ['Supplier does not match the referenced purchase.'],
+            ]);
+        }
+
         if (empty($items)) {
             throw new BusinessException('Purchase return must contain at least one item.');
         }
@@ -40,12 +50,58 @@ class PurchaseReturnValidator
             throw new BusinessException('A valid refund account is required for cash or bank purchase returns.');
         }
 
+        $quantitiesByPurchaseItem = [];
+        foreach ($items as $item) {
+            $purchaseItemId = (int) ($item['purchase_item_id'] ?? 0);
+            if ($purchaseItemId > 0) {
+                $quantitiesByPurchaseItem[$purchaseItemId] = ($quantitiesByPurchaseItem[$purchaseItemId] ?? 0.0)
+                    + (float) ($item['returned_quantity'] ?? 0);
+            }
+        }
+
         foreach ($items as $index => $item) {
-            $this->validateLineItem($purchase, $item, $index, $excludeReturnId);
+            $purchaseItemId = (int) ($item['purchase_item_id'] ?? 0);
+            $aggregateQuantity = $quantitiesByPurchaseItem[$purchaseItemId] ?? null;
+            $this->validateLineItem($purchase, $item, $index, $excludeReturnId, $aggregateQuantity);
         }
     }
 
-    public function validateLineItem(Purchase $purchase, array $item, int $index, ?int $excludeReturnId = null): void
+    public function validateForConfirmation(PurchaseReturn $purchaseReturn): void
+    {
+        $purchaseReturn->loadMissing(['items.batches', 'items.serials']);
+
+        $items = $purchaseReturn->items->map(fn ($item) => [
+            'purchase_item_id' => $item->purchase_item_id,
+            'product_id' => $item->product_id,
+            'product_variant_id' => $item->product_variant_id,
+            'warehouse_id' => $item->warehouse_id,
+            'returned_quantity' => (float) $item->returned_quantity,
+            'batches' => $item->batches->map(fn ($batch) => [
+                'batch_no' => $batch->batch_no,
+                'quantity' => (float) $batch->quantity,
+            ])->all(),
+            'serials' => $item->serials->map(fn ($serial) => [
+                'serial_number' => $serial->serial_number,
+            ])->all(),
+        ])->all();
+
+        $this->validateForSave(
+            [
+                'purchase_id' => $purchaseReturn->purchase_id,
+                'supplier_id' => $purchaseReturn->supplier_id,
+            ],
+            $items,
+            $purchaseReturn->id
+        );
+    }
+
+    public function validateLineItem(
+        Purchase $purchase,
+        array $item,
+        int $index,
+        ?int $excludeReturnId = null,
+        ?float $aggregateReturnedQty = null
+    ): void
     {
         $returnedQty = (float) ($item['returned_quantity'] ?? 0);
         if ($returnedQty <= 0) {
@@ -79,11 +135,12 @@ class PurchaseReturnValidator
                 }
             })->sum('returned_quantity');
 
+        $quantityToValidate = $aggregateReturnedQty ?? $returnedQty;
         $availableQty = (float) $purchaseItem->quantity - $priorConfirmedQty;
-        if ($returnedQty > $availableQty + 0.0001) {
+        if ($quantityToValidate > $availableQty + 0.0001) {
             throw ValidationException::withMessages([
                 "items.{$index}.returned_quantity" => [
-                    "Returned quantity ({$returnedQty}) exceeds available return quantity ({$availableQty}).",
+                    "Returned quantity ({$quantityToValidate}) exceeds available return quantity ({$availableQty}).",
                 ],
             ]);
         }
