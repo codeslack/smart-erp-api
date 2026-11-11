@@ -6,8 +6,10 @@ use App\Modules\Sales\Enums\SaleStatusEnum;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\Sales\Models\SaleItemBatch;
+use App\Modules\Sales\Models\SaleItemSerial;
 use App\Modules\SalesReturn\Enums\SalesReturnStatus;
 use App\Modules\SalesReturn\Models\SaleReturnItemBatch;
+use App\Modules\SalesReturn\Models\SaleReturnItemSerial;
 use App\Modules\SalesReturn\Models\SalesReturn;
 use App\Modules\SalesReturn\Models\SalesReturnItem;
 use Illuminate\Validation\ValidationException;
@@ -50,6 +52,7 @@ class SalesReturnValidator
 
         $quantitiesBySaleItem = [];
         $batchQuantitiesBySaleItem = [];
+        $requestedSerialNumbers = [];
 
         foreach ($items as $item) {
             $saleItemId = (int) ($item['sale_item_id'] ?? 0);
@@ -162,6 +165,81 @@ class SalesReturnValidator
                     }
                 }
             }
+
+            if ($saleItem->product?->isSerialTracked()) {
+                $serials = $item['serials'] ?? [];
+
+                if ($serials === []) {
+                    throw ValidationException::withMessages([
+                        "items.{$index}.serials" => ['Serial numbers are required for this serial-tracked product.'],
+                    ]);
+                }
+
+                $baseQuantity = (float) ($item['base_quantity'] ?? $qty);
+                if (abs(count($serials) - round($baseQuantity)) > 0.0001) {
+                    throw ValidationException::withMessages([
+                        "items.{$index}.serials" => ['Serial count must match the returned base quantity.'],
+                    ]);
+                }
+
+                foreach ($serials as $serialIndex => $serialValue) {
+                    $serialNumber = is_array($serialValue)
+                        ? ($serialValue['serial_number'] ?? $serialValue['serial_no'] ?? '')
+                        : $serialValue;
+                    $serialNumber = trim((string) $serialNumber);
+
+                    if ($serialNumber === '') {
+                        throw ValidationException::withMessages([
+                            "items.{$index}.serials.{$serialIndex}" => ['A valid serial number is required.'],
+                        ]);
+                    }
+
+                    if (isset($requestedSerialNumbers[$serialNumber])) {
+                        throw ValidationException::withMessages([
+                            "items.{$index}.serials.{$serialIndex}" => [
+                                "Serial [{$serialNumber}] may only be returned once in this request.",
+                            ],
+                        ]);
+                    }
+                    $requestedSerialNumbers[$serialNumber] = true;
+
+                    $sourceSerial = SaleItemSerial::query()
+                        ->where('sale_id', $sale->id)
+                        ->where('sale_item_id', $saleItem->id)
+                        ->where('serial_number', $serialNumber)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (! $sourceSerial) {
+                        throw ValidationException::withMessages([
+                            "items.{$index}.serials.{$serialIndex}" => [
+                                "Serial [{$serialNumber}] was not allocated to this original sale item.",
+                            ],
+                        ]);
+                    }
+
+                    $alreadyReturnedSerial = SaleReturnItemSerial::query()
+                        ->where('serial_number', $serialNumber)
+                        ->whereHas('salesReturn', function ($q) use ($ignoreReturnId) {
+                            $q->whereIn('status', [
+                                SalesReturnStatus::DRAFT->value,
+                                SalesReturnStatus::CONFIRMED->value,
+                            ]);
+                            if ($ignoreReturnId !== null) {
+                                $q->where('id', '!=', $ignoreReturnId);
+                            }
+                        })
+                        ->exists();
+
+                    if ($alreadyReturnedSerial) {
+                        throw ValidationException::withMessages([
+                            "items.{$index}.serials.{$serialIndex}" => [
+                                "Serial [{$serialNumber}] is already assigned to another sales return.",
+                            ],
+                        ]);
+                    }
+                }
+            }
         }
 
         foreach ($batchQuantitiesBySaleItem as $saleItemId => $batchQuantities) {
@@ -226,16 +304,24 @@ class SalesReturnValidator
             ]);
         }
 
-        $items = $return->items()->with('batches')->get()->map(fn ($item) => [
-            'sale_item_id' => $item->sale_item_id,
-            'product_id' => $item->product_id,
-            'returned_quantity' => (float) $item->returned_quantity,
-            'batches' => $item->batches->map(fn ($batch) => [
-                'product_batch_id' => $batch->product_batch_id,
-                'batch_no' => $batch->batch_no,
-                'quantity' => (float) $batch->quantity,
-            ])->all(),
-        ])->all();
+        $items = $return->items()
+            ->with(['batches', 'serials'])
+            ->get()
+            ->map(fn ($item) => [
+                'sale_item_id' => $item->sale_item_id,
+                'product_id' => $item->product_id,
+                'returned_quantity' => (float) $item->returned_quantity,
+                'base_quantity' => (float) $item->base_quantity,
+                'batches' => $item->batches->map(fn ($batch) => [
+                    'product_batch_id' => $batch->product_batch_id,
+                    'batch_no' => $batch->batch_no,
+                    'quantity' => (float) $batch->quantity,
+                ])->all(),
+                'serials' => $item->serials->map(fn ($serial) => [
+                    'serial_number' => $serial->serial_number,
+                ])->all(),
+            ])
+            ->all();
 
         $this->validateForSave(
             [

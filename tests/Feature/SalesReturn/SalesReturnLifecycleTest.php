@@ -22,6 +22,7 @@ use App\Modules\ProductUnit\Models\ProductUnit;
 use App\Modules\Unit\Models\Unit;
 use App\Modules\Purchase\Services\PurchaseService;
 use App\Modules\Sales\Models\Sale;
+use App\Modules\Sales\Models\SaleItemSerial;
 use App\Modules\Sales\Services\SaleService;
 use App\Modules\SalesReturn\Models\SalesReturn;
 use App\Modules\Supplier\Models\Supplier;
@@ -343,6 +344,60 @@ class SalesReturnLifecycleTest extends TestCase
         $this->assertSame(ProductSerialStatusEnum::SOLD, $serial->fresh()->status);
 
         $saleItem = $this->sale->items->first();
+
+        SaleItemSerial::create([
+            'sale_id' => $this->sale->id,
+            'sale_item_id' => $saleItem->id,
+            'product_serial_id' => $serial->id,
+            'serial_number' => 'SERIAL-RETURN-001',
+        ]);
+
+        // Create a second confirmed sale with a different serial for the same product.
+        $otherSerial = app(InventorySerialService::class)->register(
+            productId: $this->product->id,
+            warehouseId: $this->warehouse->id,
+            serialNumber: 'SERIAL-OTHER-SALE-001',
+            purchaseCost: 50,
+        );
+
+        $posting->stockIn(new InventoryMovementData(
+            productId: $this->product->id,
+            productVariantId: null,
+            warehouseId: $this->warehouse->id,
+            quantity: 1,
+            unitCost: 50,
+            transactionType: InventoryTransactionTypeEnum::PURCHASE->value,
+            transactionDate: now(),
+            serialId: $otherSerial->id,
+        ));
+
+        $otherSale = app(SaleService::class)->create([
+            'customer_uuid' => $this->customer->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_uuid' => $this->product->uuid,
+                'quantity' => 1,
+                'unit_price' => 100,
+                'serials' => ['SERIAL-OTHER-SALE-001'],
+            ]],
+        ]);
+        app(SaleService::class)->confirm($otherSale->uuid);
+
+        $wrongSalePayload = [
+            'sale_uuid' => $this->sale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'sale_item_uuid' => $saleItem->uuid,
+                'returned_quantity' => 1,
+                'serials' => ['SERIAL-OTHER-SALE-001'],
+            ]],
+        ];
+
+        $this->postJson(route('sales-returns.store'), $wrongSalePayload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0.serials.0');
+
         $payload = [
             'sale_uuid' => $this->sale->uuid,
             'return_date' => now()->toDateString(),
@@ -368,11 +423,8 @@ class SalesReturnLifecycleTest extends TestCase
         );
 
         $secondReturn = $this->postJson(route('sales-returns.store'), $payload);
-        $secondReturn->assertCreated();
-
-        $this->postJson(route('sales-returns.confirm', [
-            'uuid' => $secondReturn->json('data.uuid'),
-        ]))->assertUnprocessable();
+        $secondReturn->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0.serials.0');
 
         app(TenantManager::class)->setTenant($this->tenant);
 
