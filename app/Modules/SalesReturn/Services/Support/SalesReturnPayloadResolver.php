@@ -259,19 +259,38 @@ class SalesReturnPayloadResolver
                         ? min(1, max(0, $returnQuantity / $originalQuantity))
                         : 0;
 
+                    $targetTax = round((float) $saleItem->tax_amount * $ratio, 4);
                     $item['tax_id'] = $saleItem->tax_id;
                     $item['tax_group_id'] = $saleItem->tax_group_id;
                     $item['tax_applicability_rule_id'] = $saleItem->tax_applicability_rule_id;
                     $item['tax_rate'] = 0;
-                    $item['tax_amount'] = round((float) $saleItem->tax_amount * $ratio, 4);
+                    $item['tax_amount'] = $targetTax;
 
                     $snapshot = $saleItem->tax_snapshot;
                     if (is_array($snapshot)) {
                         $snapshot['taxable_amount'] = round((float) ($snapshot['taxable_amount'] ?? 0) * $ratio, 4);
-                        $snapshot['tax_amount'] = round((float) ($snapshot['tax_amount'] ?? 0) * $ratio, 4);
+                        $snapshot['tax_amount'] = $targetTax;
                         foreach (($snapshot['components'] ?? []) as $index => $component) {
                             $snapshot['components'][$index]['taxable_amount'] = round((float) ($component['taxable_amount'] ?? 0) * $ratio, 4);
                             $snapshot['components'][$index]['tax_amount'] = round((float) ($component['tax_amount'] ?? 0) * $ratio, 4);
+                        }
+
+                        if (! empty($snapshot['components'])) {
+                            $componentTotal = array_sum(array_map(
+                                fn (array $component) => (float) ($component['tax_amount'] ?? 0),
+                                $snapshot['components'],
+                            ));
+                            $residual = round($targetTax - $componentTotal, 4);
+                            $largestIndex = array_key_first($snapshot['components']);
+                            foreach ($snapshot['components'] as $index => $component) {
+                                if ((float) ($component['tax_amount'] ?? 0) > (float) ($snapshot['components'][$largestIndex]['tax_amount'] ?? 0)) {
+                                    $largestIndex = $index;
+                                }
+                            }
+                            $snapshot['components'][$largestIndex]['tax_amount'] = round(
+                                (float) $snapshot['components'][$largestIndex]['tax_amount'] + $residual,
+                                4,
+                            );
                         }
                     }
                     $item['tax_snapshot'] = $snapshot;
