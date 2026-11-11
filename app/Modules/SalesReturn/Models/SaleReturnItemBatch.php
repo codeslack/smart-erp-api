@@ -20,12 +20,14 @@ class SaleReturnItemBatch extends TenantModel
         'product_batch_id',
         'batch_no',
         'quantity',
+        'base_quantity',
     ];
 
     protected function casts(): array
     {
         return array_merge(parent::casts(), [
             'quantity' => 'decimal:4',
+            'base_quantity' => 'decimal:4',
         ]);
     }
 
