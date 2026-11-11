@@ -68,7 +68,7 @@ class CreateSalesReturnAction
                         SaleReturnItemBatch::create([
                             'sales_return_id' => $salesReturn->id,
                             'sales_return_item_id' => $returnItem->id,
-                            'product_batch_id' => $batch['product_batch_id'] ?? null,
+                            'product_batch_id' => null,
                             'batch_no' => $batch['batch_no'],
                             'quantity' => $batch['quantity'],
                         ]);
@@ -80,8 +80,8 @@ class CreateSalesReturnAction
                         SaleReturnItemSerial::create([
                             'sales_return_id' => $salesReturn->id,
                             'sales_return_item_id' => $returnItem->id,
-                            'product_serial_id' => $serial['product_serial_id'] ?? null,
-                            'serial_number' => is_array($serial) ? ($serial['serial_number'] ?? '') : $serial,
+                            'product_serial_id' => null,
+                            'serial_number' => is_array($serial) ? ($serial['serial_number'] ?? $serial['serial_no'] ?? '') : $serial,
                         ]);
                     }
                 }
