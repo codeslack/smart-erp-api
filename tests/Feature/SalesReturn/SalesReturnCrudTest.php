@@ -208,6 +208,48 @@ class SalesReturnCrudTest extends TestCase
         $res->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.quantity', 2);
     }
 
+    public function test_sales_return_rejects_mismatched_sale_item_id_and_uuid(): void
+    {
+        $otherSale = app(SaleService::class)->create([
+            'customer_uuid' => $this->customer->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_uuid' => $this->product->uuid,
+                'quantity' => 1,
+                'unit_price' => 100,
+            ]],
+        ]);
+
+        $otherSale = app(SaleService::class)->confirm($otherSale->uuid);
+
+        $saleItem = $this->sale->items->first();
+        $otherSaleItem = $otherSale->items->first();
+
+        $payload = [
+            'sale_uuid' => $this->sale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'sale_item_id' => $saleItem->id,
+                'sale_item_uuid' => $otherSaleItem->uuid,
+                'returned_quantity' => 1,
+            ]],
+        ];
+
+        $this->postJson(route('sales-returns.store'), $payload)
+            ->assertUnprocessable();
+
+        $returnUuid = $this->makeReturn(1);
+
+        $this->putJson(route('sales-returns.update', ['uuid' => $returnUuid]), [
+            'items' => [[
+                'sale_item_id' => $saleItem->id,
+                'sale_item_uuid' => $otherSaleItem->uuid,
+                'returned_quantity' => 1,
+            ]],
+        ])->assertUnprocessable();
+    }
+
     public function test_sales_return_can_be_deleted_in_draft_state(): void
     {
         $uuid = $this->makeReturn(1);
