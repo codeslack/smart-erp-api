@@ -9,7 +9,13 @@ use App\Modules\Payment\Models\PaymentAllocation;
 use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
 
 use App\Modules\Sales\Repositories\Contracts\SaleRepositoryInterface;
+use App\Modules\SalesReturn\Models\SalesReturn;
+use App\Modules\SalesReturn\Enums\SalesReturnRefundType;
+use App\Modules\SalesReturn\Enums\SalesReturnStatus;
 use App\Modules\Purchase\Repositories\Contracts\PurchaseRepositoryInterface;
+use App\Modules\PurchaseReturn\Models\PurchaseReturn;
+use App\Modules\PurchaseReturn\Enums\PurchaseReturnRefundType;
+use App\Modules\PurchaseReturn\Enums\PurchaseReturnStatus;
 
 use App\Modules\CustomerOpeningBill\Repositories\Contracts\CustomerOpeningBillRepositoryInterface;
 use App\Modules\SupplierOpeningBill\Repositories\Contracts\SupplierOpeningBillRepositoryInterface;
@@ -158,10 +164,20 @@ class PaymentAllocationReversalService
             );
         }
 
-        $dueAmount = bcadd(
-            (string) $sale->due_amount,
-            $allocatedAmount,
-            self::SCALE
+        $creditedReturns = (float) SalesReturn::query()
+            ->where('sale_id', $sale->id)
+            ->where('status', SalesReturnStatus::CONFIRMED->value)
+            ->where('refund_type', SalesReturnRefundType::CREDIT_NOTE->value)
+            ->sum('credited_amount');
+
+        $dueAmount = max(
+            0,
+            round(
+                (float) $sale->grand_total
+                    - (float) $paidAmount
+                    - $creditedReturns,
+                self::SCALE
+            )
         );
 
         $this->sales->update($sale, [
@@ -208,10 +224,20 @@ class PaymentAllocationReversalService
             );
         }
 
-        $dueAmount = bcadd(
-            (string) $purchase->due_amount,
-            $allocatedAmount,
-            self::SCALE
+        $creditedReturns = (float) PurchaseReturn::query()
+            ->where('purchase_id', $purchase->id)
+            ->where('status', PurchaseReturnStatus::CONFIRMED->value)
+            ->where('refund_type', PurchaseReturnRefundType::CREDIT_NOTE->value)
+            ->sum('credited_amount');
+
+        $dueAmount = max(
+            0,
+            round(
+                (float) $purchase->grand_total
+                    - (float) $paidAmount
+                    - $creditedReturns,
+                self::SCALE
+            )
         );
 
         $this->purchases->update($purchase, [
