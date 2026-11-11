@@ -62,6 +62,8 @@ class ConfirmSalesReturnAction
 
             return $salesReturn->fresh([
                 'items.product',
+                'items.taxGroup',
+                'items.taxApplicabilityRule',
                 'items.variant',
                 'items.warehouse',
                 'items.unit',
