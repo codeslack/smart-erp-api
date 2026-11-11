@@ -80,11 +80,16 @@ class PurchaseReturnPayloadResolver
             if (isset($item['purchase_item_id'])) {
                 $purchaseItem = PurchaseItem::query()->find($item['purchase_item_id']);
                 if ($purchaseItem) {
-                    $item['product_id'] = $item['product_id'] ?? $purchaseItem->product_id;
-                    $item['product_variant_id'] = $item['product_variant_id'] ?? $purchaseItem->product_variant_id;
+                    $item['product_id'] = $purchaseItem->product_id;
+                    $item['product_variant_id'] = $purchaseItem->product_variant_id;
                     $item['warehouse_id'] = $item['warehouse_id'] ?? $purchaseItem->warehouse_id ?? $defaultWarehouseId;
-                    $item['unit_id'] = $item['unit_id'] ?? $purchaseItem->unit_id;
-                    $item['unit_cost'] = $item['unit_cost'] ?? $purchaseItem->unit_cost;
+                    $item['unit_id'] = $purchaseItem->unit_id;
+                    $item['unit_cost'] = (float) $purchaseItem->unit_cost;
+                    $purchaseQuantity = (float) $purchaseItem->quantity;
+                    $purchaseBaseQuantity = (float) ($purchaseItem->base_quantity ?? $purchaseItem->quantity);
+                    $item['base_quantity'] = $purchaseQuantity > 0
+                        ? round(($purchaseBaseQuantity / $purchaseQuantity) * (float) ($item['returned_quantity'] ?? 0), 4)
+                        : 0.0;
                     $item['tax_id'] = $item['tax_id'] ?? $purchaseItem->tax_id;
                     $item['tax_rate'] = $item['tax_rate'] ?? $purchaseItem->tax_rate;
                 }
