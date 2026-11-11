@@ -7,7 +7,14 @@ use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
 use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Services\AccountingSetupService;
 use App\Modules\Customer\Models\Customer;
+use App\Modules\Inventory\Data\InventoryMovementData;
+use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
+use App\Modules\Inventory\Enums\ProductSerialStatusEnum;
+use App\Modules\Inventory\Models\ProductSerial;
 use App\Modules\Inventory\Models\ProductStock;
+use App\Modules\Inventory\Services\InventoryPostingService;
+use App\Modules\Inventory\Services\InventorySerialService;
+use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 use App\Modules\Product\Models\Product;
 use App\Modules\ProductUnit\Models\ProductUnit;
 use App\Modules\Unit\Models\Unit;
@@ -294,6 +301,81 @@ class SalesReturnLifecycleTest extends TestCase
             'quantity_in' => 10,
             'transaction_type' => 'SALE_RETURN',
         ]);
+    }
+
+    public function test_sales_return_restores_sold_serial_and_rejects_returning_it_twice(): void
+    {
+        $this->product->update([
+            'inventory_tracking_type' => InventoryTrackingTypeEnum::SERIAL,
+        ]);
+
+        $serial = app(InventorySerialService::class)->register(
+            productId: $this->product->id,
+            warehouseId: $this->warehouse->id,
+            serialNumber: 'SERIAL-RETURN-001',
+            purchaseCost: 50,
+        );
+
+        $posting = app(InventoryPostingService::class);
+        $posting->stockIn(new InventoryMovementData(
+            productId: $this->product->id,
+            productVariantId: null,
+            warehouseId: $this->warehouse->id,
+            quantity: 1,
+            unitCost: 50,
+            transactionType: InventoryTransactionTypeEnum::PURCHASE->value,
+            transactionDate: now(),
+            serialId: $serial->id,
+        ));
+        $posting->stockOut(new InventoryMovementData(
+            productId: $this->product->id,
+            productVariantId: null,
+            warehouseId: $this->warehouse->id,
+            quantity: 1,
+            unitCost: 50,
+            transactionType: InventoryTransactionTypeEnum::SALE->value,
+            transactionDate: now(),
+            serialId: $serial->id,
+        ));
+
+        $this->assertSame(ProductSerialStatusEnum::SOLD, $serial->fresh()->status);
+
+        $saleItem = $this->sale->items->first();
+        $payload = [
+            'sale_uuid' => $this->sale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'sale_item_uuid' => $saleItem->uuid,
+                'returned_quantity' => 1,
+                'serials' => ['SERIAL-RETURN-001'],
+            ]],
+        ];
+
+        $createResponse = $this->postJson(route('sales-returns.store'), $payload);
+        $createResponse->assertCreated();
+        $returnUuid = $createResponse->json('data.uuid');
+
+        $this->postJson(route('sales-returns.confirm', ['uuid' => $returnUuid]))
+            ->assertOk();
+
+        $this->assertSame(
+            ProductSerialStatusEnum::AVAILABLE,
+            ProductSerial::query()->findOrFail($serial->id)->status
+        );
+
+        $secondReturn = $this->postJson(route('sales-returns.store'), $payload);
+        $secondReturn->assertCreated();
+
+        $this->postJson(route('sales-returns.confirm', [
+            'uuid' => $secondReturn->json('data.uuid'),
+        ]))->assertUnprocessable();
+
+        $stock = ProductStock::query()
+            ->where('product_id', $this->product->id)
+            ->where('warehouse_id', $this->warehouse->id)
+            ->firstOrFail();
+
+        $this->assertEquals(6, (float) $stock->quantity);
     }
 
     public function test_sales_return_can_be_cancelled(): void
