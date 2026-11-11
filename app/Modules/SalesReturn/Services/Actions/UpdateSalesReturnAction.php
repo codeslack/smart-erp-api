@@ -23,9 +23,13 @@ class UpdateSalesReturnAction
 
     public function execute(SalesReturn $salesReturn, array $data): SalesReturn
     {
-        $this->validator->validateForUpdate($salesReturn);
-
         return DB::transaction(function () use ($salesReturn, $data) {
+            $salesReturn = SalesReturn::query()
+                ->lockForUpdate()
+                ->findOrFail($salesReturn->id);
+
+            $this->validator->validateForUpdate($salesReturn);
+
             $headerData = $this->payloadResolver->resolveHeader($data);
             $hasItems = isset($headerData['items']) && is_array($headerData['items']);
 
