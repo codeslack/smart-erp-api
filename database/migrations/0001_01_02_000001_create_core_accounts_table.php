@@ -129,6 +129,9 @@ return new class extends Migration
 
             $table->date('entry_date');
 
+            $table->string('currency_code', 3)->nullable();
+            $table->decimal('exchange_rate', 18, 8)->nullable();
+
             $table->text('description')
                 ->nullable();
 
@@ -203,6 +206,9 @@ return new class extends Migration
                 18,
                 4
             )->default(0);
+
+            $table->decimal('foreign_debit', 18, 4)->nullable();
+            $table->decimal('foreign_credit', 18, 4)->nullable();
 
             $table->text('description')
                 ->nullable();
