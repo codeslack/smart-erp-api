@@ -174,7 +174,7 @@ class PurchaseReturnCrudTest extends TestCase
                 [
                     'purchase_item_uuid' => $purchaseItem->uuid,
                     'returned_quantity' => 4,
-                    'unit_cost' => 100,
+                    'unit_cost' => 999,
                 ],
             ],
         ]);
