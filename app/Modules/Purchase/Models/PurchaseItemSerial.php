@@ -16,7 +16,6 @@ class PurchaseItemSerial extends TenantModel
 
     protected $fillable = [
         'uuid',
-        'tenant_id',
         'purchase_id',
         'purchase_item_id',
         'serial_number',
