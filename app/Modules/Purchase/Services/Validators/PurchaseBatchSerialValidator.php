@@ -61,9 +61,20 @@ class PurchaseBatchSerialValidator
                 $serialNumbers[] = $serialNo;
             }
 
-            if (count($serialNumbers) !== (int) $lineQty) {
+            $baseQuantity = (float) (
+                $item['base_quantity'] ?? $lineQty
+            );
+
+            if (abs($baseQuantity - round($baseQuantity)) > 0.0001) {
                 throw new BusinessException(
-                    "Number of serials [" . count($serialNumbers) . "] must equal line quantity [{$lineQty}]."
+                    'Serial-tracked purchase quantity must resolve to a whole number of base units.'
+                );
+            }
+
+            if (count($serialNumbers) !== (int) round($baseQuantity)) {
+                throw new BusinessException(
+                    'Number of serials [' . count($serialNumbers)
+                    . '] must equal base quantity [' . $baseQuantity . '].'
                 );
             }
         }

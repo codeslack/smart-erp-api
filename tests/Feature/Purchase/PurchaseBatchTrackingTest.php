@@ -7,6 +7,8 @@ use App\Modules\User\Models\User;
 use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Product\Models\Product;
+use App\Modules\ProductUnit\Models\ProductUnit;
+use App\Modules\Unit\Models\Unit;
 use App\Modules\Product\Enums\ProductTypeEnum;
 use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 use App\Modules\Inventory\Models\ProductBatch;
@@ -135,6 +137,114 @@ class PurchaseBatchTrackingTest extends TestCase
         ]);
     }
 
+    public function test_batch_purchase_converts_document_units_to_base_units(): void
+    {
+        $baseUnit = Unit::create([
+            'tenant_id' => $this->tenant->id,
+            'code' => 'BPCS',
+            'name' => 'Batch Piece',
+            'short_name' => 'bpc',
+            'is_active' => true,
+        ]);
+
+        $boxUnit = Unit::create([
+            'tenant_id' => $this->tenant->id,
+            'code' => 'BBOX',
+            'name' => 'Batch Box',
+            'short_name' => 'bbox',
+            'is_active' => true,
+        ]);
+
+        $batchProduct = Product::create([
+            'tenant_id' => $this->tenant->id,
+            'unit_id' => $baseUnit->id,
+            'code' => 'PRD-BAT-UNIT',
+            'sku' => 'SKU-BAT-UNIT',
+            'name' => 'Batch Unit Conversion',
+            'slug' => 'batch-unit-conversion',
+            'product_type' => ProductTypeEnum::PRODUCT,
+            'inventory_tracking_type' => InventoryTrackingTypeEnum::BATCH,
+            'has_expiry' => true,
+            'is_active' => true,
+            'purchase_price' => 50,
+            'selling_price' => 80,
+        ]);
+
+        ProductUnit::create([
+            'product_id' => $batchProduct->id,
+            'unit_id' => $baseUnit->id,
+            'conversion_factor' => 1,
+            'is_purchase_unit' => true,
+            'is_sales_unit' => true,
+            'is_active' => true,
+        ]);
+
+        ProductUnit::create([
+            'product_id' => $batchProduct->id,
+            'unit_id' => $boxUnit->id,
+            'conversion_factor' => 10,
+            'is_purchase_unit' => true,
+            'is_sales_unit' => true,
+            'is_active' => true,
+        ]);
+
+        $payload = [
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [
+                [
+                    'product_uuid' => $batchProduct->uuid,
+                    'unit_uuid' => $boxUnit->uuid,
+                    'quantity' => 2,
+                    'unit_cost' => 500,
+                    'batches' => [
+                        [
+                            'batch_no' => 'LOT-UNIT-A',
+                            'quantity' => 1,
+                            'expiry_date' => '2028-06-30',
+                        ],
+                        [
+                            'batch_no' => 'LOT-UNIT-B',
+                            'quantity' => 1,
+                            'expiry_date' => '2028-12-31',
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $createResponse = $this->postJson(route('purchases.store'), $payload);
+
+        $createResponse
+            ->assertCreated()
+            ->assertJsonPath('data.items.0.base_quantity', 20)
+            ->assertJsonPath('data.items.0.base_unit_cost', 50);
+
+        $purchaseUuid = $createResponse->json('data.uuid');
+
+        $this->assertDatabaseHas('purchase_item_batches', [
+            'batch_no' => 'LOT-UNIT-A',
+            'quantity' => 1,
+            'base_quantity' => 10,
+        ]);
+
+        $this->postJson("/api/purchases/{$purchaseUuid}/confirm")
+            ->assertOk();
+
+        $this->assertDatabaseHas('product_batches', [
+            'batch_no' => 'LOT-UNIT-A',
+            'remaining_quantity' => 10,
+            'unit_cost' => 50,
+        ]);
+
+        $this->assertDatabaseHas('stock_ledgers', [
+            'product_id' => $batchProduct->id,
+            'quantity_in' => 10,
+            'unit_cost' => 50,
+        ]);
+    }
+
     public function test_batch_tracked_product_fails_validation_if_batch_sum_mismatches_quantity(): void
     {
         $batchProduct = Product::create([
@@ -171,6 +281,46 @@ class PurchaseBatchTrackingTest extends TestCase
 
         $response = $this->postJson(route('purchases.store'), $payload);
         $response->assertStatus(422);
+    }
+
+    public function test_client_cannot_override_batch_base_quantity(): void
+    {
+        $batchProduct = Product::create([
+            'tenant_id' => $this->tenant->id,
+            'code' => 'PRD-BAT-BASE',
+            'sku' => 'SKU-BAT-BASE',
+            'name' => 'Batch Base Quantity Protection',
+            'slug' => 'batch-base-quantity-protection',
+            'product_type' => ProductTypeEnum::PRODUCT,
+            'inventory_tracking_type' => InventoryTrackingTypeEnum::BATCH,
+            'is_active' => true,
+            'purchase_price' => 50,
+            'selling_price' => 80,
+        ]);
+
+        $payload = [
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [
+                [
+                    'product_uuid' => $batchProduct->uuid,
+                    'quantity' => 1,
+                    'unit_cost' => 50,
+                    'batches' => [
+                        [
+                            'batch_no' => 'FORGED-BASE-BATCH',
+                            'quantity' => 1,
+                            'base_quantity' => 500,
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $this->postJson(route('purchases.store'), $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0.batches.0');
     }
 
     public function test_purchase_show_includes_batches(): void

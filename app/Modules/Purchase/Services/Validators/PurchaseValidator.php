@@ -134,10 +134,20 @@ class PurchaseValidator
                 ->where('goods_receipt_note_item_id', $grnItem->id)
                 ->where('id', '!=', $item->id)
                 ->whereHas('purchase', fn ($q) => $q->where('status', PurchaseStatusEnum::CONFIRMED->value))
-                ->sum('quantity');
+                ->get(['quantity', 'base_quantity'])
+                ->sum(fn (PurchaseItem $billedItem) =>
+                    (float) ($billedItem->base_quantity ?? $billedItem->quantity)
+                );
 
-            $maxAllowed = (float) $grnItem->quantity_received;
-            $newTotal = $alreadyBilled + (float) $item->quantity;
+            $maxAllowed = (float) (
+                $grnItem->base_quantity
+                ?? $grnItem->quantity_received
+            );
+
+            $newTotal = $alreadyBilled + (float) (
+                $item->base_quantity
+                ?? $item->quantity
+            );
 
             if ($newTotal > ($maxAllowed + 0.0001)) {
                 $available = max(0, $maxAllowed - $alreadyBilled);

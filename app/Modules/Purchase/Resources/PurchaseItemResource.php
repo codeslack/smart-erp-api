@@ -46,6 +46,7 @@ class PurchaseItemResource extends JsonResource
             'quantity' => (float) $this->quantity,
             'base_quantity' => $this->base_quantity !== null ? (float) $this->base_quantity : null,
             'unit_cost' => (float) $this->unit_cost,
+            'base_unit_cost' => $this->base_unit_cost !== null ? (float) $this->base_unit_cost : null,
             'line_total' => (float) $this->line_total,
             'subtotal' => (float) $this->subtotal,
             'discount_type' => $this->discount_type ?? 'none',
