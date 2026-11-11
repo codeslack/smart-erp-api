@@ -16,6 +16,7 @@ use App\Modules\Inventory\Services\InventoryBatchService;
 use App\Modules\Inventory\Services\InventoryPostingService;
 use App\Modules\Inventory\Services\InventorySerialService;
 use App\Modules\Inventory\Services\Reversal\InventoryStockInReversalService;
+use App\Modules\Product\Models\Product;
 use App\Modules\SalesReturn\Models\SalesReturn;
 
 class SalesReturnInventoryPostingService
@@ -32,17 +33,35 @@ class SalesReturnInventoryPostingService
         $salesReturn->loadMissing(['items.product', 'items.batches', 'items.serials']);
 
         foreach ($salesReturn->items as $item) {
-            if ($item->product && ! $item->product->requiresStock()) {
+            $product = $item->product;
+
+            if (! $product && $item->product_id !== null) {
+                $product = Product::withTrashed()->find($item->product_id);
+            }
+
+            if (! $product) {
+                throw new BusinessException(
+                    'The product associated with this Sales Return item no longer exists.'
+                );
+            }
+
+            if (! $product->requiresStock()) {
                 continue;
+            }
+
+            if ($product->trashed()) {
+                throw new BusinessException(
+                    "Inventory product [{$product->name}] must be restored before confirming this Sales Return."
+                );
             }
 
             $warehouseId = $item->warehouse_id;
 
             // Batch-tracked products must return against batches from the original sale.
-            if ($item->product->isBatchTracked()) {
+            if ($product->isBatchTracked()) {
                 if ($item->batches->isEmpty()) {
                     throw new BusinessException(
-                        "Product [{$item->product->name}] requires batch details for return."
+                        "Product [{$product->name}] requires batch details for return."
                     );
                 }
 
@@ -120,7 +139,7 @@ class SalesReturnInventoryPostingService
             }
 
             // Serial tracked: every returned base unit must map to a sold serial.
-            if ($item->product->isSerialTracked()) {
+            if ($product->isSerialTracked()) {
                 if ($item->serials->isEmpty()) {
                     throw new BusinessException(
                         "Product [{$item->product->name}] requires serial numbers for return."
