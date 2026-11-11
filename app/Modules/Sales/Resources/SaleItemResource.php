@@ -22,6 +22,8 @@ class SaleItemResource extends JsonResource
                 'sku' => $this->product->sku,
             ]),
 
+            'sales_order_item_uuid' => $this->salesOrderItem?->uuid,
+
             'variant' => $this->whenLoaded('variant', fn () => [
                 'uuid' => $this->variant->uuid,
                 'name' => $this->variant->name,
