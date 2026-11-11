@@ -448,6 +448,15 @@ class SalesReturnLifecycleTest extends TestCase
             ProductSerial::query()->findOrFail($serial->id)->status
         );
 
+        $salesReturn = SalesReturn::query()->where('uuid', $returnUuid)->firstOrFail();
+        $returnLedger = StockLedger::query()
+            ->where('referenceable_type', SalesReturn::class)
+            ->where('referenceable_id', $salesReturn->id)
+            ->firstOrFail();
+
+        $this->assertEquals(50, (float) $returnLedger->unit_cost);
+        $this->assertEquals(50, (float) $returnLedger->total_cost);
+
         $secondReturn = $this->postJson(route('sales-returns.store'), $payload);
         $secondReturn->assertUnprocessable()
             ->assertJsonValidationErrors('items.0.serials.0');
@@ -568,6 +577,12 @@ class SalesReturnLifecycleTest extends TestCase
             'base_quantity' => 10,
         ]);
 
+        $sourceBatchAllocation = $saleItem->batches
+            ->firstWhere('product_batch_id', $batch->id);
+
+        $this->assertNotNull($sourceBatchAllocation);
+        $this->assertGreaterThan(0, (float) $sourceBatchAllocation->unit_cost);
+
         $basePayload = [
             'sale_uuid' => $sale->uuid,
             'return_date' => now()->toDateString(),
@@ -634,6 +649,17 @@ class SalesReturnLifecycleTest extends TestCase
             'quantity_in' => 7.5,
             'transaction_type' => 'SALE_RETURN',
         ]);
+
+        $returnLedger = StockLedger::query()
+            ->where('referenceable_type', SalesReturn::class)
+            ->where('product_batch_id', $batch->id)
+            ->where('quantity_in', 7.5)
+            ->firstOrFail();
+
+        $this->assertEquals(
+            round((float) $sourceBatchAllocation->unit_cost * 7.5, 4),
+            (float) $returnLedger->total_cost
+        );
     }
 
     public function test_sales_return_can_be_cancelled(): void
