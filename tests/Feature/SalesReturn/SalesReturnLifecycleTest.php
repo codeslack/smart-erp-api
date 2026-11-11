@@ -8,6 +8,11 @@ use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Services\AccountingSetupService;
+use App\Modules\Tax\Models\TaxGroup;
+use App\Modules\Tax\Models\TaxComponent;
+use App\Modules\Tax\Models\TaxApplicabilityRule;
+use App\Modules\Tax\Models\TaxAccountingMapping;
+use App\Modules\Tax\Services\TaxSetupService;
 use App\Modules\Customer\Models\Customer;
 use App\Modules\Inventory\Data\InventoryMovementData;
 use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
@@ -1287,6 +1292,96 @@ class SalesReturnLifecycleTest extends TestCase
         $this->assertSame($stockLedgerCountBefore, StockLedger::query()->count());
         $this->assertSame($journalEntryCountBefore, JournalEntry::query()->count());
         $this->assertEquals((float) $dueBefore, (float) $this->sale->fresh()->due_amount);
+    }
+
+
+    public function test_partial_return_reverses_saved_tax_and_inherits_sale_currency(): void
+    {
+        app(TaxSetupService::class)->setup($this->tenant);
+        $this->customer->update(['country_code' => 'IN', 'state_code' => '19']);
+
+        $group = TaxGroup::query()->where('code', 'GST18-INTRA-OUT')->firstOrFail();
+        TaxApplicabilityRule::create([
+            'tax_group_id' => $group->id,
+            'source_country_code' => 'IN',
+            'source_state_code' => '19',
+            'destination_country_code' => 'IN',
+            'destination_state_code' => '19',
+            'place_of_supply_state_code' => '19',
+            'priority' => 1,
+            'is_active' => true,
+            'effective_from' => now()->toDateString(),
+        ]);
+
+        $taxAccount = ChartOfAccount::query()
+            ->where('account_code', AccountingAccounts::OUTPUT_TAX_PAYABLE)
+            ->firstOrFail();
+
+        foreach (['CGST', 'SGST'] as $componentType) {
+            $component = TaxComponent::query()
+                ->where('component_type', $componentType)
+                ->firstOrFail();
+
+            TaxAccountingMapping::create([
+                'tax_component_id' => $component->id,
+                'account_id' => $taxAccount->id,
+                'direction' => 'OUTPUT',
+                'is_active' => true,
+                'effective_from' => now()->toDateString(),
+            ]);
+        }
+
+        $sale = app(SaleService::class)->create([
+            'customer_uuid' => $this->customer->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'sale_date' => now()->toDateString(),
+            'currency_code' => 'USD',
+            'exchange_rate' => 83.25,
+            'items' => [[
+                'product_uuid' => $this->product->uuid,
+                'quantity' => 1,
+                'unit_price' => 100,
+            ]],
+        ]);
+
+        $sale = app(SaleService::class)->confirm($sale->uuid);
+        $saleItem = $sale->items->first();
+
+        $this->assertEquals(18, (float) $saleItem->tax_amount);
+        $this->assertNotEmpty($saleItem->tax_snapshot['components'][0]['tax_account_uuid']);
+
+        $response = $this->postJson(route('sales-returns.store'), [
+            'sale_uuid' => $sale->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'sale_item_uuid' => $saleItem->uuid,
+                'returned_quantity' => 0.5,
+            ]],
+        ])->assertCreated();
+
+        $returnUuid = $response->json('data.uuid');
+        $this->assertSame('USD', $response->json('data.currency_code'));
+        $this->assertEquals(83.25, (float) $response->json('data.exchange_rate'));
+        $this->assertEquals(9, (float) $response->json('data.items.0.tax_amount'));
+
+        $this->postJson(route('sales-returns.confirm', ['uuid' => $returnUuid]))
+            ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+        $salesReturn = SalesReturn::query()->where('uuid', $returnUuid)->firstOrFail();
+        $entry = JournalEntry::query()
+            ->where('reference_type', SalesReturn::class)
+            ->where('reference_id', $salesReturn->id)
+            ->orderBy('id')
+            ->firstOrFail();
+
+        $this->assertSame('USD', $entry->currency_code);
+        $this->assertEquals(83.25, (float) $entry->exchange_rate);
+        $this->assertTrue($entry->lines()
+            ->where('chart_of_account_id', $taxAccount->id)
+            ->where('debit', 749.25)
+            ->where('foreign_debit', 9)
+            ->exists());
     }
 
 }
