@@ -59,6 +59,13 @@ class SalesOrderValidator
                 'status' => ['Cannot cancel a sales order with delivered quantities.'],
             ]);
         }
+
+        $invoiced = (float) $order->items()->sum('invoiced_quantity');
+        if ($invoiced > 0) {
+            throw ValidationException::withMessages([
+                'status' => ['Cannot cancel a sales order with invoiced quantities.'],
+            ]);
+        }
     }
 
     public function validateForDeletion(SalesOrder $order): void
