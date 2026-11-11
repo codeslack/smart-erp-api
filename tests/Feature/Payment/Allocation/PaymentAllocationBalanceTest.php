@@ -9,6 +9,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\CreatesTenant;
 use Tests\Support\CreatesCustomer;
 use Tests\Support\CreatesSupplier;
+use Tests\Support\CreatesWarehouse;
+use Tests\Support\CreatesProduct;
 
 use App\Core\Tenant\TenantManager;
 use App\Core\Enums\OpeningBalanceTypeEnum;
@@ -17,6 +19,9 @@ use App\Core\Enums\DocumentStatusEnum;
 use App\Modules\Tenant\Models\Tenant;
 use App\Modules\Customer\Models\Customer;
 use App\Modules\Supplier\Models\Supplier;
+use App\Modules\Product\Enums\ProductTypeEnum;
+use App\Modules\Sales\Services\SaleService;
+use App\Modules\Purchase\Services\PurchaseService;
 
 use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Models\ChartOfAccount;
@@ -38,6 +43,8 @@ class PaymentAllocationBalanceTest extends TestCase
     use CreatesTenant;
     use CreatesCustomer;
     use CreatesSupplier;
+    use CreatesWarehouse;
+    use CreatesProduct;
 
     protected Tenant $tenant;
 
@@ -46,6 +53,10 @@ class PaymentAllocationBalanceTest extends TestCase
     protected Customer $customer;
 
     protected Supplier $supplier;
+
+    protected Warehouse $warehouse;
+
+    protected Product $serviceProduct;
 
     protected function setUp(): void
     {
@@ -73,6 +84,10 @@ class PaymentAllocationBalanceTest extends TestCase
         $this->customer = $this->createCustomer();
 
         $this->supplier = $this->createSupplier();
+        $this->warehouse = $this->createWarehouse();
+        $this->serviceProduct = $this->createProduct([
+            'product_type' => ProductTypeEnum::SERVICE,
+        ]);
     }
 
     public function test_customer_opening_bill_balance_decreases_on_receipt_confirmation_and_restores_on_reversal(): void
@@ -1033,4 +1048,116 @@ class PaymentAllocationBalanceTest extends TestCase
 
         $this->assertCount(2, $payment->allocations);
     }
+    public function test_sales_invoice_paid_and_due_balances_are_restored_when_customer_receipt_is_reversed(): void
+    {
+        $sale = app(SaleService::class)->create([
+            'customer_uuid' => $this->customer->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_uuid' => $this->serviceProduct->uuid,
+                'quantity' => 1,
+                'unit_price' => 100,
+            ]],
+        ]);
+
+        $sale = app(SaleService::class)->confirm($sale->uuid);
+
+        $this->assertEquals(100, (float) $sale->due_amount);
+        $this->assertEquals(0, (float) $sale->paid_amount);
+
+        $payment = app(PaymentServiceInterface::class)->create([
+            'uuid' => (string) \\Illuminate\\Support\\Str::uuid(),
+            'tenant_id' => $this->tenant->id,
+            'payment_no' => 'REC-SALE-REV-' . uniqid(),
+            'payment_type' => PaymentTypeEnum::RECEIPT->value,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_PAYMENT->value,
+            'payment_date' => now()->toDateString(),
+            'party_type' => PaymentPartyTypeEnum::CUSTOMER->value,
+            'party_id' => $this->customer->id,
+            'account_id' => $this->cashAccount->id,
+            'amount' => 40,
+            'payment_method' => PaymentMethodEnum::CASH->value,
+            'allocations' => [[
+                'document_type' => 'sales_invoice',
+                'document_id' => $sale->id,
+                'allocated_amount' => 40,
+            ]],
+        ]);
+
+        $payment = app(PaymentServiceInterface::class)->confirm($payment);
+
+        $sale->refresh();
+
+        $this->assertEquals(40, (float) $sale->paid_amount);
+        $this->assertEquals(60, (float) $sale->due_amount);
+
+        app(PaymentServiceInterface::class)->reverse($payment);
+
+        $sale->refresh();
+
+        $this->assertEquals(0, (float) $sale->paid_amount);
+        $this->assertEquals(100, (float) $sale->due_amount);
+        $this->assertSame(
+            DocumentStatusEnum::REVERSED->value,
+            $payment->fresh()->status
+        );
+    }
+
+    public function test_purchase_bill_paid_and_due_balances_are_restored_when_supplier_payment_is_reversed(): void
+    {
+        $purchase = app(PurchaseService::class)->create([
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [[
+                'product_uuid' => $this->serviceProduct->uuid,
+                'quantity' => 1,
+                'unit_cost' => 100,
+            ]],
+        ]);
+
+        $purchase = app(PurchaseService::class)->confirm($purchase);
+
+        $this->assertEquals(100, (float) $purchase->due_amount);
+        $this->assertEquals(0, (float) $purchase->paid_amount);
+
+        $payment = app(PaymentServiceInterface::class)->create([
+            'uuid' => (string) \\Illuminate\\Support\\Str::uuid(),
+            'tenant_id' => $this->tenant->id,
+            'payment_no' => 'PAY-PURCHASE-REV-' . uniqid(),
+            'payment_type' => PaymentTypeEnum::PAYMENT->value,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT->value,
+            'payment_date' => now()->toDateString(),
+            'party_type' => PaymentPartyTypeEnum::SUPPLIER->value,
+            'party_id' => $this->supplier->id,
+            'account_id' => $this->cashAccount->id,
+            'amount' => 40,
+            'payment_method' => PaymentMethodEnum::CASH->value,
+            'allocations' => [[
+                'document_type' => 'purchase_bill',
+                'document_id' => $purchase->id,
+                'allocated_amount' => 40,
+            ]],
+        ]);
+
+        $payment = app(PaymentServiceInterface::class)->confirm($payment);
+
+        $purchase->refresh();
+
+        $this->assertEquals(40, (float) $purchase->paid_amount);
+        $this->assertEquals(60, (float) $purchase->due_amount);
+
+        app(PaymentServiceInterface::class)->reverse($payment);
+
+        $purchase->refresh();
+
+        $this->assertEquals(0, (float) $purchase->paid_amount);
+        $this->assertEquals(100, (float) $purchase->due_amount);
+        $this->assertSame(
+            DocumentStatusEnum::REVERSED->value,
+            $payment->fresh()->status
+        );
+    }
+
 }
