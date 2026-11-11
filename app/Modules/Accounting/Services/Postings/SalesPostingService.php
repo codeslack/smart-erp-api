@@ -3,6 +3,7 @@
 namespace App\Modules\Accounting\Services\Postings;
 
 use App\Modules\Sales\Models\Sale;
+use App\Core\Exceptions\BusinessException;
 use App\Modules\Inventory\Models\StockLedger;
 use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
