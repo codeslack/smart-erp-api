@@ -106,6 +106,17 @@ class AccountingReversalTest extends TestCase
             $journalEntry->status
         );
 
+        $originalLines = $journalEntry->lines()
+            ->orderBy('id')
+            ->get()
+            ->map(fn ($line) => [
+                'chart_of_account_id' => $line->chart_of_account_id,
+                'debit' => (string) $line->debit,
+                'credit' => (string) $line->credit,
+                'description' => $line->description,
+            ])
+            ->all();
+
         $reversal = app(
             AccountingReversalService::class
         )->reverse($journalEntry);
@@ -181,11 +192,26 @@ class AccountingReversalTest extends TestCase
                 ->current_balance
         );
 
+        $freshOriginal = $journalEntry->fresh();
+
         $this->assertEquals(
             JournalEntryStatusEnum::POSTED,
-            $journalEntry
-                ->fresh()
-                ->status
+            $freshOriginal->status
+        );
+
+        $this->assertSame(
+            $originalLines,
+            $freshOriginal->lines()
+                ->orderBy('id')
+                ->get()
+                ->map(fn ($line) => [
+                    'chart_of_account_id' => $line->chart_of_account_id,
+                    'debit' => (string) $line->debit,
+                    'credit' => (string) $line->credit,
+                    'description' => $line->description,
+                ])
+                ->all(),
+            'The original posted journal lines must remain unchanged.'
         );
 
         $this->assertNotNull(
