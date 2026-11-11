@@ -16,6 +16,7 @@ class SalesReturnPostingService extends BasePostingService
     ): void {
         $grandTotal = $this->decimal($salesReturn->grand_total);
         $this->validateAmount($grandTotal);
+        $salesReturn->loadMissing('refundAccount');
 
         $inventoryCost = StockLedger::query()
             ->where('tenant_id', tenantId())
@@ -40,6 +41,35 @@ class SalesReturnPostingService extends BasePostingService
         | Cr Accounts Receivable
         |
         */
+        $refundType = $salesReturn->refund_type
+            ?? SalesReturnRefundType::CREDIT_NOTE;
+
+        if (is_string($refundType)) {
+            $refundType = SalesReturnRefundType::tryFrom($refundType)
+                ?? SalesReturnRefundType::CREDIT_NOTE;
+        }
+
+        $counterLine = $refundType === SalesReturnRefundType::CREDIT_NOTE
+            ? $this->credit(
+                AccountingAccounts::ACCOUNTS_RECEIVABLE,
+                $grandTotal,
+                "Sales Return Credit Note {$salesReturn->return_no}"
+            )
+            : [
+                'chart_of_account_uuid' => $salesReturn->refundAccount?->uuid
+                    ?? throw new BusinessException('A valid refund account is required for this Sales Return.'),
+                'debit' => '0.0000',
+                'credit' => $grandTotal,
+                'description' => "Sales Return Refund {$salesReturn->return_no}",
+            ];
+
+        if (
+            $refundType !== SalesReturnRefundType::CREDIT_NOTE
+            && ! $salesReturn->refundAccount?->is_active
+        ) {
+            throw new BusinessException('The selected Sales Return refund account is inactive.');
+        }
+
         $this->createJournalEntry(
             entryDate: $entryDate,
             voucherType: JournalVoucherTypeEnum::SALES_RETURN->value,
@@ -51,10 +81,7 @@ class SalesReturnPostingService extends BasePostingService
                     AccountingAccounts::SALES_RETURN,
                     $grandTotal
                 ),
-                $this->credit(
-                    AccountingAccounts::ACCOUNTS_RECEIVABLE,
-                    $grandTotal
-                ),
+                $counterLine,
             ]
         );
 
