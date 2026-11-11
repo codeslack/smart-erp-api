@@ -10,7 +10,7 @@ on:
 
 jobs:
   tests:
-    name: PHP 8.3 / MySQL 8.0
+    name: PHP 8.4 / MySQL 8.0
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -35,7 +35,7 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           extensions: bcmath, ctype, curl, dom, fileinfo, mbstring, openssl, pdo_mysql, tokenizer, xml
           coverage: none
           tools: composer:v2
