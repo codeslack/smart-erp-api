@@ -109,6 +109,30 @@ class ChartOfAccountApiTest extends TestCase
         ]);
     }
 
+    public function test_client_cannot_create_a_system_account(): void
+    {
+        $group = AccountGroup::query()->firstOrFail();
+
+        $response = $this->postJson('/api/accounting/chart-of-accounts', [
+            'account_group_uuid' => $group->uuid,
+            'account_code' => '9977',
+            'account_name' => 'Client System Flag Attempt',
+            'account_type' => AccountType::ASSET,
+            'is_system' => true,
+            'is_active' => true,
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.is_system', false);
+
+        $this->assertDatabaseHas('chart_of_accounts', [
+            'uuid' => $response->json('data.uuid'),
+            'tenant_id' => $this->tenant->id,
+            'is_system' => false,
+        ]);
+    }
+
     public function test_can_show_chart_of_account_using_uuid(): void
     {
         $account = ChartOfAccount::query()->firstOrFail();

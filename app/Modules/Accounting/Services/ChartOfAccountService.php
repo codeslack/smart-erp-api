@@ -44,6 +44,9 @@ class ChartOfAccountService
     {
         $data = $this->resolveForeignKeys($data);
 
+        // System accounts are reserved for trusted setup services.
+        $data['is_system'] = false;
+
         return $this->repository->create(
             $data
         );
