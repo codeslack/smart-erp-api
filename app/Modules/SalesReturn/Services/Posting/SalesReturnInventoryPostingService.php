@@ -2,6 +2,7 @@
 
 namespace App\Modules\SalesReturn\Services\Posting;
 
+use App\Core\Exceptions\BusinessException;
 use App\Modules\Inventory\Data\InventoryMovementData;
 use App\Modules\Inventory\Data\InventoryReversalData;
 use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
@@ -72,15 +73,34 @@ class SalesReturnInventoryPostingService
                 continue;
             }
 
-            // Serial tracked
-            if ($item->product->isSerialTracked() && $item->serials->isNotEmpty()) {
+            // Serial tracked: every returned base unit must map to a sold serial.
+            if ($item->product->isSerialTracked()) {
+                if ($item->serials->isEmpty()) {
+                    throw new BusinessException(
+                        "Product [{$item->product->name}] requires serial numbers for return."
+                    );
+                }
+
+                $baseQuantity = (float) ($item->base_quantity ?? $item->returned_quantity);
+                if (abs($item->serials->count() - round($baseQuantity)) > 0.0001) {
+                    throw new BusinessException(
+                        'Sales return serial count does not match the returned base quantity.'
+                    );
+                }
+
                 foreach ($item->serials as $serialItem) {
                     /** @var ProductSerial|null $serial */
                     $serial = $serialItem->product_serial_id
                         ? ProductSerial::query()->find($serialItem->product_serial_id)
                         : $this->serialService->findBySerialNumber($serialItem->serial_number);
 
-                    if ($serial && ! $serialItem->product_serial_id) {
+                    if (! $serial) {
+                        throw new BusinessException(
+                            "Serial [{$serialItem->serial_number}] was not found for this product."
+                        );
+                    }
+
+                    if (! $serialItem->product_serial_id) {
                         $serialItem->update(['product_serial_id' => $serial->id]);
                     }
 
@@ -96,19 +116,17 @@ class SalesReturnInventoryPostingService
                         referenceId: $salesReturn->id,
                         referenceNo: $salesReturn->return_no,
                         batchId: null,
-                        serialId: $serial?->id,
+                        serialId: $serial->id,
                         remarks: "Sales Return {$salesReturn->return_no} Serial {$serialItem->serial_number}",
                     );
 
                     $this->inventoryPostingService->stockIn($movement);
 
-                    if ($serial) {
-                        $serial->update([
-                            'status' => ProductSerialStatusEnum::AVAILABLE,
-                            'warehouse_id' => $warehouseId,
-                            'sold_at' => null,
-                        ]);
-                    }
+                    $serial->update([
+                        'status' => ProductSerialStatusEnum::AVAILABLE,
+                        'warehouse_id' => $warehouseId,
+                        'sold_at' => null,
+                    ]);
                 }
                 continue;
             }
