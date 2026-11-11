@@ -15,9 +15,12 @@ class CancelSalesOrderAction
 
     public function execute(SalesOrder $salesOrder, ?string $reason = null): SalesOrder
     {
-        $this->validator->validateForCancellation($salesOrder);
-
         return DB::transaction(function () use ($salesOrder, $reason) {
+            $salesOrder = SalesOrder::query()
+                ->lockForUpdate()
+                ->findOrFail($salesOrder->id);
+
+            $this->validator->validateForCancellation($salesOrder);
             $salesOrder->update([
                 'status' => SalesOrderStatusEnum::CANCELLED,
                 'cancelled_by' => auth()->id(),
