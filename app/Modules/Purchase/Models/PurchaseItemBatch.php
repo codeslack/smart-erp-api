@@ -16,7 +16,6 @@ class PurchaseItemBatch extends TenantModel
 
     protected $fillable = [
         'uuid',
-        'tenant_id',
         'purchase_id',
         'purchase_item_id',
         'batch_no',
