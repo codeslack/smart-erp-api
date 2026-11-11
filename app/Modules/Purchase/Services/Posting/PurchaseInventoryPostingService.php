@@ -6,6 +6,9 @@ use App\Modules\Purchase\Models\Purchase;
 use App\Modules\Purchase\Models\PurchaseItem;
 use App\Modules\Purchase\Models\PurchaseItemBatch;
 use App\Modules\Purchase\Models\PurchaseItemSerial;
+use App\Core\Exceptions\BusinessException;
+use App\Modules\ProductUnit\Models\ProductUnit;
+use App\Modules\ProductUnit\Services\ProductUnitService;
 use App\Modules\Inventory\Services\InventoryPostingService;
 use App\Modules\Inventory\Services\InventoryBatchService;
 use App\Modules\Inventory\Services\Serial\InventorySerialRegistrationService;
@@ -18,6 +21,7 @@ class PurchaseInventoryPostingService
         protected InventoryPostingService $inventoryPostingService,
         protected InventoryBatchService $inventoryBatchService,
         protected InventorySerialRegistrationService $serialRegistrationService,
+        protected ProductUnitService $productUnitService,
     ) {}
 
     public function post(Purchase $purchase): void
@@ -40,19 +44,54 @@ class PurchaseInventoryPostingService
                 continue;
             }
 
+            $productUnit = $this->resolveProductUnit($item);
+
+            $baseUnitCost = $item->base_unit_cost !== null
+                ? (float) $item->base_unit_cost
+                : ($productUnit
+                    ? $this->productUnitService->toBaseUnitCost(
+                        $productUnit,
+                        (float) $item->unit_cost
+                    )
+                    : (float) $item->unit_cost);
+
+            $baseQuantity = $item->base_quantity !== null
+                ? (float) $item->base_quantity
+                : ($productUnit
+                    ? $this->productUnitService->toBaseQuantity(
+                        $productUnit,
+                        (float) $item->quantity
+                    )
+                    : (float) $item->quantity);
+
             $warehouseId = $item->warehouse_id ?? $purchase->warehouse_id;
 
             // Batch-tracked items
             if ($item->product->isBatchTracked() && $item->batches->isNotEmpty()) {
                 foreach ($item->batches as $batchItem) {
-                    $batch = $this->resolveBatch($purchase, $item, $batchItem, $warehouseId);
+                    $batchBaseQuantity = $batchItem->base_quantity !== null
+                        ? (float) $batchItem->base_quantity
+                        : ($productUnit
+                            ? $this->productUnitService->toBaseQuantity(
+                                $productUnit,
+                                (float) $batchItem->quantity
+                            )
+                            : (float) $batchItem->quantity);
+
+                    $batch = $this->resolveBatch(
+                        $purchase,
+                        $item,
+                        $batchItem,
+                        $warehouseId,
+                        $baseUnitCost
+                    );
 
                     $movement = new InventoryMovementData(
                         productId: $item->product_id,
                         productVariantId: $item->product_variant_id,
                         warehouseId: $warehouseId,
-                        quantity: (float) $batchItem->quantity,
-                        unitCost: (float) $item->unit_cost,
+                        quantity: $batchBaseQuantity,
+                        unitCost: $baseUnitCost,
                         transactionType: InventoryTransactionTypeEnum::PURCHASE->value,
                         transactionDate: $purchase->purchase_date,
                         referenceType: Purchase::class,
@@ -75,7 +114,7 @@ class PurchaseInventoryPostingService
                         productId: $item->product_id,
                         warehouseId: $warehouseId,
                         serialNumber: $serialItem->serial_number,
-                        purchaseCost: (float) $item->unit_cost,
+                        purchaseCost: $baseUnitCost,
                         productVariantId: $item->product_variant_id,
                         sourceableType: Purchase::class,
                         sourceableId: $purchase->id,
@@ -87,7 +126,7 @@ class PurchaseInventoryPostingService
                         productVariantId: $item->product_variant_id,
                         warehouseId: $warehouseId,
                         quantity: 1,
-                        unitCost: (float) $item->unit_cost,
+                        unitCost: $baseUnitCost,
                         transactionType: InventoryTransactionTypeEnum::PURCHASE->value,
                         transactionDate: $purchase->purchase_date,
                         referenceType: Purchase::class,
@@ -108,8 +147,8 @@ class PurchaseInventoryPostingService
                 productId: $item->product_id,
                 productVariantId: $item->product_variant_id,
                 warehouseId: $warehouseId,
-                quantity: (float) ($item->base_quantity ?? $item->quantity),
-                unitCost: (float) $item->unit_cost,
+                quantity: $baseQuantity,
+                unitCost: $baseUnitCost,
                 transactionType: InventoryTransactionTypeEnum::PURCHASE->value,
                 transactionDate: $purchase->purchase_date,
                 referenceType: Purchase::class,
@@ -122,11 +161,57 @@ class PurchaseInventoryPostingService
         }
     }
 
+    protected function resolveProductUnit(
+        PurchaseItem $item
+    ): ?ProductUnit {
+        $product = $item->product;
+
+        if (! $product || ! $product->requiresStock()) {
+            return null;
+        }
+
+        $unitId = (int) (
+            $item->unit_id
+            ?? $product->unit_id
+            ?? 0
+        );
+
+        if ($unitId <= 0) {
+            return null;
+        }
+
+        $productUnit = $this->productUnitService
+            ->findByProductAndUnit(
+                (int) $item->product_id,
+                $unitId
+            );
+
+        if (
+            ! $productUnit
+            && (int) ($product->unit_id ?? 0) === $unitId
+        ) {
+            $productUnit = $this->productUnitService
+                ->syncBaseUnit($product);
+        }
+
+        if (! $productUnit) {
+            throw new BusinessException(
+                'The purchase unit is not configured for this product.'
+            );
+        }
+
+        $this->productUnitService
+            ->ensurePurchaseUnit($productUnit);
+
+        return $productUnit;
+    }
+
     protected function resolveBatch(
         Purchase $purchase,
         PurchaseItem $item,
         PurchaseItemBatch $batchItem,
-        int $warehouseId
+        int $warehouseId,
+        float $baseUnitCost
     ) {
         $batch = $this->inventoryBatchService->findByBatchNumber(
             $batchItem->batch_no,
@@ -147,7 +232,7 @@ class PurchaseInventoryPostingService
             'manufacturing_date' => $batchItem->manufacturing_date,
             'expiry_date' => $batchItem->expiry_date,
             'received_at' => $purchase->purchase_date,
-            'unit_cost' => (float) $item->unit_cost,
+            'unit_cost' => $baseUnitCost,
             'sourceable_type' => Purchase::class,
             'sourceable_id' => $purchase->id,
             'remarks' => "Purchase {$purchase->purchase_no}",
