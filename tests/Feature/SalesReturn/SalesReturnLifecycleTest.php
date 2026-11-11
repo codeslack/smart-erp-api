@@ -175,9 +175,15 @@ class SalesReturnLifecycleTest extends TestCase
             'is_active' => true,
         ]);
 
+        $supplier = Supplier::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Return Conversion Supplier',
+            'is_active' => true,
+        ]);
+
         $purchaseService = app(PurchaseService::class);
         $extraPurchase = $purchaseService->create([
-            'supplier_uuid' => $this->supplier->uuid,
+            'supplier_uuid' => $supplier->uuid,
             'warehouse_uuid' => $this->warehouse->uuid,
             'purchase_date' => now()->toDateString(),
             'items' => [[
