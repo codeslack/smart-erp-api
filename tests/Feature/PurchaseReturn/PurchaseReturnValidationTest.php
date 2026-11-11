@@ -358,6 +358,48 @@ class PurchaseReturnValidationTest extends TestCase
             ->assertJsonValidationErrors('items.0');
     }
 
+    public function test_confirmation_rejects_draft_returns_that_exceed_remaining_quantity(): void
+    {
+        $purchaseItem = $this->purchase->items->first();
+
+        $firstResponse = $this->postJson('/api/purchase-returns', [
+            'purchase_uuid' => $this->purchase->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'purchase_item_uuid' => $purchaseItem->uuid,
+                'returned_quantity' => 6,
+                'unit_cost' => 50,
+            ]],
+        ]);
+        $firstResponse->assertCreated();
+        $firstUuid = $firstResponse->json('data.uuid');
+
+        // A second draft can be created before the first is confirmed.
+        $secondResponse = $this->postJson('/api/purchase-returns', [
+            'purchase_uuid' => $this->purchase->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'purchase_item_uuid' => $purchaseItem->uuid,
+                'returned_quantity' => 6,
+                'unit_cost' => 50,
+            ]],
+        ]);
+        $secondResponse->assertCreated();
+        $secondUuid = $secondResponse->json('data.uuid');
+
+        $this->postJson("/api/purchase-returns/{$firstUuid}/confirm")
+            ->assertOk();
+
+        // Only four units remain returnable after the first confirmation.
+        $this->postJson("/api/purchase-returns/{$secondUuid}/confirm")
+            ->assertUnprocessable();
+
+        $this->assertDatabaseHas('purchase_returns', [
+            'uuid' => $secondUuid,
+            'status' => 'draft',
+        ]);
+    }
+
     public function test_cannot_return_against_unconfirmed_purchase(): void
     {
         $purchaseService = app(PurchaseService::class);
