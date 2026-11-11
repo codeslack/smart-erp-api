@@ -73,7 +73,7 @@ class Sale extends TenantModel
             'sale_date' => 'date',
             'due_date' => 'date',
             'status' => SaleStatusEnum::class,
-            'exchange_rate' => 'decimal:6',
+            'exchange_rate' => 'decimal:8',
             'subtotal' => 'decimal:4',
             'discount_rate' => 'decimal:4',
             'discount_amount' => 'decimal:4',
