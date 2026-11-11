@@ -39,6 +39,14 @@ class SalesReturnInventoryPostingService
                 $product = Product::withTrashed()->find($item->product_id);
             }
 
+            if (
+                ! $product
+                && $item->product_id === null
+                && in_array($item->line_type, ['service', 'expense'], true)
+            ) {
+                continue;
+            }
+
             if (! $product) {
                 throw new BusinessException(
                     'The product associated with this Sales Return item no longer exists.'
