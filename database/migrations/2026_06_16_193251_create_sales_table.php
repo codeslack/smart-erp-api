@@ -39,7 +39,7 @@ return new class extends Migration
 
             // Currency
             $table->string('currency_code', 3)->default('INR');
-            $table->decimal('exchange_rate', 18, 6)->default(1.000000);
+            $table->decimal('exchange_rate', 18, 8)->default(1.00000000);
 
             // Financial Summary
             $table->decimal('subtotal', 18, 4)->default(0);
