@@ -374,6 +374,8 @@ class SaleLifecycleTest extends TestCase
         $this->postJson(route('sales-orders.confirm', $orderUuid))
             ->assertOk();
 
+        app(TenantManager::class)->setTenant($this->tenant);
+
         $order = SalesOrder::query()
             ->where('uuid', $orderUuid)
             ->firstOrFail();
