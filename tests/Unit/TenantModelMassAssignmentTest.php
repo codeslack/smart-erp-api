@@ -16,6 +16,7 @@ use App\Modules\Purchase\Models\PurchaseItemSerial;
 use App\Modules\PurchaseReturn\Models\PurchaseReturn;
 use App\Modules\PurchaseReturn\Models\PurchaseReturnItem;
 use App\Modules\PurchaseReturn\Models\PurchaseReturnItemBatch;
+use App\Modules\PurchaseReturn\Models\PurchaseReturnItemSerial;
 use App\Modules\Rbac\Models\Role;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
@@ -48,6 +49,7 @@ class TenantModelMassAssignmentTest extends TestCase
             PurchaseReturn::class,
             PurchaseReturnItem::class,
             PurchaseReturnItemBatch::class,
+            PurchaseReturnItemSerial::class,
             Role::class,
             Sale::class,
             SaleItem::class,
