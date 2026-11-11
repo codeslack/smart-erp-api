@@ -17,6 +17,30 @@ class SalesPostingService extends BasePostingService
         $grandTotal = $this->decimal($sale->grand_total);
         $this->validateAmount($grandTotal);
 
+        $currencyCode = strtoupper((string) $sale->currency_code);
+        $exchangeRate = (string) $sale->exchange_rate;
+
+        if (! preg_match('/^[A-Z]{3}$/', $currencyCode)) {
+            throw new \\App\\Core\\Exceptions\\BusinessException(
+                'Sale currency code must be a valid three-letter code.'
+            );
+        }
+
+        if (! is_numeric($exchangeRate) || bccomp($exchangeRate, '0', 8) <= 0) {
+            throw new \\App\\Core\\Exceptions\\BusinessException(
+                'Sale exchange rate must be greater than zero.'
+            );
+        }
+
+        // Exchange rate convention: base-currency units per one transaction-currency unit.
+        $baseGrandTotal = bcadd(
+            bcmul($grandTotal, $exchangeRate, 8),
+            '0',
+            4
+        );
+
+        $this->validateAmount($baseGrandTotal);
+
         $inventoryCost = StockLedger::query()
             ->where('tenant_id', tenantId())
             ->where('referenceable_type', Sale::class)
@@ -49,13 +73,17 @@ class SalesPostingService extends BasePostingService
             lines: [
                 $this->debit(
                     AccountingAccounts::ACCOUNTS_RECEIVABLE,
-                    $grandTotal
+                    $baseGrandTotal,
+                    foreignAmount: $grandTotal
                 ),
                 $this->credit(
                     AccountingAccounts::SALES_REVENUE,
-                    $grandTotal
+                    $baseGrandTotal,
+                    foreignAmount: $grandTotal
                 ),
-            ]
+            ],
+            currencyCode: $currencyCode,
+            exchangeRate: $exchangeRate
         );
 
         /*
