@@ -570,4 +570,33 @@ class SaleLifecycleTest extends TestCase
         ]);
     }
 
+
+    public function test_sale_confirmation_rejects_customer_mismatch_with_sales_order(): void
+    {
+        $orderItem = $this->createConfirmedSalesOrder(5);
+        $otherCustomer = $this->createCustomer();
+
+        $saleResponse = $this->postJson(route('sales.store'), [
+            'customer_id' => $otherCustomer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sales_order_uuid' => $orderItem->salesOrder->uuid,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $this->product->id,
+                'sales_order_item_uuid' => $orderItem->uuid,
+                'quantity' => 1,
+                'unit_price' => 100,
+            ]],
+        ])->assertCreated();
+
+        $this->postJson(route('sales.confirm', $saleResponse->json('data.uuid')))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('customer_id');
+
+        $this->assertDatabaseHas('sales_order_items', [
+            'id' => $orderItem->id,
+            'invoiced_quantity' => 0,
+        ]);
+    }
+
 }
