@@ -59,11 +59,11 @@ Do not infer a percentage from these labels without a measured module-by-module 
 | Customers and suppliers | Implemented | Separate party records and opening-bill workflows. |
 | Product, category, brand, unit and product-unit | Implemented | Core product and master-data capabilities. |
 | Areas, warehouses and payment terms | Implemented | Tenant setup and master data. |
-| Inventory V4 | Stable implementation checkpoint | Product stock, stock ledger, stock adjustments/transfers, valuation and batch/serial/expiry capabilities; continue production hardening. |
-| Opening stock | Implemented | Opening inventory entry capability. |
+| Inventory V4 | Stable implementation checkpoint | Product stock, stock ledger, valuation and batch/serial/expiry capabilities; continue production hardening. PR #38 adds first-time stock-row serialization; not yet merged. |
+| Opening stock | Implemented | Opening inventory entry capability. PR #49 adds persisted-row locks for lifecycle transitions; not yet merged. |
 | Purchase Order | Implemented | Draft/approval workflow and GRN progression. |
-| Goods Receipt Note (GRN) | Implemented | Partial receipt and pending quantity tracking. GRN must not directly write stock balances or stock ledger; stock is posted through the purchase approval workflow. |
-| Purchase | Implemented | GRN conversion, approval and stock posting. Direct Purchase Bill entry is also supported. |
+| Goods Receipt Note (GRN) | Implemented; boundary hardening in progress | Current main still posts inventory on GRN confirmation. PR #48 moves linked GRN stock posting to Purchase approval, makes repeat bills idempotent, and protects cancellation; not yet merged. |
+| Purchase | Implemented | GRN conversion, approval and direct Purchase Bill entry. PR #48 makes Purchase approval the stock-posting boundary for linked GRNs; not yet merged. |
 | Purchase Return | Implemented | Return tracking and stock reversal. |
 | Sales Quotation | Implemented | Approval and conversion workflow. |
 | Sales Order | Implemented | Approval, pending quantity tracking and delivery/sale progression. |
@@ -76,16 +76,16 @@ Do not infer a percentage from these labels without a measured module-by-module 
 | Domain | Current status | Notes |
 |---|---|---|
 | Chart of Accounts | Implemented | Core account structure and accounting mappings. |
-| Journal Entries | Implemented | Journal voucher and posting foundation. |
+| Journal Entries | Implemented | Journal voucher and posting foundation. PR #42 adds source-document posting keys and retry protection; not yet merged. |
 | General Ledger | Implemented | General ledger posting and account balances. |
 | Trial Balance | Implemented | Accounting balance report foundation. |
 | Profit & Loss | Implemented | Existing report foundation; improve drill-down and validation. |
 | Balance Sheet | Implemented | Existing report foundation; improve classification and reconciliation. |
 | Cash Flow | Implemented | Existing report foundation; improve report validation and reconciliation. |
-| Tax V4 | Stable implementation checkpoint | Tax applicability, tax snapshots, tax account mapping and sales-return reversal of saved tax components. |
+| Tax V4 | Stable implementation checkpoint | Tax applicability, tax snapshots, tax account mapping and sales-return reversal of saved tax components. PR #46 corrects PER_DOCUMENT/PER_LINE rounding semantics; not yet merged. |
 | Payment V4A | Implemented | Unified Payment module replacing the legacy Receipt implementation. |
 | Advance Allocation | Test verified | Customer/supplier advance allocation lifecycle; customer-advance allocation and reversal serialize on the same payment-row lock, with lifecycle regression coverage. |
-| Multi-currency sales accounting | Implemented | Transaction/base-currency values and exchange-rate-aware accounting posting. PR #28 merged after CI passed. |
+| Multi-currency sales accounting | Implemented | Transaction/base-currency values and exchange-rate-aware Sales posting. PR #28 merged after CI passed. PR #44 extends base/foreign currency posting to Purchase and Purchase Return; not yet merged. |
 
 ### Latest integration checkpoints
 
@@ -142,6 +142,28 @@ Do not register a module solely because its directory exists.
 3. Verify tax snapshots, inclusive/exclusive tax calculations, rounding and return reversals.
 4. Verify multi-currency transaction values, exchange rates and base-currency postings.
 5. Verify opening balances, control accounts and subledger-to-general-ledger reconciliation.
+
+### Phase 1 execution notes — open PRs, not yet merged
+
+The following focused PRs have passed their recorded GitHub Actions full-suite runs. They remain separate, open PRs and are **not part of main** until reviewed and merged. Test totals are from each independent PR branch and must not be added together.
+
+| PR | Scope | Full-suite CI evidence |
+|---|---|---|
+| #38 | Serialize first-time ProductStock creation; restore soft-deleted balance rows | 736 passed (3,497 assertions) |
+| #42 | Idempotent source journal posting with reversal-safe posting keys | 736 passed (3,499 assertions) |
+| #44 | Base/foreign currency Purchase and Purchase Return journal postings | 735 passed (3,510 assertions) |
+| #46 | Correct PER_DOCUMENT and PER_LINE tax rounding semantics | 736 passed (3,503 assertions) |
+| #48 | Defer GRN inventory posting to Purchase approval; idempotent full-GRN posting and cancellation guard | 734 passed (3,460 assertions) |
+| #49 | Lock Opening Stock edits and lifecycle posting/unposting against stale instances | 734 passed (3,492 assertions) |
+
+Additional audit decisions and remaining checks:
+
+- Negative stock: retain the established policy—WAC negative balances only when tenant settings allow them; FIFO still rejects stock-outs beyond available FIFO layers. PR #29's negative-WAC recovery fix is already merged.
+- Legacy Delivery Note, Stock Adjustment and Stock Transfer directories remain unregistered. Do not activate them based on directory presence; their workflow ownership and Inventory V4 integration need a separate implementation review.
+- The Purchase request/model expose tax_calculation_mode, but the current Purchase item/total calculators do not yet apply inclusive pricing semantics. This remains an explicit P1 tax-calculation gap; do not mark inclusive/exclusive verification complete.
+- Foreign-currency Purchase journal posting is covered by PR #44. Inventory valuation exchange-rate treatment for GRN-linked and direct foreign-currency receipts still needs a separate source-cost audit.
+- Full source-document-to-subledger-to-GL reconciliation, tax return snapshots across all document types, and opening-balance/control-account reconciliation remain in the P1 audit until their evidence is recorded.
+- The repository's full local suite has not been rerun by the user against the combined merged changes; the independent CI results above do not replace that final local verification.
 
 ### P2 — Essential accounting reports
 
