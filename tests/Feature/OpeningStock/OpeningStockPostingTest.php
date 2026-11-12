@@ -198,6 +198,49 @@ class OpeningStockPostingTest extends TestCase
         );
     }
 
+
+    public function test_stale_opening_stock_instance_cannot_post_twice(): void
+    {
+        $openingStock = $this->createOpeningStock();
+        $staleDraft = $openingStock->fresh();
+
+        $this->postingService->post($openingStock->fresh());
+
+        try {
+            $this->postingService->post($staleDraft);
+            $this->fail('A stale draft instance must not post opening stock twice.');
+        } catch (BusinessException) {
+            // The persisted document status is checked after acquiring its row lock.
+        }
+
+        $this->assertEquals(
+            10,
+            (float) ProductStock::query()
+                ->where('product_id', $this->product->id)
+                ->where('warehouse_id', $this->warehouse->id)
+                ->firstOrFail()
+                ->quantity
+        );
+
+        $this->assertSame(
+            1,
+            StockLedger::query()
+                ->where('referenceable_type', OpeningStock::class)
+                ->where('referenceable_id', $openingStock->id)
+                ->where('transaction_type', InventoryTransactionTypeEnum::OPENING_STOCK->value)
+                ->count()
+        );
+
+        $this->assertSame(
+            1,
+            JournalEntry::query()
+                ->where('reference_type', OpeningStock::class)
+                ->where('reference_id', $openingStock->id)
+                ->whereNull('reversal_of_journal_entry_id')
+                ->count()
+        );
+    }
+
     public function test_cannot_unpost_draft_opening_stock(): void
     {
         $openingStock = $this->createOpeningStock();
