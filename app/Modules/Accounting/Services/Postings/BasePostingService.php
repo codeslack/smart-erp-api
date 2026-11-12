@@ -6,6 +6,7 @@ use App\Core\Exceptions\BusinessException;
 use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
 use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Accounting\Services\JournalEntry\JournalEntryService;
+use App\Modules\Settings\Models\Setting;
 
 abstract class BasePostingService
 {
@@ -160,6 +161,58 @@ abstract class BasePostingService
             'created_by' => auth()->id() ?? userId(),
             'lines' => $lines,
         ]);
+    }
+
+    /**
+     * Resolve and validate a document currency against the tenant's base currency.
+     *
+     * @return array{currency_code: string, exchange_rate: string}
+     */
+    protected function resolveCurrencyContext(
+        ?string $currencyCode,
+        string|int|float|null $exchangeRate,
+        string $documentName
+    ): array {
+        $baseCurrency = strtoupper(trim((string) (
+            Setting::query()
+                ->where('group', Setting::GROUP_COMPANY)
+                ->where('key', 'currency')
+                ->value('value') ?? 'INR'
+        )));
+
+        if (! preg_match('/^[A-Z]{3}$/', $baseCurrency)) {
+            throw new BusinessException(
+                'Company base currency is not configured correctly.'
+            );
+        }
+
+        $currencyCode = strtoupper(trim(
+            $currencyCode ?: $baseCurrency
+        ));
+
+        if (! preg_match('/^[A-Z]{3}$/', $currencyCode)) {
+            throw new BusinessException(
+                "{$documentName} currency code must be a valid three-letter code."
+            );
+        }
+
+        $exchangeRate = $this->decimalRate(
+            $exchangeRate ?? '1.00000000'
+        );
+
+        if (
+            $currencyCode === $baseCurrency
+            && bccomp($exchangeRate, '1.00000000', 8) !== 0
+        ) {
+            throw new BusinessException(
+                "Exchange rate must be 1 when {$documentName} currency matches company base currency."
+            );
+        }
+
+        return [
+            'currency_code' => $currencyCode,
+            'exchange_rate' => $exchangeRate,
+        ];
     }
 
     protected function decimalRate(
