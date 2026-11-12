@@ -80,6 +80,40 @@ class JournalEntryService
         );
     }
 
+    protected function lockPostingReference(
+        ?string $referenceType,
+        ?int $referenceId
+    ): void {
+        if (
+            ! $referenceType
+            || ! $referenceId
+            || ! class_exists($referenceType)
+            || ! is_subclass_of($referenceType, Model::class)
+        ) {
+            return;
+        }
+
+        $source = $referenceType::query()
+            ->whereKey($referenceId)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $source) {
+            throw new BusinessException(
+                'Source document for journal posting was not found.'
+            );
+        }
+
+        if (
+            isset($source->tenant_id)
+            && (int) $source->tenant_id !== (int) tenantId()
+        ) {
+            throw new BusinessException(
+                'Source document belongs to another tenant.'
+            );
+        }
+    }
+
     public function post(
         JournalEntry $journalEntry
     ): JournalEntry {
