@@ -1063,4 +1063,89 @@ class SaleLifecycleTest extends TestCase
             ->exists());
     }
 
+    public function test_serial_sale_confirmation_and_cancellation_restore_serial_lifecycle(): void
+    {
+        $serialProduct = $this->createProduct([
+            'name' => 'Serial Lifecycle Phone',
+            'sku' => 'SERIAL-LIFECYCLE-001',
+            'inventory_tracking_type' => InventoryTrackingTypeEnum::SERIAL,
+            'purchase_price' => 500,
+            'selling_price' => 800,
+        ]);
+
+        $purchaseService = app(PurchaseService::class);
+        $purchase = $purchaseService->create([
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [[
+                'product_uuid' => $serialProduct->uuid,
+                'quantity' => 2,
+                'unit_cost' => 500,
+                'serials' => ['SALE-SERIAL-001', 'SALE-SERIAL-002'],
+            ]],
+        ]);
+        $purchaseService->confirm($purchase);
+
+        $serials = ProductSerial::query()
+            ->whereIn('serial_number', ['SALE-SERIAL-001', 'SALE-SERIAL-002'])
+            ->orderBy('serial_number')
+            ->get();
+
+        $this->assertCount(2, $serials);
+        $this->assertTrue(
+            $serials->every(
+                fn (ProductSerial $serial): bool =>
+                    $serial->status === ProductSerialStatusEnum::AVAILABLE
+            )
+        );
+
+        $createResponse = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $serialProduct->id,
+                'quantity' => 2,
+                'unit_price' => 800,
+                'serials' => ['SALE-SERIAL-001', 'SALE-SERIAL-002'],
+            ]],
+        ])->assertCreated();
+
+        $saleUuid = $createResponse->json('data.uuid');
+
+        $this->postJson(route('sales.confirm', $saleUuid))
+            ->assertOk()
+            ->assertJsonPath('data.status', 'confirmed');
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $serials->each(function (ProductSerial $serial): void {
+            $this->assertSame(
+                ProductSerialStatusEnum::SOLD,
+                $serial->fresh()->status
+            );
+        });
+
+        $this->postJson(route('sales.cancel', $saleUuid), [
+            'reason' => 'Serial sale lifecycle reversal',
+        ])->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $serials->each(function (ProductSerial $serial): void {
+            $this->assertSame(
+                ProductSerialStatusEnum::AVAILABLE,
+                $serial->fresh()->status
+            );
+        });
+
+        $stock = ProductStock::query()
+            ->where('product_id', $serialProduct->id)
+            ->where('warehouse_id', $this->warehouse->id)
+            ->firstOrFail();
+
+        $this->assertEquals(2, (float) $stock->quantity);
+    }
+
 }
