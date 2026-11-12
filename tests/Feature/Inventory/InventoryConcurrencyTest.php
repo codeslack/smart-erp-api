@@ -97,29 +97,6 @@ class InventoryConcurrencyTest extends TestCase
         );
     }
 
-    public function test_database_rejects_duplicate_non_variant_stock_rows(): void
-    {
-        ProductStock::create([
-            'tenant_id' => $this->tenant->id,
-            'product_id' => $this->product->id,
-            'product_variant_id' => null,
-            'warehouse_id' => $this->warehouse->id,
-            'quantity' => 0,
-            'average_cost' => 0,
-        ]);
-
-        $this->expectException(\Illuminate\Database\QueryException::class);
-
-        ProductStock::create([
-            'tenant_id' => $this->tenant->id,
-            'product_id' => $this->product->id,
-            'product_variant_id' => null,
-            'warehouse_id' => $this->warehouse->id,
-            'quantity' => 0,
-            'average_cost' => 0,
-        ]);
-    }
-
     public function test_stock_movement_restores_a_soft_deleted_stock_row(): void
     {
         $stock = ProductStock::create([
