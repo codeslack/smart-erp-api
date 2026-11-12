@@ -46,7 +46,7 @@ class PurchasePostingService extends BasePostingService
         $lines = [];
 
         foreach ($purchase->charges as $charge) {
-            if ($charge->treatment !== 'expense') {
+            if ($charge->treatment !== 'expense' || $charge->isLandedCost()) {
                 continue;
             }
 
