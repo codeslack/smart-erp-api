@@ -28,13 +28,6 @@ return new class extends Migration
                 ->constrained('product_variants')
                 ->nullOnDelete();
 
-            /*
-             * Normalize NULL variants to 0 so the unique constraint
-             * also protects non-variant stock rows on MySQL.
-             */
-            $table->unsignedBigInteger('product_variant_key')
-                ->storedAs('COALESCE(product_variant_id, 0)');
-
             $table->foreignId('warehouse_id')
                 ->constrained('warehouses')
                 ->cascadeOnDelete();
@@ -51,7 +44,7 @@ return new class extends Migration
                 [
                     'tenant_id',
                     'product_id',
-                    'product_variant_key',
+                    'product_variant_id',
                     'warehouse_id',
                 ],
                 'product_stocks_unique'
