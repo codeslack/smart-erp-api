@@ -29,8 +29,12 @@ return new class extends Migration
 
         Schema::table('product_stocks', function (Blueprint $table) {
             $table->unsignedBigInteger('product_variant_key')
-                ->storedAs('COALESCE(product_variant_id, 0)');
+                ->default(0);
         });
+
+        DB::table('product_stocks')->update([
+            'product_variant_key' => DB::raw('COALESCE(product_variant_id, 0)'),
+        ]);
 
         Schema::table('product_stocks', function (Blueprint $table) {
             $table->dropUnique('product_stocks_unique');
@@ -44,6 +48,14 @@ return new class extends Migration
                 ],
                 'product_stocks_identity_unique'
             );
+
+            // A stock balance must retain its variant identity. Soft-delete
+            // variants instead of physically nulling a referenced stock row.
+            $table->dropForeign(['product_variant_id']);
+            $table->foreign('product_variant_id')
+                ->references('id')
+                ->on('product_variants')
+                ->restrictOnDelete();
         });
     }
 
@@ -51,6 +63,11 @@ return new class extends Migration
     {
         Schema::table('product_stocks', function (Blueprint $table) {
             $table->dropUnique('product_stocks_identity_unique');
+            $table->dropForeign(['product_variant_id']);
+            $table->foreign('product_variant_id')
+                ->references('id')
+                ->on('product_variants')
+                ->nullOnDelete();
         });
 
         Schema::table('product_stocks', function (Blueprint $table) {
