@@ -52,7 +52,18 @@ jobs:
       - name: Prepare application key
         run: php artisan key:generate --force
 
-      - name: Run test suite
+      - name: Run targeted customer advance lifecycle tests
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: erp_api_dev_test
+          DB_USERNAME: root
+          DB_PASSWORD: password
+        run: php artisan test tests/Feature/Sales/SaleLifecycleTest.php --filter="customer_advance"
+
+      - name: Run full test suite
         env:
           APP_ENV: testing
           DB_CONNECTION: mysql
