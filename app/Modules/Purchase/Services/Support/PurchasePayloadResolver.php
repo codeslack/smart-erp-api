@@ -50,6 +50,52 @@ class PurchasePayloadResolver
             unset($data['payment_term_uuid']);
         }
 
+        if (isset($data['goods_receipt_note_id'])) {
+            $grn = GoodsReceiptNote::query()
+                ->with('purchaseOrder')
+                ->find((int) $data['goods_receipt_note_id']);
+
+            if ($grn && $grn->purchaseOrder) {
+                $purchaseOrder = $grn->purchaseOrder;
+
+                if (
+                    isset($data['purchase_order_id'])
+                    && (int) $data['purchase_order_id'] !== (int) $purchaseOrder->id
+                ) {
+                    throw new BusinessException(
+                        'Purchase order does not match the linked goods receipt note.'
+                    );
+                }
+
+                $sourceCurrency = strtoupper(
+                    (string) $purchaseOrder->currency_code
+                );
+                $sourceRate = (string) $purchaseOrder->exchange_rate;
+
+                if (
+                    isset($data['currency_code'])
+                    && strtoupper((string) $data['currency_code']) !== $sourceCurrency
+                ) {
+                    throw new BusinessException(
+                        'A GRN-linked purchase must use the purchase order currency.'
+                    );
+                }
+
+                if (
+                    isset($data['exchange_rate'])
+                    && bccomp((string) $data['exchange_rate'], $sourceRate, 6) !== 0
+                ) {
+                    throw new BusinessException(
+                        'A GRN-linked purchase must use the purchase order exchange rate.'
+                    );
+                }
+
+                $data['purchase_order_id'] = $purchaseOrder->id;
+                $data['currency_code'] = $sourceCurrency;
+                $data['exchange_rate'] = $sourceRate;
+            }
+        }
+
         return $data;
     }
 
