@@ -65,11 +65,15 @@ class ProductStockRepository
         )->first();
 
         if ($existing !== null) {
-            return $this->findForUpdate(
+            $stock = $this->findForUpdate(
                 $productId,
                 $productVariantId,
                 $warehouseId
             );
+
+            if ($stock !== null) {
+                return $stock;
+            }
         }
 
         try {
