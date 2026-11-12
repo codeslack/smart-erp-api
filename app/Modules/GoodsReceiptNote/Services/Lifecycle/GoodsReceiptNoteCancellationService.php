@@ -15,6 +15,8 @@ use App\Modules\ProductUnit\Models\ProductUnit;
 use App\Modules\ProductUnit\Services\ProductUnitService;
 
 use App\Modules\PurchaseOrder\Models\PurchaseOrderItem;
+use App\Modules\Purchase\Models\Purchase;
+use App\Modules\Purchase\Enums\PurchaseStatusEnum;
 use App\Modules\PurchaseOrder\Repositories\Contracts\PurchaseOrderItemRepositoryInterface;
 
 use App\Modules\GoodsReceiptNote\Services\Inventory\GoodsReceiptNoteInventoryPostingService;
@@ -68,6 +70,27 @@ class GoodsReceiptNoteCancellationService
             $grnItems = $grn->items
                 ->sortBy('purchase_order_item_id')
                 ->values();
+
+            $grnItemIds = $grnItems->pluck('id');
+
+            $hasConfirmedPurchase = Purchase::query()
+                ->where(function ($query) use ($grn, $grnItemIds) {
+                    $query->where('goods_receipt_note_id', $grn->id)
+                        ->orWhereHas('items', fn ($items) =>
+                            $items->whereIn('goods_receipt_note_item_id', $grnItemIds)
+                        );
+                })
+                ->whereNotIn('status', [
+                    PurchaseStatusEnum::DRAFT->value,
+                    PurchaseStatusEnum::CANCELLED->value,
+                ])
+                ->exists();
+
+            if ($hasConfirmedPurchase) {
+                throw new BusinessException(
+                    'A goods receipt note cannot be cancelled after a linked Purchase has been confirmed.'
+                );
+            }
 
             if ($grnItems->isEmpty()) {
                 throw new BusinessException(
@@ -171,14 +194,15 @@ class GoodsReceiptNoteCancellationService
             }
 
             /*
-             * Reverse inventory movements and restore serials.
-             * Any exception rolls back all changes in this transaction.
+             * Legacy GRNs may already have inventory movements from
+             * the previous posting boundary. Reverse only when such
+             * movements exist; new GRNs are posted by Purchase approval.
              */
-            $this->inventoryPostingService->reverse($grn);
-
-            $this->batchRestorationService->restoreFor($grn);
-
-            $this->serialRestorationService->restoreFor($grn);
+            if ($this->inventoryPostingService->hasPosting($grn)) {
+                $this->inventoryPostingService->reverse($grn);
+                $this->batchRestorationService->restoreFor($grn);
+                $this->serialRestorationService->restoreFor($grn);
+            }
 
             /*
              * Apply one aggregate deduction per PO item.
