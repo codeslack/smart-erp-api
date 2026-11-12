@@ -11,7 +11,6 @@ use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
 use App\Modules\Inventory\Enums\StockTransactionType;
 use App\Modules\Inventory\Models\StockLedger;
 use App\Modules\Sales\Models\Sale;
-use App\Modules\Settings\Models\Setting;
 use App\Modules\Tax\Domain\TaxCalculationResult;
 use App\Modules\Tax\Enums\TaxDirectionEnum;
 use App\Modules\Tax\Services\TaxPostingService;
@@ -30,24 +29,13 @@ class SalesPostingService extends BasePostingService
         $grandTotal = $this->decimal($sale->grand_total);
         $this->validateAmount($grandTotal);
 
-        $baseCurrency = (string) (Setting::query()
-            ->where('group', Setting::GROUP_COMPANY)
-            ->where('key', 'currency')
-            ->value('value') ?? 'INR');
-        $currencyCode = strtoupper((string) ($sale->currency_code ?: $baseCurrency));
-        $exchangeRate = $this->decimalRate($sale->exchange_rate ?? '1.00000000');
-
-        if (! preg_match('/^[A-Z]{3}$/', $currencyCode)) {
-            throw new BusinessException('Sale currency code must be a valid three-letter code.');
-        }
-
-        if ($baseCurrency === '') {
-            throw new BusinessException('Company base currency is not configured.');
-        }
-
-        if ($currencyCode === strtoupper($baseCurrency) && bccomp($exchangeRate, '1.00000000', 8) !== 0) {
-            throw new BusinessException('Exchange rate must be 1 when Sale currency matches company base currency.');
-        }
+        $currency = $this->resolveCurrencyContext(
+            $sale->currency_code,
+            $sale->exchange_rate,
+            'Sale',
+        );
+        $currencyCode = $currency['currency_code'];
+        $exchangeRate = $currency['exchange_rate'];
 
         $baseGrandTotal = $this->decimal(bcmul($grandTotal, $exchangeRate, 8));
 
