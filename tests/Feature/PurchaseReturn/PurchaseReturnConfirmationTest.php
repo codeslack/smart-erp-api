@@ -10,6 +10,7 @@ use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Services\AccountingSetupService;
 use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
 use App\Modules\Inventory\Models\ProductStock;
+use App\Modules\Inventory\Models\StockLedger;
 use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 use App\Modules\Product\Enums\ProductTypeEnum;
 use App\Modules\Product\Models\Product;
@@ -198,4 +199,120 @@ class PurchaseReturnConfirmationTest extends TestCase
         $debitLine = $journalEntry->lines->firstWhere('debit', '>', 0);
         $this->assertEquals($bankAccount->id, $debitLine->chart_of_account_id);
     }
+
+    public function test_foreign_currency_purchase_and_return_reconcile_base_inventory_and_gl(): void
+    {
+        $purchaseService = app(PurchaseService::class);
+
+        $foreignPurchase = $purchaseService->create([
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'currency_code' => 'USD',
+            'exchange_rate' => 83.25,
+            'items' => [[
+                'product_uuid' => $this->product->uuid,
+                'quantity' => 1,
+                'unit_cost' => 100,
+            ]],
+        ]);
+
+        $foreignPurchase = $purchaseService->confirm($foreignPurchase);
+
+        $stock = ProductStock::query()
+            ->where('product_id', $this->product->id)
+            ->where('warehouse_id', $this->warehouse->id)
+            ->firstOrFail();
+
+        $this->assertEqualsWithDelta(
+            1470.8333,
+            (float) $stock->average_cost,
+            0.0001
+        );
+
+        $purchaseEntry = JournalEntry::query()
+            ->with('lines.account')
+            ->where('reference_type', Purchase::class)
+            ->where('reference_id', $foreignPurchase->id)
+            ->firstOrFail();
+
+        $this->assertSame('USD', $purchaseEntry->currency_code);
+        $this->assertEquals(83.25, (float) $purchaseEntry->exchange_rate);
+
+        $purchasePayable = $purchaseEntry->lines->first(
+            fn ($line) => $line->account->account_code === AccountingAccounts::ACCOUNTS_PAYABLE
+        );
+
+        $this->assertNotNull($purchasePayable);
+        $this->assertEquals(8325, (float) $purchasePayable->credit);
+        $this->assertEquals(100, (float) $purchasePayable->foreign_credit);
+
+        $purchaseItem = $foreignPurchase->items()->firstOrFail();
+
+        $createResponse = $this->postJson('/api/purchase-returns', [
+            'purchase_uuid' => $foreignPurchase->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'purchase_item_uuid' => $purchaseItem->uuid,
+                'returned_quantity' => 1,
+                'unit_cost' => 100,
+            ]],
+        ])->assertCreated();
+
+        $returnUuid = $createResponse->json('data.uuid');
+
+        $this->postJson("/api/purchase-returns/{$returnUuid}/confirm")
+            ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $purchaseReturn = PurchaseReturn::query()
+            ->where('uuid', $returnUuid)
+            ->firstOrFail();
+
+        $this->assertSame('USD', $purchaseReturn->currency_code);
+        $this->assertEquals(83.25, (float) $purchaseReturn->exchange_rate);
+
+        $returnEntry = JournalEntry::query()
+            ->with('lines.account')
+            ->where('voucher_type', JournalVoucherTypeEnum::PURCHASE_RETURN->value)
+            ->where('reference_id', $purchaseReturn->id)
+            ->firstOrFail();
+
+        $inventoryLedger = StockLedger::query()
+            ->where('referenceable_type', PurchaseReturn::class)
+            ->where('referenceable_id', $purchaseReturn->id)
+            ->where('quantity_out', '>', 0)
+            ->firstOrFail();
+
+        $inventoryLine = $returnEntry->lines->first(
+            fn ($line) => $line->account->account_code === AccountingAccounts::INVENTORY
+        );
+
+        $varianceLine = $returnEntry->lines->first(
+            fn ($line) => $line->account->account_code === AccountingAccounts::PURCHASE_RETURN_VARIANCE
+        );
+
+        $this->assertNotNull($inventoryLine);
+        $this->assertNotNull($varianceLine);
+
+        $this->assertEquals(
+            (float) $inventoryLedger->total_cost,
+            (float) $inventoryLine->credit
+        );
+
+        $this->assertEqualsWithDelta(
+            8325 - (float) $inventoryLedger->total_cost,
+            (float) $varianceLine->credit,
+            0.0001
+        );
+
+        $this->assertEquals(
+            (float) $returnEntry->lines->sum('debit'),
+            (float) $returnEntry->lines->sum('credit')
+        );
+
+        $this->assertEquals(100, (float) $inventoryLine->foreign_credit + (float) $varianceLine->foreign_credit);
+    }
+
 }
