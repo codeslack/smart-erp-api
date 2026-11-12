@@ -16,7 +16,15 @@ class PurchaseItemCalculator
 
         $taxRate = (float) ($data['tax_rate'] ?? 0);
         $taxAmountInput = (float) ($data['tax_amount'] ?? 0);
-        $inclusive = strtolower($taxCalculationMode) === 'inclusive';
+        $taxCalculationMode = strtolower($taxCalculationMode);
+
+        if (! in_array($taxCalculationMode, ['inclusive', 'exclusive'], true)) {
+            throw new BusinessException(
+                'Purchase tax calculation mode must be inclusive or exclusive.'
+            );
+        }
+
+        $inclusive = $taxCalculationMode === 'inclusive';
 
         /*
          * Unit cost is tax-inclusive only when the document explicitly
@@ -53,6 +61,10 @@ class PurchaseItemCalculator
             throw new BusinessException(
                 'Percentage discounts must be between 0 and 100.'
             );
+        }
+
+        if ($discountAmount < 0) {
+            throw new BusinessException('Item discount cannot be negative.');
         }
 
         if ($discountAmount > $lineTotal + 0.0001) {
