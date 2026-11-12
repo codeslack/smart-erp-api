@@ -135,7 +135,7 @@ class AccountingStatementReconciliationTest extends TestCase
 
     public function test_supplier_opening_bill_reconciles_to_payable_control(): void
     {
-        fwrite(STDERR, "SUP-TEST-1\n");
+        fwrite(STDERR, "SUP-TEST-A\n");
         $openingBill = SupplierOpeningBill::query()->create([
             'supplier_id' => $this->supplier->id,
             'bill_no' => 'SOB-RECON-001',
