@@ -65,4 +65,6 @@ class AccountingAccounts
     public const PURCHASE_FREIGHT = '5100';
 
     public const PURCHASE_HANDLING = '5200';
+
+    public const PURCHASE_RETURN_VARIANCE = '5300';
 }
