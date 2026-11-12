@@ -30,10 +30,16 @@ return new class extends Migration
         }
 
         Schema::table('product_stocks', function (Blueprint $table) {
-            $table->dropUnique('product_stocks_unique');
-
             $table->unsignedBigInteger('product_variant_key')
-                ->storedAs('COALESCE(product_variant_id, 0)');
+                ->default(0);
+        });
+
+        DB::table('product_stocks')->update([
+            'product_variant_key' => DB::raw('COALESCE(product_variant_id, 0)'),
+        ]);
+
+        Schema::table('product_stocks', function (Blueprint $table) {
+            $table->dropUnique('product_stocks_unique');
 
             $table->unique(
                 ['tenant_id', 'product_id', 'product_variant_key', 'warehouse_id'],
