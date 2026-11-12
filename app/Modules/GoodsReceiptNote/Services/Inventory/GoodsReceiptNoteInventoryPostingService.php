@@ -6,6 +6,9 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
+use App\Core\Exceptions\BusinessException;
+use App\Modules\Settings\Models\Setting;
+
 use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
 
@@ -44,6 +47,7 @@ class GoodsReceiptNoteInventoryPostingService
                     'items.product',
                     'items.batches',
                     'items.serials',
+                    'purchaseOrder',
                 ])
                 ->whereKey($goodsReceiptNote->getKey())
                 ->lockForUpdate()
@@ -72,6 +76,47 @@ class GoodsReceiptNoteInventoryPostingService
                 ]);
             }
 
+            $purchaseOrder = $grn->purchaseOrder;
+
+            if (! $purchaseOrder) {
+                throw new BusinessException(
+                    'The purchase order for this goods receipt note was not found.'
+                );
+            }
+
+            $baseCurrency = strtoupper(trim((string) (
+                Setting::query()
+                    ->where('group', Setting::GROUP_COMPANY)
+                    ->where('key', 'currency')
+                    ->value('value') ?? 'INR'
+            )));
+            $currencyCode = strtoupper(trim(
+                (string) ($purchaseOrder->currency_code ?: $baseCurrency)
+            ));
+            $exchangeRate = (string) (
+                $purchaseOrder->exchange_rate ?? '1.000000'
+            );
+
+            if (
+                ! preg_match('/^[A-Z]{3}$/', $baseCurrency)
+                || ! preg_match('/^[A-Z]{3}$/', $currencyCode)
+                || ! is_numeric($exchangeRate)
+                || bccomp($exchangeRate, '0', 8) <= 0
+            ) {
+                throw new BusinessException(
+                    'Purchase order currency or exchange rate is invalid.'
+                );
+            }
+
+            if (
+                $currencyCode === $baseCurrency
+                && bccomp($exchangeRate, '1.00000000', 8) !== 0
+            ) {
+                throw new BusinessException(
+                    'Exchange rate must be 1 when purchase order currency matches company base currency.'
+                );
+            }
+
             $ledgers = new Collection();
 
             foreach ($grn->items as $item) {
@@ -83,7 +128,13 @@ class GoodsReceiptNoteInventoryPostingService
                     continue;
                 }
 
-                $baseCost = (float) $item->base_unit_cost;
+                // GRN base_unit_cost is normalized to the product's base UOM
+                // but remains in the PO transaction currency until converted.
+                $baseCost = (float) bcmul(
+                    (string) $item->base_unit_cost,
+                    $exchangeRate,
+                    8
+                );
 
                 if (
                     $product->inventory_tracking_type === InventoryTrackingTypeEnum::BATCH
@@ -93,6 +144,7 @@ class GoodsReceiptNoteInventoryPostingService
                             $grn,
                             $item,
                             $grnBatch,
+                            $baseCost,
                         );
 
                         $movement = $this->movementFactory->make(
