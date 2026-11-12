@@ -151,6 +151,15 @@ class PurchaseGrnAllocationTest extends TestCase
             ->firstOrFail();
 
         $this->assertEquals(10, (float) $stock->quantity);
+        $this->assertEqualsWithDelta(
+            374625,
+            (float) $stock->average_cost,
+            0.01
+        );
+
+        $grn->refresh();
+        $this->assertSame('USD', $grn->inventory_currency_code);
+        $this->assertEquals(83.25, (float) $grn->inventory_exchange_rate);
 
         $this->assertSame(
             1,
