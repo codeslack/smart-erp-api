@@ -2,6 +2,7 @@
 
 namespace App\Modules\Accounting\Services\Postings;
 
+use App\Core\Exceptions\BusinessException;
 use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
 use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
@@ -15,44 +16,80 @@ class PurchaseReturnPostingService extends BasePostingService
         $grandTotal = $this->decimal($purchaseReturn->grand_total);
         $this->validateAmount($grandTotal);
 
-        $purchaseReturn->loadMissing(['refundAccount']);
+        $currency = $this->resolveCurrencyContext(
+            $purchaseReturn->currency_code,
+            $purchaseReturn->exchange_rate,
+            'Purchase Return',
+        );
+        $currencyCode = $currency['currency_code'];
+        $exchangeRate = $currency['exchange_rate'];
 
-        $taxAmount = (float) $purchaseReturn->tax_amount;
-        $inventoryAmount = max(0, (float) $purchaseReturn->grand_total - $taxAmount);
+        $baseGrandTotal = $this->decimal(
+            bcmul($grandTotal, $exchangeRate, 8)
+        );
+
+        $purchaseReturn->loadMissing(['refundAccount', 'purchase']);
+
+        $taxAmount = $this->decimal($purchaseReturn->tax_amount);
+        $baseTaxAmount = $this->decimal(
+            bcmul($taxAmount, $exchangeRate, 8)
+        );
+
+        $inventoryAmount = bcsub($grandTotal, $taxAmount, 4);
+        $baseInventoryAmount = bcsub(
+            $baseGrandTotal,
+            $baseTaxAmount,
+            4,
+        );
+
+        if (
+            bccomp($inventoryAmount, '0.0000', 4) < 0
+            || bccomp($baseInventoryAmount, '0.0000', 4) < 0
+        ) {
+            throw new BusinessException(
+                'Purchase return tax cannot exceed the return total.'
+            );
+        }
 
         $lines = [];
 
-        // Debit: Accounts Payable (for credit notes) or Refund Account (Cash/Bank)
-        if ($purchaseReturn->refund_type !== PurchaseReturnRefundType::CREDIT_NOTE && $purchaseReturn->refundAccount) {
+        // Debit: Accounts Payable for credit notes or the selected refund account.
+        if (
+            $purchaseReturn->refund_type !== PurchaseReturnRefundType::CREDIT_NOTE
+            && $purchaseReturn->refundAccount
+        ) {
             $lines[] = [
                 'chart_of_account_uuid' => $purchaseReturn->refundAccount->uuid,
-                'debit' => $grandTotal,
+                'debit' => $baseGrandTotal,
                 'credit' => '0.0000',
+                'foreign_debit' => $grandTotal,
+                'foreign_credit' => null,
                 'description' => "Purchase Return Refund {$purchaseReturn->return_no}",
             ];
         } else {
             $lines[] = $this->debit(
                 AccountingAccounts::ACCOUNTS_PAYABLE,
+                $baseGrandTotal,
+                "Purchase Return {$purchaseReturn->return_no}",
                 $grandTotal,
-                "Purchase Return {$purchaseReturn->return_no}"
             );
         }
 
-        // Credit: Inventory for goods cost returned
-        if ($inventoryAmount > 0) {
+        if (bccomp($inventoryAmount, '0.0000', 4) > 0) {
             $lines[] = $this->credit(
                 AccountingAccounts::INVENTORY,
-                $this->decimal($inventoryAmount),
-                "Purchase Return Inventory {$purchaseReturn->return_no}"
+                $baseInventoryAmount,
+                "Purchase Return Inventory {$purchaseReturn->return_no}",
+                $inventoryAmount,
             );
         }
 
-        // Credit: Input Tax Receivable for reversed tax
-        if ($taxAmount > 0) {
+        if (bccomp($taxAmount, '0.0000', 4) > 0) {
             $lines[] = $this->credit(
                 AccountingAccounts::INPUT_TAX_RECEIVABLE,
-                $this->decimal($taxAmount),
-                "Purchase Return Tax {$purchaseReturn->return_no}"
+                $baseTaxAmount,
+                "Purchase Return Tax {$purchaseReturn->return_no}",
+                $taxAmount,
             );
         }
 
@@ -65,6 +102,8 @@ class PurchaseReturnPostingService extends BasePostingService
             'reference_type' => PurchaseReturn::class,
             'reference_id' => $purchaseReturn->id,
             'entry_date' => $entryDate,
+            'currency_code' => $currencyCode,
+            'exchange_rate' => $exchangeRate,
             'description' => "Purchase Return {$purchaseReturn->return_no}",
             'status' => JournalEntryStatusEnum::DRAFT,
             'created_by' => auth()->id() ?? userId(),
