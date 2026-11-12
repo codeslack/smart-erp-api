@@ -18,6 +18,7 @@ use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 use App\Modules\SystemNumber\Enums\SystemNumberTypeEnum;
 
 use App\Modules\Inventory\Data\InventoryMovementData;
+use App\Modules\Inventory\Models\ProductStock;
 use App\Modules\Inventory\Services\InventoryPostingService;
 
 use App\Modules\Settings\Services\SettingService;
@@ -274,4 +275,107 @@ class NegativeStockTest extends TestCase
             (float) $ledger->balance_quantity
         );
     }
+
+    public function test_weighted_average_recovers_after_negative_stock(): void
+    {
+        app(SettingService::class)
+            ->set(
+                SettingGroupEnum::INVENTORY->value,
+                'allow_negative_stock',
+                true
+            );
+
+        $posting = app(
+            InventoryPostingService::class
+        );
+
+        // Opening stock is 10 @ 100. Selling 20 creates -10 @ 100.
+        $posting->stockOut(
+            new InventoryMovementData(
+                productId: $this->product->id,
+                productVariantId: null,
+                warehouseId: $this->warehouse->id,
+                quantity: 20,
+                unitCost: 0,
+                transactionType: 'SALE',
+                transactionDate: now(),
+                referenceType: null,
+                referenceId: null,
+                referenceNo: 'RECOVERY-SALE-001',
+                batchId: null,
+                serialId: null,
+                remarks: 'Create negative stock'
+            )
+        );
+
+        $stock = ProductStock::query()
+            ->where('product_id', $this->product->id)
+            ->where('warehouse_id', $this->warehouse->id)
+            ->firstOrFail();
+
+        $this->assertEquals(-10, (float) $stock->quantity);
+        $this->assertEquals(100, (float) $stock->average_cost);
+
+        // Receipt 5 @ 120 leaves -5; the existing average is preserved.
+        $posting->stockIn(
+            new InventoryMovementData(
+                productId: $this->product->id,
+                productVariantId: null,
+                warehouseId: $this->warehouse->id,
+                quantity: 5,
+                unitCost: 120,
+                transactionType: 'PURCHASE',
+                transactionDate: now(),
+                referenceType: null,
+                referenceId: null,
+                referenceNo: 'RECOVERY-PUR-001',
+                batchId: null,
+                serialId: null,
+                remarks: 'Partial negative stock recovery'
+            )
+        );
+
+        $stock->refresh();
+
+        $this->assertEquals(-5, (float) $stock->quantity);
+        $this->assertEquals(100, (float) $stock->average_cost);
+
+        // Receipt 10 @ 120 clears the deficit and leaves 5 @ 140.
+        $ledger = $posting->stockIn(
+            new InventoryMovementData(
+                productId: $this->product->id,
+                productVariantId: null,
+                warehouseId: $this->warehouse->id,
+                quantity: 10,
+                unitCost: 120,
+                transactionType: 'PURCHASE',
+                transactionDate: now(),
+                referenceType: null,
+                referenceId: null,
+                referenceNo: 'RECOVERY-PUR-002',
+                batchId: null,
+                serialId: null,
+                remarks: 'Complete negative stock recovery'
+            )
+        );
+
+        $stock->refresh();
+
+        $this->assertEquals(5, (float) $stock->quantity);
+
+        $this->assertEqualsWithDelta(
+            140,
+            (float) $stock->average_cost,
+            0.0001
+        );
+
+        $this->assertEquals(5, (float) $ledger->balance_quantity);
+
+        $this->assertEqualsWithDelta(
+            140,
+            (float) $ledger->balance_average_cost,
+            0.0001
+        );
+    }
+
 }
