@@ -127,7 +127,7 @@ class PurchaseInventoryValuationService
         foreach ($purchase->charges as $charge) {
             $amount = $this->decimal($charge->amount);
 
-            if ($charge->treatment === 'inventory') {
+            if ($charge->isLandedCost()) {
                 $inventoryCharges = bcadd(
                     $inventoryCharges,
                     $amount,
