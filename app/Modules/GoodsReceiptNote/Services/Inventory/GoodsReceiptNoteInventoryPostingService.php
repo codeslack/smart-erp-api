@@ -18,7 +18,6 @@ use App\Modules\Purchase\Enums\PurchaseStatusEnum;
 
 use App\Modules\Inventory\Data\InventoryReversalData;
 use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
-use App\Modules\Inventory\Models\ProductSerial;
 use App\Modules\Inventory\Models\StockLedger;
 
 use App\Modules\Inventory\Services\InventoryPostingService;
@@ -283,7 +282,7 @@ class GoodsReceiptNoteInventoryPostingService
 
                         $previousBatchQuantity = (float) StockLedger::query()
                             ->where('referenceable_type', Purchase::class)
-                            ->whereIn('reference_id', $previousPurchaseIds)
+                            ->whereIn('referenceable_id', $previousPurchaseIds)
                             ->where('product_batch_id', $batch->id)
                             ->where('transaction_type', InventoryTransactionTypeEnum::PURCHASE->value)
                             ->sum('quantity_in');
