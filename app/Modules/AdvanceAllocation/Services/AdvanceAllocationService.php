@@ -188,18 +188,50 @@ class AdvanceAllocationService
                 $amount
             ) {
 
-                $availableAdvance =
-                    $this->getAvailableSupplierAdvance(
-                        $payment
+                // Match the customer-advance lock order: source payment, then target document.
+                $lockedPayment = Payment::query()
+                    ->whereKey($payment->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $lockedPayment) {
+                    throw new BusinessException(
+                        'Supplier advance payment not found.'
                     );
+                }
+
+                $this->ensureSupplierAdvance($lockedPayment);
+
+                if (
+                    $lockedPayment->status
+                    !== DocumentStatusEnum::CONFIRMED->value
+                ) {
+                    throw new BusinessException(
+                        'Only confirmed supplier advances can be allocated.'
+                    );
+                }
+
+                $payment = $lockedPayment;
+
+                $purchase = Purchase::query()
+                    ->whereKey($purchase->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $purchase) {
+                    throw new BusinessException(
+                        'Purchase bill not found.'
+                    );
+                }
+
+                $availableAdvance =
+                    $this->getAvailableSupplierAdvance($payment);
 
                 if ($amount <= 0 || $amount > $availableAdvance) {
                     throw new BusinessException(
                         'Supplier advance balance is insufficient.'
                     );
                 }
-
-                $purchase->refresh();
 
                 if ($amount > $purchase->due_amount) {
                     throw new BusinessException(
