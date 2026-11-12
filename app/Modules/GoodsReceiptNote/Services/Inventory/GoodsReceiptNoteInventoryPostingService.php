@@ -48,6 +48,14 @@ class GoodsReceiptNoteInventoryPostingService
                 ->lockForUpdate()
                 ->firstOrFail();
 
+            if (! $grn->isConfirmed()) {
+                throw ValidationException::withMessages([
+                    'goods_receipt_note' => [
+                        'Only a confirmed goods receipt note can be posted to inventory.',
+                    ],
+                ]);
+            }
+
             $existingLedgers = $this->stockLedgerRepository
                 ->findByReference(
                     GoodsReceiptNote::class,
