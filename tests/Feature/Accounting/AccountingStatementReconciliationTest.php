@@ -28,7 +28,6 @@ use App\Modules\SalesReturn\Enums\SalesReturnStatus;
 use App\Modules\SalesReturn\Models\SalesReturn;
 use App\Modules\Supplier\Models\Supplier;
 use App\Modules\SupplierOpeningBill\Models\SupplierOpeningBill;
-use App\Modules\SupplierOpeningBill\Services\SupplierOpeningBillPostingService;
 use App\Modules\Tenant\Models\Tenant;
 use App\Modules\User\Models\User;
 use App\Modules\Warehouse\Models\Warehouse;
@@ -145,12 +144,15 @@ class AccountingStatementReconciliationTest extends TestCase
         ]);
 
         $statement = app(SupplierStatementRepositoryInterface::class)->statement(
-            $this->supplier->id
+            $this->supplier->id,
+            now()->toDateString(),
+            now()->toDateString(),
         );
 
-        $this->assertEquals(5000, $statement['opening_balance']);
+        $this->assertEquals(0, $statement['opening_balance']);
         $this->assertEquals(5000, $statement['outstanding_balance']);
         $this->assertSame('INR', $statement['base_currency_code']);
+        $this->assertCount(1, $statement['transactions']);
     }
 
     public function test_statements_use_base_currency_ignore_drafts_and_sign_refunds_correctly(): void
