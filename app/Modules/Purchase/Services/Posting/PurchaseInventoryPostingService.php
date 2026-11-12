@@ -52,13 +52,52 @@ class PurchaseInventoryPostingService
             );
         }
 
+        $baseCurrency = strtoupper((string) (
+            Setting::query()
+                ->where('group', Setting::GROUP_COMPANY)
+                ->where('key', 'currency')
+                ->value('value') ?? 'INR'
+        ));
+
+        $currencyCode = strtoupper((string) (
+            $purchase->currency_code ?: $baseCurrency
+        ));
+
+        $exchangeRate = (string) (
+            $purchase->exchange_rate ?? '1.00000000'
+        );
+
+        if (
+            ! preg_match('/^[A-Z]{3}$/', $currencyCode)
+            || ! is_numeric($exchangeRate)
+            || (float) $exchangeRate <= 0
+        ) {
+            throw new BusinessException(
+                'Purchase currency and exchange rate are invalid.'
+            );
+        }
+
+        if (
+            $currencyCode === $baseCurrency
+            && bccomp($exchangeRate, '1.00000000', 8) !== 0
+        ) {
+            throw new BusinessException(
+                'Purchase exchange rate must be 1 when purchase currency matches company base currency.'
+            );
+        }
+
         // GRN receipt quantities become inventory only when a Purchase is approved.
         if ($purchase->goods_receipt_note_id !== null) {
             $grn = GoodsReceiptNote::query()
                 ->whereKey($purchase->goods_receipt_note_id)
                 ->firstOrFail();
 
-            $this->goodsReceiptNoteInventoryPostingService->post($grn);
+            $this->goodsReceiptNoteInventoryPostingService->post(
+                $grn,
+                $currencyCode,
+                $exchangeRate,
+                $baseCurrency,
+            );
         }
 
         foreach ($purchase->items as $item) {
