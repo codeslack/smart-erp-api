@@ -31,6 +31,7 @@ class PurchaseReturnPostingService extends BasePostingService
         $purchaseReturn->loadMissing([
             'refundAccount',
             'purchase',
+            'items.product',
         ]);
 
         $purchase = $purchaseReturn->purchase;
@@ -101,10 +102,67 @@ class PurchaseReturnPostingService extends BasePostingService
             bcmul($taxAmount, $exchangeRate, 8)
         );
 
-        $baseNetTotal = bcsub(
-            $baseGrandTotal,
-            $baseTaxAmount,
+        $stockNetTotal = '0.0000';
+        $nonStockNetTotal = '0.0000';
+        $hasStockItems = false;
+
+        foreach ($purchaseReturn->items as $item) {
+            $lineNet = bcsub(
+                $this->decimal($item->subtotal),
+                $this->decimal($item->discount_amount ?? '0'),
+                4
+            );
+
+            if ($item->product?->requiresStock()) {
+                $hasStockItems = true;
+                $stockNetTotal = bcadd($stockNetTotal, $lineNet, 4);
+            } else {
+                $nonStockNetTotal = bcadd($nonStockNetTotal, $lineNet, 4);
+            }
+        }
+
+        $roundingAmount = $this->decimal(
+            $purchaseReturn->rounding_amount ?? '0'
+        );
+
+        if ($hasStockItems) {
+            $stockNetTotal = bcadd($stockNetTotal, $roundingAmount, 4);
+        } else {
+            $nonStockNetTotal = bcadd($nonStockNetTotal, $roundingAmount, 4);
+        }
+
+        $calculatedNetTotal = bcadd(
+            $stockNetTotal,
+            $nonStockNetTotal,
             4
+        );
+
+        $expectedNetTotal = bcsub(
+            $grandTotal,
+            $taxAmount,
+            4
+        );
+
+        $roundingDifference = bcsub(
+            $expectedNetTotal,
+            $calculatedNetTotal,
+            4
+        );
+
+        if (bccomp($roundingDifference, '0.0000', 4) !== 0) {
+            if ($hasStockItems) {
+                $stockNetTotal = bcadd($stockNetTotal, $roundingDifference, 4);
+            } else {
+                $nonStockNetTotal = bcadd($nonStockNetTotal, $roundingDifference, 4);
+            }
+        }
+
+        $baseStockNetTotal = $this->decimal(
+            bcmul($stockNetTotal, $exchangeRate, 8)
+        );
+
+        $baseNonStockNetTotal = $this->decimal(
+            bcmul($nonStockNetTotal, $exchangeRate, 8)
         );
 
         $inventoryCost = $this->decimal(
@@ -115,15 +173,15 @@ class PurchaseReturnPostingService extends BasePostingService
                 ->sum('total_cost')
         );
 
-        // Non-stock returns have no inventory ledger; preserve the existing
-        // expense/inventory treatment until item-level purchase account mapping
-        // is introduced for non-stock purchases.
-        if (bccomp($inventoryCost, '0.0000', 4) === 0) {
-            $inventoryCost = $baseNetTotal;
+        if (
+            $hasStockItems
+            && bccomp($inventoryCost, '0.0000', 4) === 0
+        ) {
+            $inventoryCost = $baseStockNetTotal;
         }
 
         $variance = bcsub(
-            $baseNetTotal,
+            $baseStockNetTotal,
             $inventoryCost,
             4
         );
@@ -177,11 +235,29 @@ class PurchaseReturnPostingService extends BasePostingService
         $lines = array_merge(
             $counterLines,
             [
-                $this->credit(
-                    AccountingAccounts::INVENTORY,
-                    $inventoryCost,
-                    'Inventory returned to supplier',
-                    $foreignInventoryCost,
+                ...(
+                    bccomp($inventoryCost, '0.0000', 4) > 0
+                        ? [
+                            $this->credit(
+                                AccountingAccounts::INVENTORY,
+                                $inventoryCost,
+                                'Inventory returned to supplier',
+                                $foreignInventoryCost,
+                            ),
+                        ]
+                        : []
+                ),
+                ...(
+                    bccomp($baseNonStockNetTotal, '0.0000', 4) > 0
+                        ? [
+                            $this->credit(
+                                AccountingAccounts::PURCHASE_EXPENSE,
+                                $baseNonStockNetTotal,
+                                'Non-stock purchase return',
+                                $nonStockNetTotal,
+                            ),
+                        ]
+                        : []
                 ),
             ]
         );
