@@ -44,21 +44,17 @@ class JournalEntryService
     ): JournalEntry {
         return DB::transaction(
             function () use ($data) {
+                $postingKey = $data['posting_key'] ?? null;
                 $referenceType = $data['reference_type'] ?? null;
                 $referenceId = isset($data['reference_id'])
                     ? (int) $data['reference_id']
                     : null;
-                $voucherType = $data['voucher_type'] ?? null;
                 $isReversal = ! empty($data['reversal_of_journal_entry_id']);
 
                 if (
                     ! $isReversal
-                    && is_string($referenceType)
-                    && $referenceType !== ''
-                    && $referenceId !== null
-                    && $referenceId > 0
-                    && is_string($voucherType)
-                    && $voucherType !== ''
+                    && is_string($postingKey)
+                    && $postingKey !== ''
                 ) {
                     $this->lockPostingReference(
                         $referenceType,
@@ -66,11 +62,7 @@ class JournalEntryService
                     );
 
                     $existing = $this->repository
-                        ->findOriginalPostedByReference(
-                            $referenceType,
-                            $referenceId,
-                            $voucherType
-                        );
+                        ->findByPostingKey($postingKey);
 
                     if ($existing) {
                         return $existing;
