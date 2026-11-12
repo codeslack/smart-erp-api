@@ -260,6 +260,13 @@ class AccountingSetupService
                 'name' => 'Purchase Handling Charges',
                 'type' => AccountType::EXPENSE,
             ],
+
+            [
+                'group' => 'expense',
+                'code' => AccountingAccounts::PURCHASE_RETURN_VARIANCE,
+                'name' => 'Purchase Return Valuation Variance',
+                'type' => AccountType::EXPENSE,
+            ],
         ];
     }
 }
