@@ -84,13 +84,13 @@ Do not infer a percentage from these labels without a measured module-by-module 
 | Cash Flow | Implemented | Existing report foundation; improve report validation and reconciliation. |
 | Tax V4 | Stable implementation checkpoint | Tax applicability, tax snapshots, tax account mapping and sales-return reversal of saved tax components. |
 | Payment V4A | Implemented | Unified Payment module replacing the legacy Receipt implementation. |
-| Advance Allocation | Implemented | Customer/supplier advance allocation lifecycle; reversal guards and lifecycle tests are part of hardening. |
+| Advance Allocation | Test verified | Customer/supplier advance allocation lifecycle; customer-advance allocation and reversal serialize on the same payment-row lock, with lifecycle regression coverage. |
 | Multi-currency sales accounting | Implemented | Transaction/base-currency values and exchange-rate-aware accounting posting. PR #28 merged after CI passed. |
 
 ### Latest integration checkpoints
 
 - PR #28, **Fix Sales tax and multi-currency accounting**, is merged into `main`.
-- PR #21, **Prevent reversing customer advances while allocated to Sales**, has a passing CI run on its latest observed head commit, but remains an open draft PR. It is not part of `main` until reviewed and merged.
+- PR #21, **Prevent reversing customer advances while allocated to Sales**, is merged into `main` (merge commit `da39ffe`). Its final rebased head passed targeted lifecycle tests (2 tests / 19 assertions) and the full suite (733 tests / 3,484 assertions) in GitHub Actions.
 - The latest observed main-branch CI run after PR #28 passed.
 
 These are repository checkpoints, not a claim that every production-readiness requirement is complete.
@@ -116,14 +116,14 @@ Do not register a module solely because its directory exists.
 
 ## 4. Immediate priorities
 
-### P0 — Finish current payment lifecycle integration
+### P0 — Customer advance payment lifecycle (completed)
 
-1. Refresh PR #21 against the latest `main`.
-2. Re-run the complete CI workflow on the refreshed PR head.
-3. Verify that allocated customer advances cannot be reversed prematurely.
-4. Verify that Sale cancellation/reversal releases allocations correctly.
-5. Verify payment reversal, journal posting and account balances remain consistent.
-6. Merge only after review and all required checks pass.
+1. Rebased PR #21 onto the latest `main` and merged it after all required checks passed.
+2. `allocateCustomerAdvance()` and payment reversal now lock the same source Payment row inside their respective database transactions.
+3. Allocation rechecks customer-advance purpose and `CONFIRMED` status after acquiring the lock; reversal rejects payments that still have Sales allocations.
+4. Regression coverage verifies both safe lifecycle orderings: allocation first prevents reversal; reversal first prevents allocation. Rejected operations leave payment status, allocation records and Sale paid/due balances consistent.
+5. Final PR head `a9421f34c652069007b2cfd02a82de404b789f81`: targeted tests **2 passed (19 assertions)**; full suite **733 passed (3,484 assertions)**; GitHub Actions successful.
+6. Merge commit: `da39ffe2fae1100014b9da025ad993131528e189`.
 
 ### P1 — Inventory and document lifecycle hardening
 
