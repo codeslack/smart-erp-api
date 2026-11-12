@@ -11,7 +11,7 @@ use App\Modules\Purchase\Models\PurchaseItemSerial;
 use App\Core\Exceptions\BusinessException;
 use App\Modules\ProductUnit\Models\ProductUnit;
 use App\Modules\ProductUnit\Services\ProductUnitService;
-use App\Modules\Settings\Models\Setting;
+use App\Modules\Purchase\Services\PurchaseInventoryValuationService;
 use App\Modules\Inventory\Services\InventoryPostingService;
 use App\Modules\Inventory\Services\InventoryBatchService;
 use App\Modules\Inventory\Services\Serial\InventorySerialRegistrationService;
@@ -26,6 +26,7 @@ class PurchaseInventoryPostingService
         protected InventorySerialRegistrationService $serialRegistrationService,
         protected ProductUnitService $productUnitService,
         protected GoodsReceiptNoteInventoryPostingService $goodsReceiptNoteInventoryPostingService,
+        protected PurchaseInventoryValuationService $valuationService,
     ) {}
 
     public function post(Purchase $purchase): void
@@ -53,38 +54,20 @@ class PurchaseInventoryPostingService
             );
         }
 
-        $baseCurrency = strtoupper((string) (
-            Setting::query()
-                ->where('group', Setting::GROUP_COMPANY)
-                ->where('key', 'currency')
-                ->value('value') ?? 'INR'
-        ));
-
-        $currencyCode = strtoupper((string) (
-            $purchase->currency_code ?: $baseCurrency
-        ));
-
-        $exchangeRate = (string) (
-            $purchase->exchange_rate ?? '1.00000000'
+        $valuation = $this->valuationService->calculate(
+            $purchase
         );
 
-        if (
-            ! preg_match('/^[A-Z]{3}$/', $currencyCode)
-            || ! is_numeric($exchangeRate)
-            || (float) $exchangeRate <= 0
-        ) {
-            throw new BusinessException(
-                'Purchase currency and exchange rate are invalid.'
-            );
-        }
+        $baseCurrency = $valuation['base_currency'];
+        $currencyCode = $valuation['currency_code'];
+        $exchangeRate = $valuation['exchange_rate'];
 
-        if (
-            $currencyCode === $baseCurrency
-            && bccomp($exchangeRate, '1.00000000', 8) !== 0
-        ) {
-            throw new BusinessException(
-                'Purchase exchange rate must be 1 when purchase currency matches company base currency.'
-            );
+        foreach ($purchase->items as $item) {
+            if (isset($valuation['stock_item_unit_costs'][$item->id])) {
+                $item->update([
+                    'base_unit_cost' => $valuation['stock_item_unit_costs'][$item->id],
+                ]);
+            }
         }
 
         // GRN receipt quantities become inventory only when a Purchase is approved.
@@ -115,14 +98,20 @@ class PurchaseInventoryPostingService
 
             $productUnit = $this->resolveProductUnit($item);
 
-            $baseUnitCost = $item->base_unit_cost !== null
-                ? (float) $item->base_unit_cost
-                : ($productUnit
+            $foreignUnitCost = $item->base_unit_cost !== null
+                ? (string) $item->base_unit_cost
+                : (string) ($productUnit
                     ? $this->productUnitService->toBaseUnitCost(
                         $productUnit,
                         (float) $item->unit_cost
                     )
                     : (float) $item->unit_cost);
+
+            $baseUnitCost = (float) bcmul(
+                $foreignUnitCost,
+                $exchangeRate,
+                8,
+            );
 
             $baseQuantity = $item->base_quantity !== null
                 ? (float) $item->base_quantity
