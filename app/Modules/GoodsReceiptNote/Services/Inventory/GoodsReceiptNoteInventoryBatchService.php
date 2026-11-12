@@ -31,7 +31,9 @@ class GoodsReceiptNoteInventoryBatchService
         GoodsReceiptNote $grn,
         GoodsReceiptNoteItem $item,
         GoodsReceiptNoteItemBatch $grnBatch,
+        ?float $baseCurrencyUnitCost = null,
     ): ProductBatch {
+        $baseCurrencyUnitCost ??= (float) $item->base_unit_cost;
         $batchNumber = trim((string) $grnBatch->batch_no);
 
         $productId = (int) $item->product_id;
@@ -60,7 +62,7 @@ class GoodsReceiptNoteInventoryBatchService
                 'batch_no' => $batchNumber,
                 'expiry_date' => $grnBatch->expiry_date,
                 'received_at' => $grn->grn_date,
-                'unit_cost' => (float) $item->base_unit_cost,
+                'unit_cost' => $baseCurrencyUnitCost,
                 'sourceable_type' => GoodsReceiptNote::class,
                 'sourceable_id' => (int) $grn->getKey(),
                 'remarks' => 'GRN ' . $grn->grn_number,
