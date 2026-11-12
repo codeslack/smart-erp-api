@@ -34,29 +34,41 @@ class SupplierStatementRepository implements SupplierStatementRepositoryInterfac
         ?string $fromDate = null,
         ?string $toDate = null
     ): array {
+        fwrite(STDERR, "SUP-REPO-1\n");
         $supplier = Supplier::query()->findOrFail($supplierId);
+        fwrite(STDERR, "SUP-REPO-2\n");
         $baseCurrency = $this->baseCurrencyCode();
 
+        fwrite(STDERR, "SUP-REPO-3\n");
         $openingBalance = $this->calculateOpeningBalance(
             $supplierId,
             $fromDate,
             $toDate,
         );
 
+        fwrite(STDERR, "SUP-REPO-4\n");
         $transactions = collect();
 
+        fwrite(STDERR, "SUP-REPO-5\n");
         $this->loadOpeningBills($transactions, $supplierId, $fromDate, $toDate, $baseCurrency);
+        fwrite(STDERR, "SUP-REPO-6\n");
         $this->loadPurchases($transactions, $supplierId, $fromDate, $toDate);
+        fwrite(STDERR, "SUP-REPO-7\n");
         $this->loadPurchaseReturns($transactions, $supplierId, $fromDate, $toDate);
+        fwrite(STDERR, "SUP-REPO-8\n");
         $this->loadPayments($transactions, $supplierId, $fromDate, $toDate, $baseCurrency);
+        fwrite(STDERR, "SUP-REPO-9\n");
 
         $transactions = $this->sortTransactions($transactions);
+        fwrite(STDERR, "SUP-REPO-10\n");
 
+        fwrite(STDERR, "SUP-REPO-11\n");
         $runningBalance = $this->applyRunningBalance(
             $transactions,
             $openingBalance
         );
 
+        fwrite(STDERR, "SUP-REPO-12\n");
         return [
             'supplier' => $supplier,
             'base_currency_code' => $baseCurrency,
