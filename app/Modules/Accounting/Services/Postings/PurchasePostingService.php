@@ -7,7 +7,7 @@ use App\Core\Exceptions\BusinessException;
 use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
 use App\Modules\Accounting\Models\JournalEntry;
-use App\Modules\Accounting\Services\JournalEntryService;
+use App\Modules\Accounting\Services\JournalEntry\JournalEntryService;
 
 use App\Modules\Purchase\Models\Purchase;
 
