@@ -4,6 +4,7 @@ namespace Tests\Feature\Inventory;
 
 use Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Database\QueryException;
 use Tests\Support\CreatesTenant;
 use App\Core\Tenant\TenantManager;
 use App\Modules\Tenant\Models\Tenant;
@@ -184,4 +185,71 @@ class InventoryConcurrencyTest extends TestCase
             'reference_no' => 'CON-ROLLBACK-OUT',
         ]);
     }
+
+    public function test_non_variant_stock_identity_cannot_be_duplicated(): void
+    {
+        $attributes = [
+            'product_id' => $this->product->id,
+            'product_variant_id' => null,
+            'warehouse_id' => $this->warehouse->id,
+            'quantity' => 5,
+            'average_cost' => 10,
+        ];
+
+        ProductStock::query()->create($attributes);
+
+        $this->expectException(QueryException::class);
+
+        ProductStock::query()->create($attributes);
+    }
+
+    public function test_stock_in_restores_a_soft_deleted_balance_row(): void
+    {
+        $stock = ProductStock::query()->create([
+            'product_id' => $this->product->id,
+            'product_variant_id' => null,
+            'warehouse_id' => $this->warehouse->id,
+            'quantity' => 4,
+            'average_cost' => 12,
+        ]);
+
+        $stock->delete();
+
+        app(InventoryPostingService::class)->stockIn(
+            new InventoryMovementData(
+                productId: $this->product->id,
+                productVariantId: null,
+                warehouseId: $this->warehouse->id,
+                quantity: 3,
+                unitCost: 18,
+                transactionType: InventoryTransactionTypeEnum::PURCHASE->value,
+                transactionDate: now(),
+                referenceType: null,
+                referenceId: null,
+                referenceNo: 'CON-RESTORE-001',
+                batchId: null,
+                serialId: null,
+                remarks: 'Restore soft-deleted stock balance',
+            )
+        );
+
+        $stock->refresh();
+
+        $this->assertFalse($stock->trashed());
+        $this->assertEquals(7, (float) $stock->quantity);
+        $this->assertEqualsWithDelta(
+            14.5714,
+            (float) $stock->average_cost,
+            0.0001
+        );
+
+        $this->assertSame(
+            1,
+            ProductStock::withTrashed()
+                ->where('product_id', $this->product->id)
+                ->where('warehouse_id', $this->warehouse->id)
+                ->count()
+        );
+    }
+
 }
