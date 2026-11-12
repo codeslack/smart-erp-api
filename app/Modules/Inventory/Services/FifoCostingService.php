@@ -86,10 +86,9 @@ class FifoCostingService
 
             $unitCost = (string) $layer->unit_cost;
 
-            $totalCost = bcmul(
+            $totalCost = $this->multiplyRounded(
                 $consumeQuantity,
                 $unitCost,
-                4
             );
 
             $newRemaining = bcsub(
@@ -164,6 +163,19 @@ class FifoCostingService
             stockLedgerId: $stockLedgerId,
             consumptions: $consumptions
         );
+    }
+
+    /**
+     * Multiply inventory quantity and unit cost, rounding half up to
+     * the ledger's four-decimal monetary precision.
+     */
+    private function multiplyRounded(
+        string $quantity,
+        string $unitCost,
+    ): string {
+        $product = bcmul($quantity, $unitCost, 5);
+
+        return bcadd($product, '0.00005', 4);
     }
 
     public function consumeAndCalculateCost(
