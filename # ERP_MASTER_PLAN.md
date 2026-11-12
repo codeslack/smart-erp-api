@@ -155,15 +155,16 @@ The following focused PRs have passed their recorded GitHub Actions full-suite r
 | #46 | Correct PER_DOCUMENT and PER_LINE tax rounding semantics | 736 passed (3,503 assertions) |
 | #48 | Defer GRN inventory posting to Purchase approval; idempotent full-GRN posting and cancellation guard | 734 passed (3,460 assertions) |
 | #49 | Lock Opening Stock edits and lifecycle posting/unposting against stale instances | 734 passed (3,492 assertions) |
-| #51 | Apply Purchase inclusive/exclusive pricing, header discount tax allocation and tax-exclusive item cost | CI pending |
+| #51 | Apply Purchase inclusive/exclusive pricing, header discount tax allocation and tax-exclusive item cost | 738 passed (3,512 assertions) |
+| #53 | Verify Customer/Supplier opening-balance control accounts, reversals and GL reconciliation | CI pending |
 
 Additional audit decisions and remaining checks:
 
 - Negative stock: retain the established policy—WAC negative balances only when tenant settings allow them; FIFO still rejects stock-outs beyond available FIFO layers. PR #29's negative-WAC recovery fix is already merged.
 - Legacy Delivery Note, Stock Adjustment and Stock Transfer directories remain unregistered. Do not activate them based on directory presence; their workflow ownership and Inventory V4 integration need a separate implementation review.
-- The Purchase request/model expose tax_calculation_mode. PR #51 now applies inclusive/exclusive pricing, recalculates tax after header discounts and persists tax-exclusive item cost; its CI is pending and it is not yet merged.
+- The Purchase request/model expose tax_calculation_mode. PR #51 applies inclusive/exclusive pricing, recalculates tax after header discounts and persists tax-exclusive item cost; CI passed, but the PR is not yet merged.
 - Foreign-currency Purchase journal posting is covered by PR #44. Inventory valuation exchange-rate treatment for GRN-linked and direct foreign-currency receipts still needs a separate source-cost audit.
-- Full source-document-to-subledger-to-GL reconciliation, tax return snapshots across all document types, and opening-balance/control-account reconciliation remain in the P1 audit until their evidence is recorded.
+- PR #53 adds Customer/Supplier opening-balance control-account and reversal reconciliation tests; CI is pending. Full source-document-to-subledger-to-GL reconciliation and tax return snapshots across all document types remain in the P1 audit.
 - The repository's full local suite has not been rerun by the user against the combined merged changes; the independent CI results above do not replace that final local verification.
 
 ### P2 — Essential accounting reports
