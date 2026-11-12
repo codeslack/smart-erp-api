@@ -31,6 +31,8 @@ use App\Modules\PurchaseOrder\Models\PurchaseOrderItem;
 use App\Modules\GoodsReceiptNote\Enums\GoodsReceiptNoteStatusEnum;
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNote;
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNoteItem;
+use App\Modules\Inventory\Models\ProductStock;
+use App\Modules\Inventory\Models\StockLedger;
 use App\Modules\GoodsReceiptNote\Services\Lifecycle\GoodsReceiptNoteConfirmationService;
 
 class GoodsReceiptNoteConfirmationTest extends TestCase
@@ -134,6 +136,19 @@ class GoodsReceiptNoteConfirmationTest extends TestCase
             5,
             (float) $poItem->received_quantity
         );
+
+        // GRN confirmation updates PO receiving only; Purchase approval posts stock.
+        $this->assertDatabaseMissing('product_stocks', [
+            'tenant_id' => $this->tenant->id,
+            'product_id' => $this->product->id,
+            'warehouse_id' => $this->warehouse->id,
+        ]);
+
+        $this->assertDatabaseMissing('stock_ledgers', [
+            'tenant_id' => $this->tenant->id,
+            'referenceable_type' => GoodsReceiptNote::class,
+            'referenceable_id' => $grn->id,
+        ]);
     }
 
     public function test_confirmed_grn_cannot_be_confirmed_again(): void
