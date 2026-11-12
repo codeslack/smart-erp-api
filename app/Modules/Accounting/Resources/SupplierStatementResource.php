@@ -31,6 +31,18 @@ class SupplierStatementResource extends JsonResource
             'credit' =>
                 $this['credit'],
 
+            'currency_code' =>
+                $this['currency_code'],
+
+            'exchange_rate' =>
+                $this['exchange_rate'],
+
+            'document_amount' =>
+                $this['document_amount'],
+
+            'base_amount' =>
+                $this['base_amount'],
+
             'balance' =>
                 $this['balance'],
         ];
