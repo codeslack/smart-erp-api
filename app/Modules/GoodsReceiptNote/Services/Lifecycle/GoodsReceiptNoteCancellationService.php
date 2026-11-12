@@ -198,7 +198,7 @@ class GoodsReceiptNoteCancellationService
              * the previous posting boundary. Reverse only when such
              * movements exist; new GRNs are posted by Purchase approval.
              */
-            if ($this->inventoryPostingService->hasPosting($grn)) {
+            if ($this->inventoryPostingService->hasActivePosting($grn)) {
                 $this->inventoryPostingService->reverse($grn);
                 $this->batchRestorationService->restoreFor($grn);
                 $this->serialRestorationService->restoreFor($grn);
