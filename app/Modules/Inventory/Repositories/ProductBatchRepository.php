@@ -40,6 +40,12 @@ class ProductBatchRepository
                 )
             )
             ->where('remaining_quantity', '>', 0)
+            ->where('status', ProductBatchStatusEnum::ACTIVE->value)
+            ->where(function ($query) {
+                $query->whereNull('expiry_date')
+                    ->orWhereDate('expiry_date', '>=', today()->toDateString());
+            })
+            ->orderBy('expiry_date')
             ->get();
     }
 
