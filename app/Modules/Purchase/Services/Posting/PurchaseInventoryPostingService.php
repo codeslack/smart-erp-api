@@ -55,6 +55,20 @@ class PurchaseInventoryPostingService
                     )
                     : (float) $item->unit_cost);
 
+            $exchangeRate = (string) ($purchase->exchange_rate ?? '1.000000');
+
+            if (! is_numeric($exchangeRate) || bccomp($exchangeRate, '0', 8) <= 0) {
+                throw new BusinessException('Purchase exchange rate must be greater than zero.');
+            }
+
+            // base_unit_cost is normalized to the product's base UOM but is
+            // still expressed in the purchase currency until this conversion.
+            $baseUnitCost = (float) bcmul(
+                (string) $baseUnitCost,
+                $exchangeRate,
+                8
+            );
+
             $baseQuantity = $item->base_quantity !== null
                 ? (float) $item->base_quantity
                 : ($productUnit
