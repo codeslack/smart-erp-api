@@ -12,6 +12,7 @@ use App\Modules\Purchase\Models\Purchase;
 
 use App\Modules\Payment\Models\Payment;
 use App\Modules\Payment\Enums\PaymentPurposeEnum;
+use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
 
 use App\Modules\AdvanceAllocation\Models\AdvanceAllocation;
 
@@ -136,6 +137,15 @@ class AdvanceAllocationService
 
                 $payment = $lockedPayment;
 
+                if (
+                    $payment->party_type !== PaymentPartyTypeEnum::CUSTOMER
+                    || (int) $payment->party_id !== (int) $sale->customer_id
+                ) {
+                    throw new BusinessException(
+                        'Customer advance does not belong to the selected customer.'
+                    );
+                }
+
                 $availableAdvance = $this->getAvailableCustomerAdvance($payment);
 
                 if ($amount <= 0 || $amount > $availableAdvance) {
@@ -228,6 +238,15 @@ class AdvanceAllocationService
                 }
 
                 $payment = $lockedPayment;
+
+                if (
+                    $payment->party_type !== PaymentPartyTypeEnum::SUPPLIER
+                    || (int) $payment->party_id !== (int) $purchase->supplier_id
+                ) {
+                    throw new BusinessException(
+                        'Supplier advance does not belong to the selected supplier.'
+                    );
+                }
 
                 $availableAdvance = $this->getAvailableSupplierAdvance($payment);
 
