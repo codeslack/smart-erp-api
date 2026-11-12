@@ -9,13 +9,13 @@ use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
 use App\Modules\Accounting\Services\JournalEntry\JournalEntryService;
 
 use App\Modules\Purchase\Models\Purchase;
-
-use App\Modules\Settings\Models\Setting;
+use App\Modules\Purchase\Services\PurchaseInventoryValuationService;
 
 class PurchasePostingService extends BasePostingService
 {
     public function __construct(
-        JournalEntryService $journalEntryService
+        JournalEntryService $journalEntryService,
+        protected PurchaseInventoryValuationService $valuationService,
     ) {
         parent::__construct($journalEntryService);
     }
@@ -23,57 +23,17 @@ class PurchasePostingService extends BasePostingService
     public function post(
         Purchase $purchase
     ): void {
-        $purchase->loadMissing([
-            'charges.chartOfAccount',
-        ]);
-
-        $baseCurrency = strtoupper((string) (
-            Setting::query()
-                ->where('group', Setting::GROUP_COMPANY)
-                ->where('key', 'currency')
-                ->value('value') ?? 'INR'
-        ));
-
-        $currencyCode = strtoupper((string) (
-            $purchase->currency_code ?: $baseCurrency
-        ));
-
-        $exchangeRate = $this->decimalRate(
-            $purchase->exchange_rate ?? '1.00000000'
+        $valuation = $this->valuationService->calculate(
+            $purchase
         );
 
-        if (
-            ! preg_match('/^[A-Z]{3}$/', $currencyCode)
-            || $baseCurrency === ''
-            || bccomp($exchangeRate, '0.00000000', 8) <= 0
-        ) {
-            throw new BusinessException(
-                'Purchase currency and exchange rate are invalid.'
-            );
-        }
+        $currencyCode = $valuation['currency_code'];
+        $exchangeRate = $valuation['exchange_rate'];
 
-        if (
-            $currencyCode === $baseCurrency
-            && bccomp($exchangeRate, '1.00000000', 8) !== 0
-        ) {
-            throw new BusinessException(
-                'Purchase exchange rate must be 1 when purchase currency matches company base currency.'
-            );
-        }
-
-        $grandTotal = $this->decimal(
-            $purchase->grand_total
-        );
-
-        $taxAmount = $this->decimal(
-            $purchase->tax_amount ?? '0'
-        );
-
-        if (bccomp($taxAmount, $grandTotal, 4) > 0) {
-            throw new BusinessException(
-                'Purchase tax amount cannot exceed the purchase total.'
-            );
-        }
+        $grandTotal = $valuation['grand_total'];
+        $taxAmount = $valuation['tax_amount'];
+        $stockAmount = $valuation['stock_amount'];
+        $nonStockAmount = $valuation['non_stock_amount'];
 
         $baseGrandTotal = $this->decimal(
             bcmul($grandTotal, $exchangeRate, 8)
@@ -83,41 +43,27 @@ class PurchasePostingService extends BasePostingService
             bcmul($taxAmount, $exchangeRate, 8)
         );
 
-        $expenseCharges = '0.0000';
-        $baseExpenseCharges = '0.0000';
         $lines = [];
 
         foreach ($purchase->charges as $charge) {
-            if (
-                $charge->treatment !== 'expense'
-                || ! $charge->chartOfAccount
-            ) {
+            if ($charge->treatment !== 'expense') {
                 continue;
             }
 
-            $chargeAmount = $this->decimal(
-                $charge->amount
+            if (! $charge->chartOfAccount) {
+                throw new BusinessException(
+                    'Every expense purchase charge must have an active expense account.'
+                );
+            }
+
+            $chargeAmount = $this->decimal($charge->amount);
+            $baseChargeAmount = $this->decimal(
+                bcmul($chargeAmount, $exchangeRate, 8)
             );
 
             if (bccomp($chargeAmount, '0.0000', 4) <= 0) {
                 continue;
             }
-
-            $baseChargeAmount = $this->decimal(
-                bcmul($chargeAmount, $exchangeRate, 8)
-            );
-
-            $expenseCharges = bcadd(
-                $expenseCharges,
-                $chargeAmount,
-                4
-            );
-
-            $baseExpenseCharges = bcadd(
-                $baseExpenseCharges,
-                $baseChargeAmount,
-                4
-            );
 
             $lines[] = $this->debit(
                 $charge->chartOfAccount->account_code,
@@ -127,33 +73,21 @@ class PurchasePostingService extends BasePostingService
             );
         }
 
-        $inventoryAmount = bcsub(
-            bcsub($grandTotal, $taxAmount, 4),
-            $expenseCharges,
-            4
-        );
-
-        $baseInventoryAmount = bcsub(
-            bcsub($baseGrandTotal, $baseTaxAmount, 4),
-            $baseExpenseCharges,
-            4
-        );
-
-        if (
-            bccomp($inventoryAmount, '0.0000', 4) < 0
-            || bccomp($baseInventoryAmount, '0.0000', 4) < 0
-        ) {
-            throw new BusinessException(
-                'Purchase expense charges and tax cannot exceed the purchase total.'
+        if (bccomp($stockAmount, '0.0000', 4) > 0) {
+            $lines[] = $this->debit(
+                AccountingAccounts::INVENTORY,
+                $this->decimal(bcmul($stockAmount, $exchangeRate, 8)),
+                'Inventory purchase',
+                $stockAmount,
             );
         }
 
-        if (bccomp($baseInventoryAmount, '0.0000', 4) > 0) {
+        if (bccomp($nonStockAmount, '0.0000', 4) > 0) {
             $lines[] = $this->debit(
-                AccountingAccounts::INVENTORY,
-                $baseInventoryAmount,
-                'Inventory purchase',
-                $inventoryAmount,
+                AccountingAccounts::PURCHASE_EXPENSE,
+                $this->decimal(bcmul($nonStockAmount, $exchangeRate, 8)),
+                'Non-stock purchase expense',
+                $nonStockAmount,
             );
         }
 
