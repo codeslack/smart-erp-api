@@ -1,579 +1,252 @@
-# ERP_MASTER_PLAN.md
+# Smart ERP API — Master Roadmap
 
-# Smart ERP API
+Repository: https://github.com/codeslack/smart-erp-api
 
-Modern Multi-Tenant ERP built with Laravel.
+Last reviewed: 2026-11-12
+Default branch: `main`
 
-Repository:
-https://github.com/codeslack/smart-erp-api
-
----
-
-# Architecture
-
-Framework:
-
-- Laravel 13
-
-Pattern:
-
-- Modular Monolith
-- Repository Pattern
-- Service Layer
-- API First
-
-Multi-Tenant:
-
-- tenant_id isolation
-- TenantRule validation
-- Tenant Middleware
-- Tenant Model Base Class
-
-Development Standard:
-
-Every module contains:
-
-- Migration
-- Model
-- Repository
-- Repository Interface
-- Service
-- Controller
-- Request Validation
-- Resource
-- Routes
-- Postman Tests
+This document is the single source of truth for the current project status and planned delivery sequence. It deliberately separates code presence, module registration, workflow verification, automated test coverage, and production readiness. A module directory alone does not mean a feature is active or production-ready.
 
 ---
 
-# Completed Core Modules
+## 1. Product and architecture
 
-## Security
+Smart ERP API is a Laravel 13, API-first, multi-tenant ERP implemented as a modular monolith.
 
-### Tenant
+### Architecture standards
 
-Status:
-COMPLETED
+- Controller → Service → Repository → Model.
+- Controllers handle HTTP concerns; services own business rules and orchestration; repositories own database queries; models define relationships and casts.
+- Tenant-owned business records use tenant isolation and UUID-based public identifiers.
+- Tenant resolution and middleware must run before authenticated tenant-scoped requests.
+- Tenant scopes fail closed when tenant context is absent.
+- Validation uses tenant-aware existence and uniqueness rules.
+- Financial and inventory operations must be transactional, idempotent where appropriate, and safe under concurrent requests.
+- Public APIs expose UUIDs rather than internal database IDs.
+- Module permissions are registered through the module registry and enforced on protected routes.
 
-Features:
+### Module completion vocabulary
 
-- Tenant isolation
-- Tenant middleware
-- Tenant scoped validation
+| Status | Meaning |
+|---|---|
+| Implemented | Core code exists for the stated capability. |
+| Registered | Module is included in `config/modules.php`. |
+| Workflow verified | End-to-end business workflow has been exercised successfully. |
+| Test verified | Relevant automated tests pass in CI. |
+| Production hardening | Security, concurrency, operational controls, observability and recovery still require review. |
+| Planned | Not yet delivered as a complete capability. |
 
-### User
-
-Status:
-COMPLETED
-
-### RBAC
-
-Status:
-COMPLETED
-
-Features:
-
-- Roles
-- Permissions
-- User Role Mapping
+Do not infer a percentage from these labels without a measured module-by-module audit.
 
 ---
 
-# Master Data
+## 2. Current repository baseline
 
-## Customer
+### Core platform
 
-Status:
-COMPLETED
+| Area | Current status | Notes |
+|---|---|---|
+| Tenant infrastructure | Implemented | Tenant manager/resolver, bootstrap and tenant middleware, fail-closed tenant scoping. |
+| Authentication and users | Implemented | Sanctum-based API authentication and tenant-aware user handling. |
+| RBAC | Implemented | Spatie permissions with tenant/team context, tenant roles, permission setup and UUID API identifiers. |
+| Module registry | Implemented | Central module, provider, permission and tenant setup-service registration. |
+| API response/request foundation | Implemented | Shared API response and request conventions. |
 
-## Supplier
+### Master data and operations
 
-Status:
-COMPLETED
+| Domain | Current status | Notes |
+|---|---|---|
+| Customers and suppliers | Implemented | Separate party records and opening-bill workflows. |
+| Product, category, brand, unit and product-unit | Implemented | Core product and master-data capabilities. |
+| Areas, warehouses and payment terms | Implemented | Tenant setup and master data. |
+| Inventory V4 | Stable implementation checkpoint | Product stock, stock ledger, stock adjustments/transfers, valuation and batch/serial/expiry capabilities; continue production hardening. |
+| Opening stock | Implemented | Opening inventory entry capability. |
+| Purchase Order | Implemented | Draft/approval workflow and GRN progression. |
+| Goods Receipt Note (GRN) | Implemented | Partial receipt and pending quantity tracking. GRN must not directly write stock balances or stock ledger; stock is posted through the purchase approval workflow. |
+| Purchase | Implemented | GRN conversion, approval and stock posting. Direct Purchase Bill entry is also supported. |
+| Purchase Return | Implemented | Return tracking and stock reversal. |
+| Sales Quotation | Implemented | Approval and conversion workflow. |
+| Sales Order | Implemented | Approval, pending quantity tracking and delivery/sale progression. |
+| Delivery Note | Code exists; registration needs verification | Its module directory exists but it is not listed in the current module registry. Validate route and workflow ownership before activation. |
+| Sales | Implemented | Approval, stock deduction and accounting posting. |
+| Sales Return | Implemented | Stock reversal and accounting reversal using saved transaction snapshots. |
 
-## Category
+### Accounting, tax and payments
 
-Status:
-COMPLETED
+| Domain | Current status | Notes |
+|---|---|---|
+| Chart of Accounts | Implemented | Core account structure and accounting mappings. |
+| Journal Entries | Implemented | Journal voucher and posting foundation. |
+| General Ledger | Implemented | General ledger posting and account balances. |
+| Trial Balance | Implemented | Accounting balance report foundation. |
+| Profit & Loss | Implemented | Existing report foundation; improve drill-down and validation. |
+| Balance Sheet | Implemented | Existing report foundation; improve classification and reconciliation. |
+| Cash Flow | Implemented | Existing report foundation; improve report validation and reconciliation. |
+| Tax V4 | Stable implementation checkpoint | Tax applicability, tax snapshots, tax account mapping and sales-return reversal of saved tax components. |
+| Payment V4A | Implemented | Unified Payment module replacing the legacy Receipt implementation. |
+| Advance Allocation | Implemented | Customer/supplier advance allocation lifecycle; reversal guards and lifecycle tests are part of hardening. |
+| Multi-currency sales accounting | Implemented | Transaction/base-currency values and exchange-rate-aware accounting posting. PR #28 merged after CI passed. |
 
-## Brand
+### Latest integration checkpoints
 
-Status:
-COMPLETED
+- PR #28, **Fix Sales tax and multi-currency accounting**, is merged into `main`.
+- PR #21, **Prevent reversing customer advances while allocated to Sales**, has a passing CI run on its latest observed head commit, but remains an open draft PR. It is not part of `main` until reviewed and merged.
+- The latest observed main-branch CI run after PR #28 passed.
 
-## Unit
-
-Status:
-COMPLETED
-
-## Warehouse
-
-Status:
-COMPLETED
-
-## Product
-
-Status:
-COMPLETED
-
----
-
-# Inventory
-
-## Product Stock
-
-Status:
-COMPLETED
-
-Purpose:
-Current quantity per:
-
-- Product
-- Warehouse
-
----
-
-## Stock Ledger
-
-Status:
-COMPLETED
-
-Purpose:
-Inventory transaction history.
-
-Tracks:
-
-- Qty In
-- Qty Out
-- Running Balance
-- Reference Document
+These are repository checkpoints, not a claim that every production-readiness requirement is complete.
 
 ---
 
-## Stock Adjustment
+## 3. Module registration audit
 
-Status:
-COMPLETED
+The current `config/modules.php` registers 30 modules.
 
----
+The following module directories exist but are not currently registered there:
 
-## Stock Transfer
+- `DeliveryNote`
+- `DocumentNumber`
+- `StockAdjustment`
+- `StockTransfer`
 
-Status:
-COMPLETED
+Before enabling any of them, verify service-provider registration, route loading, permission definitions, tenant setup requirements, dependencies, and automated tests. In particular, confirm whether stock adjustment and transfer functionality is intentionally owned by the Inventory module before registering separate modules.
 
----
-
-# Purchase Cycle
-
-Workflow:
-
-Purchase Order
-→ Goods Receipt Note
-→ Purchase
-→ Approve
-→ Stock In
+Do not register a module solely because its directory exists.
 
 ---
 
-## Purchase Order
+## 4. Immediate priorities
 
-Status:
-COMPLETED
+### P0 — Finish current payment lifecycle integration
 
-Features:
+1. Refresh PR #21 against the latest `main`.
+2. Re-run the complete CI workflow on the refreshed PR head.
+3. Verify that allocated customer advances cannot be reversed prematurely.
+4. Verify that Sale cancellation/reversal releases allocations correctly.
+5. Verify payment reversal, journal posting and account balances remain consistent.
+6. Merge only after review and all required checks pass.
 
-- Draft
-- Approved
+### P1 — Inventory and document lifecycle hardening
 
----
+1. Review negative-stock policy and enforce it consistently.
+2. Use database row locking (including `lockForUpdate()` where appropriate) around stock balance mutations.
+3. Verify transaction boundaries and rollback behavior for posting and reversal.
+4. Prevent duplicate stock/accounting posting on retries.
+5. Verify FIFO/WAC valuation, batch, serial, expiry and unit conversion edge cases.
+6. Audit Delivery Note, Stock Adjustment and Stock Transfer registration and workflow coverage.
+7. Verify that GRN receipt does not bypass the Purchase posting boundary.
 
-## Goods Receipt Note (GRN)
+### P1 — Accounting and tax reconciliation
 
-Status:
-COMPLETED
+1. Reconcile source documents to journal entries and general ledger balances.
+2. Verify customer and supplier advance allocations and reversals.
+3. Verify tax snapshots, inclusive/exclusive tax calculations, rounding and return reversals.
+4. Verify multi-currency transaction values, exchange rates and base-currency postings.
+5. Verify opening balances, control accounts and subledger-to-general-ledger reconciliation.
 
-Features:
+### P2 — Essential accounting reports
 
-- Partial Receipt
-- Pending Quantity Tracking
-- Receive Action
+Build and verify reports in this order:
 
----
+1. Account Ledger (account drill-down, opening balance, debit/credit movement and running balance).
+2. Journal Register (date, voucher number, status and source filters).
+3. Customer Ledger (customer-wise running balance and source references).
+4. Supplier Ledger (supplier-wise running balance and source references).
+5. Receivable and Payable Aging.
+6. Account Balance Summary.
+7. Day Book.
+8. GST/VAT Tax Reports.
+9. Improved Trial Balance, Profit & Loss and Balance Sheet with drill-down and reconciliation.
+10. Financial Dashboard KPIs.
 
-## Purchase
+Reports must respect tenant scope, fiscal period, posting status and base-currency conventions. Report totals must reconcile to the underlying ledger.
 
-Status:
-COMPLETED
+### P2 — Auditability and operations
 
-Features:
-
-- GRN Conversion
-- Approval
-- Stock Posting
-
----
-
-## Purchase Return
-
-Status:
-COMPLETED
-
-Features:
-
-- Stock Reversal
-- Purchase Return Tracking
-
----
-
-# Sales Cycle
-
-Workflow:
-
-Sales Quotation
-→ Sales Order
-→ Delivery Note
-→ Sale
-→ Approve
-→ Stock Out
+- Document creation/update/approval/reversal audit trail.
+- User activity and security-relevant event logging.
+- Approval history and actor attribution.
+- Document attachments for purchase, sales and return records.
+- Backup/restore procedure and recovery verification.
+- Structured logs, error reporting and operational health checks.
 
 ---
 
-## Sales Quotation
+## 5. Production-readiness gates
 
-Status:
-COMPLETED
+Before calling the core ERP production-ready, complete and record evidence for each gate:
 
-Features:
+### Tenant and authorization
 
-- Draft
-- Approved
-- Convert to SO
-- Convert to Sale
+- Cross-tenant read, update, delete and relationship-injection tests.
+- Missing-tenant and invalid-tenant fail-closed tests.
+- Authorization coverage for every protected route and action.
+- Tenant-aware unique and exists validation.
+- Permission-team context cleanup after success and exceptions.
 
----
+### Financial correctness
 
-## Sales Order
+- Every confirm/post action creates the expected journal entries exactly once.
+- Reversals use original posted snapshots and mapped accounts rather than recalculating historical tax or valuation.
+- Debit and credit totals balance.
+- Customer/supplier subledgers reconcile with control accounts.
+- Foreign-currency amounts and base-currency amounts reconcile using stored exchange rates.
+- Rounding and decimal precision are tested at document and ledger level.
 
-Status:
-COMPLETED
+### Inventory correctness
 
-Features:
+- Stock balance equals the sum of ledger movements.
+- Concurrent posting cannot oversell or create incorrect balances.
+- Reversal restores the correct quantity and valuation.
+- Batch, serial, expiry, warehouse and unit-conversion rules are enforced.
+- Draft documents do not change stock or accounting balances.
 
-- Draft
-- Approved
-- Convert to Delivery Note
-- Convert to Sale
-- Pending Quantity Tracking
+### Engineering and operations
 
----
-
-## Delivery Note
-
-Status:
-COMPLETED
-
-Features:
-
-- Draft
-- Delivered
-- Convert to Sale
-- Partial Delivery Support
+- Full automated test suite passes in CI.
+- Migration and seed process succeeds on a clean database.
+- API contract and Postman coverage are maintained.
+- Backup and restore are tested.
+- Deployment, environment configuration and rollback procedures are documented.
 
 ---
 
-## Sales
+## 6. Upcoming delivery roadmap
 
-Status:
-COMPLETED
-
-Features:
-
-- Approval
-- Stock Deduction
-- Stock Ledger Posting
-
----
-
-## Sales Return
-
-Status:
-COMPLETED
-
-Features:
-
-- Stock Reversal
-- Return Tracking
+| Sequence | Milestone | Exit criteria |
+|---|---|---|
+| 1 | Payment lifecycle completion | PR #21 refreshed, fully tested, reviewed and merged. |
+| 2 | Inventory/document hardening | Concurrency, negative stock, duplicate posting and reversal tests pass. |
+| 3 | Accounting/tax reconciliation | Document-to-ledger, tax, advance and FX reconciliation tests pass. |
+| 4 | Accounting reports | Account Ledger and core subledger reports reconcile to GL. |
+| 5 | Audit and operations | Audit trail, backups, restore and deployment checks verified. |
+| 6 | Production readiness | All production-readiness gates have recorded evidence. |
+| 7 | ERP expansion | Start new business domains only after the core ERP gates are met. |
 
 ---
 
-# Verified Workflows
+## 7. Long-term expansion
 
-Purchase Workflow
+These are future product areas, not part of the current core completion claim.
 
-Purchase Order
-→ Approve
-→ GRN
-→ Receive
-→ Purchase
-→ Approve
-→ Stock In
+### CRM
+- Leads, opportunities, activities, follow-ups and customer pipeline.
 
-Verified:
-✓ Working
+### HRM and Payroll
+- Employee records, attendance, leave, payroll runs, statutory deductions and payslips.
 
----
+### Manufacturing
+- Bill of Materials (BOM), production orders, material consumption, finished goods, work-in-progress and production costing.
 
-Sales Workflow
-
-Quotation
-→ Approve
-→ Sales Order
-→ Approve
-→ Delivery Note
-→ Deliver
-→ Sale
-→ Approve
-→ Stock Out
-
-Verified:
-✓ Working
+Additional future candidates include budgeting, fixed assets, expense management, advanced analytics and integrations. Scope each as a separate roadmap proposal after core production readiness.
 
 ---
 
-Returns Workflow
-
-Purchase Return
-→ Stock Out
-
-Sales Return
-→ Stock In
-
-Verified:
-✓ Working
-
----
-
-# Verified Inventory Logic
-
-Purchase Approval:
-
-Creates:
-
-- Product Stock
-- Stock Ledger Entry
-
-Sales Approval:
-
-Creates:
-
-- Stock Ledger Entry
-- Product Stock Reduction
-
-Verified Balances:
-✓ Correct
-
----
-
-# Pending Production Improvements
-
-## Inventory Protection
-
-- Negative Stock Validation
-- lockForUpdate() Support
-
-Priority:
-HIGH
-
----
-
-## Audit Logging
-
-- Document Audit
-- Approval Audit
-- User Activity
-
-Priority:
-MEDIUM
-
----
-
-## Attachments
-
-- Purchase Documents
-- Sales Documents
-- Return Documents
-
-Priority:
-LOW
-
----
-
-# Accounting Roadmap
-
-## Phase 1
-
-Customer Receipts
-
-Status:
-COMPLETED
-
-Supplier Payments
-
-Status:
-COMPLETED
-
----
-
-## Phase 2
-
-Chart Of Accounts
-
-Status:
-COMPLETED
-
-Journal Entries
-
-Status:
-COMPLETED
-
----
-
-## Phase 3
-
-General Ledger
-
-Status:
-COMPLETED
-
-Trial Balance
-
-Status:
-COMPLETED
-
----
-
-## Phase 4
-
-Profit & Loss
-
-Status:
-COMPLETED
-
-Balance Sheet
-
-Status:
-COMPLETED
-
-Cash Flow
-
-Status:
-COMPLETED
-
----
-
-The next reports typically are:
-
-Tax Report (GST/VAT)
-Day Book
-Journal Report
-Receivable Summary
-Payable Summary
-Financial Dashboard KPI
-Fiscal Year Closing
-Recurring Journal Entries
-
-# Future Roadmap
-
-CRM
-
-Status:
-PLANNED
-
-HRM
-
-Status:
-PLANNED
-
-Payroll
-
-Status:
-PLANNED
-
-Manufacturing
-
-Status:
-PLANNED
-
-BOM
-
-Status:
-PLANNED
-
-Production Orders
-
-Status:
-PLANNED
-
----
-
-# Current ERP Completion
-
-Security:
-100%
-
-Masters:
-100%
-
-Inventory:
-100%
-
-Purchasing:
-100%
-
-Sales:
-100%
-
-Returns:
-100%
-
-Accounting:
-0%
-
-Overall Project Progress:
-~70%
-
-# Next Accounting Reports I would build
-1. Account Ledger Report (single account drill-down)
-    - Cash Ledger
-    - A/R Ledger
-    - A/P Ledger
-    - Sales Ledger
-    - Inventory Ledger
-
-2. #### Journal Register
-    - List all journal vouchers
-    - Filter by date
-    - Filter by status
-
-3. #### Customer Ledger
-    - Customer-wise running balance
-
-4. #### Supplier Ledger
-    - Supplier-wise running balance
-
-5. #### Account Balance Summary
-    - Quick dashboard report
-
-6. #### Balance Sheet (improved version)
-    - Assets
-    - Liabilities
-    - Equity
-
-7. #### Profit & Loss (improved version)
-    - Revenue
-    - Cost of Goods Sold
-    - Gross Profit
-    - Net Profit
-
-At this stage of your ERP, I would build Account Ledger Report next because almost every accountant uses it daily and all other reports depend on it.
+## 8. Roadmap maintenance rules
+
+- Update this document whenever a milestone changes status.
+- Mark work as implemented only when the capability exists in the current branch.
+- Mark work as workflow verified only when its end-to-end workflow has been exercised.
+- Mark work as test verified only when relevant automated tests pass.
+- Keep open PR work separate from merged `main` functionality.
+- Do not publish a single project-completion percentage without a defined weighted measurement across modules and production-readiness gates.
+- Keep this file as the authoritative roadmap; remove stale duplicate TODO and design scratch documents rather than maintaining competing plans.
