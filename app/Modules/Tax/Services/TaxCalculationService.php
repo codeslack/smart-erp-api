@@ -89,12 +89,12 @@ class TaxCalculationService
             );
         }
 
-        if ($input->roundingMode->value === 'PER_COMPONENT') {
-            $calculatedComponents = $this->roundingCalculator->roundComponents(
+        $calculatedComponents = $this->roundingCalculator
+            ->roundComponentsForMode(
                 $calculatedComponents,
+                $input->roundingMode,
                 $decimalPlaces,
             );
-        }
 
         $totalTax = array_sum(
             array_map(
@@ -103,22 +103,27 @@ class TaxCalculationService
             ),
         );
 
-        $roundedTaxableAmount = $this->roundingCalculator->round(
-            $taxableAmount,
+        $totalTax = $this->roundingCalculator->roundTotalTax(
+            $totalTax,
+            $input->roundingMode,
             $decimalPlaces,
         );
 
-        $totalTax = $this->roundingCalculator->round(
-            $totalTax,
-            $decimalPlaces,
-        );
+        $roundedTaxableAmount = $input->roundingMode === TaxRoundingModeEnum::PER_DOCUMENT
+            ? $taxableAmount
+            : $this->roundingCalculator->round(
+                $taxableAmount,
+                $decimalPlaces,
+            );
 
         $totalAmount = match ($input->pricingMode->value) {
             'EXCLUSIVE' => $roundedTaxableAmount + $totalTax,
-            'INCLUSIVE' => $this->roundingCalculator->round(
-                $input->taxableAmount,
-                $decimalPlaces,
-            ),
+            'INCLUSIVE' => $input->roundingMode === TaxRoundingModeEnum::PER_DOCUMENT
+                ? $input->taxableAmount
+                : $this->roundingCalculator->round(
+                    $input->taxableAmount,
+                    $decimalPlaces,
+                ),
         };
 
         return new TaxCalculationResult(
