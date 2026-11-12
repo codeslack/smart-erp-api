@@ -6,7 +6,6 @@ use App\Core\Exceptions\BusinessException;
 
 use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
-use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Services\JournalEntry\JournalEntryService;
 
 use App\Modules\Purchase\Models\Purchase;
@@ -23,7 +22,7 @@ class PurchasePostingService extends BasePostingService
 
     public function post(
         Purchase $purchase
-    ): JournalEntry {
+    ): void {
         $purchase->loadMissing([
             'charges.chartOfAccount',
         ]);
@@ -121,7 +120,7 @@ class PurchasePostingService extends BasePostingService
             );
 
             $lines[] = $this->debit(
-                $charge->chartOfAccount->id,
+                $charge->chartOfAccount->account_code,
                 $baseChargeAmount,
                 'Purchase expense charge: ' . $charge->name,
                 $chargeAmount,
@@ -174,7 +173,7 @@ class PurchasePostingService extends BasePostingService
             $grandTotal,
         );
 
-        return $this->createJournalEntry(
+        $this->createJournalEntry(
             referenceType: Purchase::class,
             referenceId: $purchase->id,
             voucherType: JournalVoucherTypeEnum::PURCHASE,
