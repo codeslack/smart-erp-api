@@ -41,6 +41,17 @@ class PurchaseInventoryPostingService
             );
         }
 
+        if (
+            $purchase->goods_receipt_note_id !== null
+            && $purchase->items->contains(
+                fn (PurchaseItem $item) => $item->goods_receipt_note_item_id === null
+            )
+        ) {
+            throw new BusinessException(
+                'Every item in a GRN-linked Purchase must reference an item from that GRN.'
+            );
+        }
+
         // GRN receipt quantities become inventory only when a Purchase is approved.
         if ($purchase->goods_receipt_note_id !== null) {
             $grn = GoodsReceiptNote::query()
