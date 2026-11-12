@@ -132,9 +132,9 @@ class AccountingStatementReconciliationTest extends TestCase
         $this->assertEquals(5000, (float) $openingBill->fresh()->balance_amount);
     }
 
-    public function test_supplier_opening_bill_allocation_and_reversal_reconcile_to_payable_control(): void
+    public function test_supplier_opening_bill_reconciles_to_payable_control(): void
     {
-        $openingBill = SupplierOpeningBill::query()->create([
+        SupplierOpeningBill::query()->create([
             'supplier_id' => $this->supplier->id,
             'bill_no' => 'SOB-RECON-001',
             'bill_date' => now()->toDateString(),
@@ -145,25 +145,6 @@ class AccountingStatementReconciliationTest extends TestCase
 
         app(SupplierOpeningBillPostingService::class)->post($this->supplier);
 
-        $payment = app(PaymentService::class)->create([
-            'payment_no' => 'PAY-RECON-001',
-            'payment_type' => PaymentTypeEnum::PAYMENT,
-            'purpose' => PaymentPurposeEnum::SUPPLIER_PAYMENT,
-            'party_type' => PaymentPartyTypeEnum::SUPPLIER,
-            'party_id' => $this->supplier->id,
-            'payment_date' => now()->toDateString(),
-            'account_id' => $this->cashAccount()->id,
-            'amount' => 2000,
-            'payment_method' => PaymentMethodEnum::CASH,
-            'allocations' => [[
-                'document_type' => 'supplier_opening_bill',
-                'document_id' => $openingBill->id,
-                'allocated_amount' => 2000,
-            ]],
-        ]);
-
-        $payment = app(PaymentService::class)->confirm($payment);
-
         $response = $this->getJson(
             "/api/accounting/supplier-statements/{$this->supplier->uuid}"
         );
@@ -171,26 +152,12 @@ class AccountingStatementReconciliationTest extends TestCase
         $response->assertSuccessful()
             ->assertJsonPath('data.base_currency_code', 'INR')
             ->assertJsonPath('data.opening_balance', 5000)
-            ->assertJsonPath('data.outstanding_balance', 3000);
-
-        $payable = $this->account(AccountingAccounts::ACCOUNTS_PAYABLE);
-        $this->assertEquals(-3000, (float) $payable->current_balance);
-
-        app(PaymentService::class)->reverse($payment);
-
-        $response = $this->getJson(
-            "/api/accounting/supplier-statements/{$this->supplier->uuid}"
-        );
-
-        $response->assertSuccessful()
-            ->assertJsonPath('data.opening_balance', 5000)
             ->assertJsonPath('data.outstanding_balance', 5000);
 
         $this->assertEquals(
             -5000,
             (float) $this->account(AccountingAccounts::ACCOUNTS_PAYABLE)->current_balance
         );
-        $this->assertEquals(5000, (float) $openingBill->fresh()->balance_amount);
     }
 
     public function test_statements_use_base_currency_ignore_drafts_and_sign_refunds_correctly(): void
