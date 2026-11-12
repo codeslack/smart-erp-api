@@ -56,6 +56,93 @@ class InventoryConcurrencyTest extends TestCase
         ]);
     }
 
+    public function test_first_stock_in_movements_reuse_one_stock_row(): void
+    {
+        $service = app(InventoryPostingService::class);
+
+        foreach ([10, 5] as $index => $quantity) {
+            $service->stockIn(new InventoryMovementData(
+                productId: $this->product->id,
+                productVariantId: null,
+                warehouseId: $this->warehouse->id,
+                quantity: $quantity,
+                unitCost: 10,
+                transactionType: InventoryTransactionTypeEnum::OPENING_STOCK->value,
+                transactionDate: now(),
+                referenceType: null,
+                referenceId: null,
+                referenceNo: 'CON-FIRST-IN-' . $index,
+                batchId: null,
+                serialId: null,
+                remarks: 'First stock row creation test',
+            ));
+        }
+
+        $this->assertSame(
+            1,
+            ProductStock::query()
+                ->where('product_id', $this->product->id)
+                ->whereNull('product_variant_id')
+                ->where('warehouse_id', $this->warehouse->id)
+                ->count()
+        );
+
+        $this->assertEquals(
+            15,
+            (float) ProductStock::query()
+                ->where('product_id', $this->product->id)
+                ->whereNull('product_variant_id')
+                ->where('warehouse_id', $this->warehouse->id)
+                ->value('quantity')
+        );
+    }
+
+    public function test_stock_movement_restores_a_soft_deleted_stock_row(): void
+    {
+        $stock = ProductStock::create([
+            'tenant_id' => $this->tenant->id,
+            'product_id' => $this->product->id,
+            'product_variant_id' => null,
+            'warehouse_id' => $this->warehouse->id,
+            'quantity' => 7,
+            'average_cost' => 10,
+        ]);
+
+        $stock->delete();
+
+        app(InventoryPostingService::class)->stockIn(
+            new InventoryMovementData(
+                productId: $this->product->id,
+                productVariantId: null,
+                warehouseId: $this->warehouse->id,
+                quantity: 3,
+                unitCost: 10,
+                transactionType: InventoryTransactionTypeEnum::OPENING_STOCK->value,
+                transactionDate: now(),
+                referenceType: null,
+                referenceId: null,
+                referenceNo: 'CON-RESTORE-STOCK',
+                batchId: null,
+                serialId: null,
+                remarks: 'Restore existing stock row',
+            )
+        );
+
+        $stock->refresh();
+
+        $this->assertFalse($stock->trashed());
+        $this->assertEquals(10, (float) $stock->quantity);
+
+        $this->assertSame(
+            1,
+            ProductStock::withTrashed()
+                ->where('product_id', $this->product->id)
+                ->whereNull('product_variant_id')
+                ->where('warehouse_id', $this->warehouse->id)
+                ->count()
+        );
+    }
+
     public function test_multiple_stock_out_operations_never_exceed_available_stock(): void
     {
         $service = app(InventoryPostingService::class);
