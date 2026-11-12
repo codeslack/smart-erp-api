@@ -14,6 +14,8 @@ use App\Modules\Customer\Models\Customer;
 use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Purchase\Models\Purchase;
+use App\Modules\PurchaseReturn\Models\PurchaseReturn;
+use App\Modules\PurchaseReturn\Enums\PurchaseReturnRefundType;
 use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\SalesReturn\Models\SalesReturn;
@@ -29,6 +31,7 @@ use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
 use App\Modules\Accounting\Services\AccountingSetupService;
 use App\Modules\Accounting\Services\Postings\SalesPostingService;
 use App\Modules\Accounting\Services\Postings\PurchasePostingService;
+use App\Modules\Accounting\Services\Postings\PurchaseReturnPostingService;
 use App\Modules\Accounting\Services\Postings\SalesReturnPostingService;
 use App\Modules\Accounting\Services\Postings\PaymentPostingService;
 
@@ -175,6 +178,61 @@ class AccountingPostingsTest extends TestCase
         $this->assertEquals(
             8325.00,
             (float) $journal->lines()->sum('credit')
+        );
+
+        $purchaseReturn = PurchaseReturn::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'purchase_id' => $purchase->id,
+            'supplier_id' => $this->supplier->id,
+            'return_no' => 'PUR-RETURN-USD-101',
+            'return_date' => now()->toDateString(),
+            'subtotal' => '41.0000',
+            'tax_amount' => '9.0000',
+            'grand_total' => '50.0000',
+            'refund_amount' => '0.0000',
+            'credited_amount' => '50.0000',
+            'refund_type' => PurchaseReturnRefundType::CREDIT_NOTE,
+            'status' => 'confirmed',
+        ]);
+
+        app(PurchaseReturnPostingService::class)->post($purchaseReturn);
+
+        $returnJournal = JournalEntry::query()
+            ->where('reference_type', PurchaseReturn::class)
+            ->where('reference_id', $purchaseReturn->id)
+            ->firstOrFail();
+
+        $this->assertSame('USD', $returnJournal->currency_code);
+        $this->assertSame('83.25000000', $returnJournal->exchange_rate);
+
+        $returnLines = $returnJournal->lines()
+            ->with('account')
+            ->get()
+            ->keyBy(fn ($line) => $line->account->account_code);
+
+        $this->assertEquals(
+            4162.50,
+            (float) $returnLines->get(AccountingAccounts::ACCOUNTS_PAYABLE)->debit
+        );
+        $this->assertEquals(
+            50.00,
+            (float) $returnLines->get(AccountingAccounts::ACCOUNTS_PAYABLE)->foreign_debit
+        );
+        $this->assertEquals(
+            3413.25,
+            (float) $returnLines->get(AccountingAccounts::INVENTORY)->credit
+        );
+        $this->assertEquals(
+            41.00,
+            (float) $returnLines->get(AccountingAccounts::INVENTORY)->foreign_credit
+        );
+        $this->assertEquals(
+            749.25,
+            (float) $returnLines->get(AccountingAccounts::INPUT_TAX_RECEIVABLE)->credit
+        );
+        $this->assertEquals(
+            9.00,
+            (float) $returnLines->get(AccountingAccounts::INPUT_TAX_RECEIVABLE)->foreign_credit
         );
     }
 
