@@ -31,6 +31,7 @@ use App\Modules\PurchaseOrder\Models\PurchaseOrderItem;
 use App\Modules\GoodsReceiptNote\Enums\GoodsReceiptNoteStatusEnum;
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNote;
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNoteItem;
+use App\Modules\Inventory\Models\ProductStock;
 use App\Modules\GoodsReceiptNote\Services\Lifecycle\GoodsReceiptNoteConfirmationService;
 
 class GoodsReceiptNoteConfirmationTest extends TestCase
@@ -345,6 +346,38 @@ class GoodsReceiptNoteConfirmationTest extends TestCase
             0,
             (float) $poItem->received_quantity
         );
+    }
+
+
+    public function test_grn_inventory_cost_uses_purchase_order_exchange_rate(): void
+    {
+        [$grn, $poItem, $grnItem] = $this->createGrn(
+            orderedQuantity: 10,
+            receivedQuantity: 10,
+        );
+
+        $poItem->purchaseOrder->update([
+            'currency_code' => 'USD',
+            'exchange_rate' => 80,
+        ]);
+
+        // The GRN base-unit cost is 50 USD per base unit.
+        $grnItem->update([
+            'unit_cost' => 50,
+            'base_unit_cost' => 50,
+        ]);
+
+        app(
+            GoodsReceiptNoteConfirmationService::class
+        )->confirm($grn);
+
+        $stock = ProductStock::query()
+            ->where('product_id', $this->product->id)
+            ->where('warehouse_id', $this->warehouse->id)
+            ->firstOrFail();
+
+        $this->assertEquals(10, (float) $stock->quantity);
+        $this->assertEquals(4000, (float) $stock->average_cost);
     }
 
     protected function createGrn(
