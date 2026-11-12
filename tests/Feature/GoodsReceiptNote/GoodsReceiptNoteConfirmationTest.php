@@ -31,8 +31,6 @@ use App\Modules\PurchaseOrder\Models\PurchaseOrderItem;
 use App\Modules\GoodsReceiptNote\Enums\GoodsReceiptNoteStatusEnum;
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNote;
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNoteItem;
-use App\Modules\Inventory\Models\ProductStock;
-use App\Modules\Inventory\Models\StockLedger;
 use App\Modules\GoodsReceiptNote\Services\Lifecycle\GoodsReceiptNoteConfirmationService;
 
 class GoodsReceiptNoteConfirmationTest extends TestCase
