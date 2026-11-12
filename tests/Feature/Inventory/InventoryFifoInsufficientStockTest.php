@@ -305,4 +305,78 @@ class InventoryFifoInsufficientStockTest extends TestCase
             );
         }
     }
+
+    public function test_fifo_rejects_negative_stock_even_when_tenant_setting_allows_it(): void
+    {
+        Setting::updateOrCreate(
+            [
+                'tenant_id' => $this->tenant->id,
+                'group' => 'inventory',
+                'key' => 'allow_negative_stock',
+            ],
+            [
+                'value' => 'true',
+            ]
+        );
+
+        $ledger = $this->postingService->stockIn(
+            new InventoryMovementData(
+                productId: $this->product->id,
+                productVariantId: null,
+                warehouseId: $this->warehouse->id,
+                quantity: 100,
+                unitCost: 10,
+                transactionType: 'PURCHASE',
+                transactionDate: now(),
+                referenceNo: 'FIFO-NEGATIVE-OPEN',
+                remarks: 'FIFO negative-stock policy test',
+            )
+        );
+
+        $layer = InventoryCostLayer::query()
+            ->where('stock_ledger_id', $ledger->id)
+            ->firstOrFail();
+
+        $stock = ProductStock::query()
+            ->where('product_id', $this->product->id)
+            ->where('warehouse_id', $this->warehouse->id)
+            ->firstOrFail();
+
+        $ledgerCountBefore = StockLedger::query()->count();
+
+        try {
+            $this->postingService->stockOut(
+                new InventoryMovementData(
+                    productId: $this->product->id,
+                    productVariantId: null,
+                    warehouseId: $this->warehouse->id,
+                    quantity: 110,
+                    unitCost: 0,
+                    transactionType: 'SALE',
+                    transactionDate: now(),
+                    referenceNo: 'FIFO-NEGATIVE-OUT',
+                    remarks: 'FIFO must reject stock below available layers',
+                )
+            );
+
+            $this->fail('FIFO must reject stock-outs beyond available layers.');
+        } catch (BusinessException $exception) {
+            $this->assertStringContainsString(
+                'Insufficient FIFO stock layers',
+                $exception->getMessage()
+            );
+        }
+
+        $stock->refresh();
+        $layer->refresh();
+
+        $this->assertEquals(100, (float) $stock->quantity);
+        $this->assertEquals(100, (float) $layer->remaining_quantity);
+        $this->assertSame($ledgerCountBefore, StockLedger::query()->count());
+        $this->assertSame(
+            0,
+            InventoryCostLayerConsumption::query()->count()
+        );
+    }
+
 }
