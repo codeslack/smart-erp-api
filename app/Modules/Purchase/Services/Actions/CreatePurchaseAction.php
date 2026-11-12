@@ -41,7 +41,10 @@ class CreatePurchaseAction
 
             $calculatedItems = [];
             foreach ($resolvedItems as $item) {
-                $calculated = $this->itemCalculator->calculate($item);
+                $calculated = $this->itemCalculator->calculate(
+                    $item,
+                    (string) ($resolvedHeader['tax_calculation_mode'] ?? 'exclusive')
+                );
                 if (isset($item['batches'])) {
                     $calculated['batches'] = $item['batches'];
                 }
@@ -50,6 +53,24 @@ class CreatePurchaseAction
                 }
                 $calculatedItems[] = $calculated;
             }
+
+            $calculatedItems = $this->calculator->applyHeaderDiscount(
+                $calculatedItems,
+                $resolvedHeader
+            );
+
+            foreach ($calculatedItems as &$itemData) {
+                $baseQuantity = (float) ($itemData['base_quantity'] ?? 0);
+
+                if ($baseQuantity > 0) {
+                    // Persist tax-exclusive, discount-adjusted cost per base unit.
+                    $itemData['base_unit_cost'] = round(
+                        (float) ($itemData['subtotal'] ?? 0) / $baseQuantity,
+                        8
+                    );
+                }
+            }
+            unset($itemData);
 
             $itemsSubtotal = (float) array_sum(array_column($calculatedItems, 'line_total'));
             $resolvedCharges = $this->resolver->resolveCharges($rawCharges, $itemsSubtotal);
