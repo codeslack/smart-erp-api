@@ -417,6 +417,47 @@ class PurchaseReturnConfirmationTest extends TestCase
             'product_id' => $serviceProduct->id,
             'warehouse_id' => $this->warehouse->id,
         ]);
+
+        $purchaseItem = $purchase->items()->firstOrFail();
+
+        $returnResponse = $this->postJson('/api/purchase-returns', [
+            'purchase_uuid' => $purchase->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'purchase_item_uuid' => $purchaseItem->uuid,
+                'returned_quantity' => 1,
+                'unit_cost' => 500,
+            ]],
+        ])->assertCreated();
+
+        $returnUuid = $returnResponse->json('data.uuid');
+
+        $this->postJson("/api/purchase-returns/{$returnUuid}/confirm")
+            ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $return = PurchaseReturn::query()
+            ->where('uuid', $returnUuid)
+            ->firstOrFail();
+
+        $returnEntry = JournalEntry::query()
+            ->with('lines.account')
+            ->where('reference_type', PurchaseReturn::class)
+            ->where('reference_id', $return->id)
+            ->firstOrFail();
+
+        $returnExpenseLine = $returnEntry->lines->first(
+            fn ($line) => $line->account->account_code === AccountingAccounts::PURCHASE_EXPENSE
+        );
+
+        $returnInventoryLine = $returnEntry->lines->first(
+            fn ($line) => $line->account->account_code === AccountingAccounts::INVENTORY
+        );
+
+        $this->assertNotNull($returnExpenseLine);
+        $this->assertEquals(500, (float) $returnExpenseLine->credit);
+        $this->assertNull($returnInventoryLine);
     }
 
 }
