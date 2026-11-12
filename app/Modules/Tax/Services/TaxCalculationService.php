@@ -10,6 +10,7 @@ use App\Modules\Tax\Domain\TaxComponentCalculator;
 use App\Modules\Tax\Domain\TaxPricingCalculator;
 use App\Modules\Tax\Domain\TaxRoundingCalculator;
 use App\Modules\Tax\Enums\TaxCalculationMethodEnum;
+use App\Modules\Tax\Enums\TaxRoundingModeEnum;
 
 use App\Modules\Tax\Repositories\Contracts\TaxGroupRepositoryInterface;
 
