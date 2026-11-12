@@ -12,6 +12,12 @@ interface JournalEntryRepositoryInterface
         int|string $id
     ): JournalEntry;
 
+    public function findOriginalPostedByReference(
+        string $referenceType,
+        int $referenceId,
+        string $voucherType
+    ): ?JournalEntry;
+
     public function findPostedByReference(
         string $referenceType,
         int $referenceId,
