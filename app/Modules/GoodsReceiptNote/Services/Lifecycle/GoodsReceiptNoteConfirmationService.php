@@ -14,7 +14,6 @@ use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNote;
 use App\Modules\GoodsReceiptNote\Repositories\Contracts\GoodsReceiptNoteItemRepositoryInterface;
 use App\Modules\GoodsReceiptNote\Repositories\Contracts\GoodsReceiptNoteRepositoryInterface;
 
-use App\Modules\GoodsReceiptNote\Services\Inventory\GoodsReceiptNoteInventoryPostingService;
 use App\Modules\PurchaseOrder\Services\PurchaseOrderReceivingService;
 use App\Modules\PurchaseOrder\Services\PurchaseOrderStatusService;
 
@@ -26,7 +25,6 @@ class GoodsReceiptNoteConfirmationService
         protected GoodsReceiptNoteRules $rules,
         protected PurchaseOrderReceivingService $receivingService,
         protected PurchaseOrderStatusService $statusService,
-        protected GoodsReceiptNoteInventoryPostingService $inventoryPostingService,
     ) {}
 
     public function confirm(
@@ -147,11 +145,6 @@ class GoodsReceiptNoteConfirmationService
                     $purchaseOrderItemId
                 ] += $receivedBaseQuantity;
             }
-
-            /*
-             * Post inventory within the same database transaction.
-             */
-            $this->inventoryPostingService->post($grn);
 
             /*
              * Confirm only after receiving and inventory posting
