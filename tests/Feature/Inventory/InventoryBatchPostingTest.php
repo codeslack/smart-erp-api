@@ -27,6 +27,9 @@ use App\Modules\Inventory\Data\InventoryMovementData;
 use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
 use App\Modules\Inventory\Enums\ProductBatchStatusEnum;
 use App\Modules\Inventory\Services\InventoryStockInService;
+use App\Modules\Inventory\Services\InventoryStockOutService;
+use App\Modules\Inventory\Services\InventoryBatchService;
+use App\Core\Exceptions\BusinessException;
 
 use App\Modules\OpeningStock\Models\OpeningStock;
 use App\Modules\OpeningStock\Services\OpeningStockService;
@@ -603,6 +606,131 @@ class InventoryBatchPostingTest extends TestCase
             'product_id' => $otherProduct->id,
             'product_batch_id' => $batch->id,
         ]);
+    }
+
+
+    public function test_expired_batch_cannot_be_issued_and_is_not_available(): void
+    {
+        $batch = ProductBatch::create([
+            'tenant_id' => $this->tenant->id,
+            'product_id' => $this->product->id,
+            'warehouse_id' => $this->warehouse->id,
+            'batch_no' => 'BATCH-EXPIRED',
+            'unit_cost' => 100,
+            'original_quantity' => 0,
+            'remaining_quantity' => 0,
+            'expiry_date' => now()->subDay()->toDateString(),
+            'status' => ProductBatchStatusEnum::ACTIVE->value,
+        ]);
+
+        app(InventoryStockInService::class)->post(
+            new InventoryMovementData(
+                productId: $this->product->id,
+                productVariantId: null,
+                warehouseId: $this->warehouse->id,
+                quantity: 10,
+                unitCost: 100,
+                transactionType: InventoryTransactionTypeEnum::OPENING_STOCK->value,
+                transactionDate: now()->subDays(2),
+                batchId: $batch->id,
+            )
+        );
+
+        $stockBefore = ProductStock::query()
+            ->where('product_id', $this->product->id)
+            ->where('warehouse_id', $this->warehouse->id)
+            ->firstOrFail();
+
+        $ledgerCount = StockLedger::query()->count();
+
+        try {
+            app(InventoryStockOutService::class)->post(
+                new InventoryMovementData(
+                    productId: $this->product->id,
+                    productVariantId: null,
+                    warehouseId: $this->warehouse->id,
+                    quantity: 1,
+                    unitCost: 100,
+                    transactionType: InventoryTransactionTypeEnum::SALE->value,
+                    transactionDate: now(),
+                    batchId: $batch->id,
+                )
+            );
+
+            $this->fail('An expired batch must not be issued.');
+        } catch (BusinessException $exception) {
+            $this->assertStringContainsString('expired', strtolower($exception->getMessage()));
+        }
+
+        $this->assertEquals(
+            (float) $stockBefore->quantity,
+            (float) $stockBefore->fresh()->quantity
+        );
+        $this->assertEquals(
+            10,
+            (float) $batch->fresh()->remaining_quantity
+        );
+        $this->assertSame($ledgerCount, StockLedger::query()->count());
+
+        $available = app(InventoryBatchService::class)->findAvailable(
+            $this->product->id,
+            $this->warehouse->id,
+        );
+
+        $this->assertFalse($available->contains('id', $batch->id));
+    }
+
+    public function test_batch_remains_issuable_through_its_expiry_date(): void
+    {
+        $batch = ProductBatch::create([
+            'tenant_id' => $this->tenant->id,
+            'product_id' => $this->product->id,
+            'warehouse_id' => $this->warehouse->id,
+            'batch_no' => 'BATCH-EXPIRY-TODAY',
+            'unit_cost' => 100,
+            'original_quantity' => 0,
+            'remaining_quantity' => 0,
+            'expiry_date' => today()->toDateString(),
+            'status' => ProductBatchStatusEnum::ACTIVE->value,
+        ]);
+
+        app(InventoryStockInService::class)->post(
+            new InventoryMovementData(
+                productId: $this->product->id,
+                productVariantId: null,
+                warehouseId: $this->warehouse->id,
+                quantity: 10,
+                unitCost: 100,
+                transactionType: InventoryTransactionTypeEnum::OPENING_STOCK->value,
+                transactionDate: today(),
+                batchId: $batch->id,
+            )
+        );
+
+        $available = app(InventoryBatchService::class)->findAvailable(
+            $this->product->id,
+            $this->warehouse->id,
+        );
+
+        $this->assertTrue($available->contains('id', $batch->id));
+
+        app(InventoryStockOutService::class)->post(
+            new InventoryMovementData(
+                productId: $this->product->id,
+                productVariantId: null,
+                warehouseId: $this->warehouse->id,
+                quantity: 1,
+                unitCost: 100,
+                transactionType: InventoryTransactionTypeEnum::SALE->value,
+                transactionDate: today(),
+                batchId: $batch->id,
+            )
+        );
+
+        $this->assertEquals(
+            9,
+            (float) $batch->fresh()->remaining_quantity
+        );
     }
 
     protected function createOpeningStock(): OpeningStock
