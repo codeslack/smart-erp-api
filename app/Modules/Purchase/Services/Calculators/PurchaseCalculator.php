@@ -189,9 +189,15 @@ class PurchaseCalculator
         $discountRate = (float) ($headerData['discount_rate'] ?? 0);
         $discountAmount = (float) ($headerData['discount_amount'] ?? 0);
 
+        if ($discountAmount < 0 || $discountRate < 0) {
+            throw new BusinessException(
+                'Header discount values cannot be negative.'
+            );
+        }
+
         if (
             $discountType === 'percentage'
-            && ($discountRate < 0 || $discountRate > 100)
+            && $discountRate > 100
         ) {
             throw new BusinessException(
                 'Header discount percentage must be between 0 and 100.'
