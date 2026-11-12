@@ -2,6 +2,8 @@
 
 namespace App\Modules\Inventory\Repositories;
 
+use Illuminate\Database\QueryException;
+
 use App\Modules\Inventory\Models\ProductStock;
 use App\Modules\Inventory\Repositories\Contracts\ProductStockRepositoryInterface;
 
@@ -17,117 +19,86 @@ class ProductStockRepository
         ?int $productVariantId,
         int $warehouseId
     ): ?ProductStock {
-
-        return $this->model
-            ->newQuery()
-            ->where(
-                'product_id',
-                $productId
-            )
-            ->when(
-                $productVariantId !== null,
-                fn ($query) =>
-                    $query->where(
-                        'product_variant_id',
-                        $productVariantId
-                    ),
-                fn ($query) =>
-                    $query->whereNull(
-                        'product_variant_id'
-                    )
-            )
-            ->where(
-                'warehouse_id',
-                $warehouseId
-            )
-            ->first();
+        return $this->identityQuery(
+            $productId,
+            $productVariantId,
+            $warehouseId
+        )->first();
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Find Stock For Update
-    |--------------------------------------------------------------------------
-    */
 
     public function findForUpdate(
         int $productId,
         ?int $productVariantId,
         int $warehouseId
     ): ?ProductStock {
-
-        return $this->model
-            ->newQuery()
-            ->where(
-                'product_id',
-                $productId
-            )
-            ->when(
-                $productVariantId !== null,
-                fn ($query) =>
-                    $query->where(
-                        'product_variant_id',
-                        $productVariantId
-                    ),
-                fn ($query) =>
-                    $query->whereNull(
-                        'product_variant_id'
-                    )
-            )
-            ->where(
-                'warehouse_id',
-                $warehouseId
-            )
+        $stock = $this->identityQuery(
+            $productId,
+            $productVariantId,
+            $warehouseId,
+            withTrashed: true
+        )
             ->lockForUpdate()
             ->first();
-    }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Get Or Create Stock For Update
-    |--------------------------------------------------------------------------
-    */
+        // A stock balance is historical inventory state, not a disposable
+        // record. Reuse a soft-deleted identity instead of inserting a
+        // second balance row for the same product/variant/warehouse.
+        if ($stock?->trashed()) {
+            $stock->restore();
+        }
+
+        return $stock;
+    }
 
     public function getOrCreateForUpdate(
         int $productId,
         ?int $productVariantId,
         int $warehouseId
     ): ProductStock {
+        // Use a non-locking existence read first. Locking an absent row can
+        // acquire a gap lock and make simultaneous first inserts deadlock.
+        $existing = $this->identityQuery(
+            $productId,
+            $productVariantId,
+            $warehouseId,
+            withTrashed: true
+        )->first();
 
-        $stock = $this->findForUpdate(
-            productId: $productId,
-            productVariantId: $productVariantId,
-            warehouseId: $warehouseId
-        );
-
-        if ($stock) {
-            return $stock;
+        if ($existing !== null) {
+            return $this->findForUpdate(
+                $productId,
+                $productVariantId,
+                $warehouseId
+            );
         }
 
-        return $this->model
-            ->newQuery()
-            ->create([
-                'product_id' =>
-                    $productId,
+        try {
+            return $this->model
+                ->newQuery()
+                ->create([
+                    'product_id' => $productId,
+                    'product_variant_id' => $productVariantId,
+                    'warehouse_id' => $warehouseId,
+                    'quantity' => 0,
+                    'average_cost' => 0,
+                ]);
+        } catch (QueryException $exception) {
+            // A concurrent transaction may have inserted the same identity.
+            // Re-read under lock; only suppress the error if that exact row
+            // now exists. Unrelated database errors must still propagate.
+            $stock = $this->findForUpdate(
+                $productId,
+                $productVariantId,
+                $warehouseId
+            );
 
-                'product_variant_id' =>
-                    $productVariantId,
+            if ($stock !== null) {
+                return $stock;
+            }
 
-                'warehouse_id' =>
-                    $warehouseId,
-
-                'quantity' =>
-                    0,
-
-                'average_cost' =>
-                    0,
-            ]);
+            throw $exception;
+        }
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Update Balance
-    |--------------------------------------------------------------------------
-    */
 
     public function updateBalance(
         ProductStock $stock,
@@ -135,18 +106,30 @@ class ProductStockRepository
         float $averageCost,
         \DateTimeInterface $movementDate
     ): ProductStock {
-
         $stock->update([
-            'quantity' =>
-                $quantity,
-
-            'average_cost' =>
-                $averageCost,
-
-            'last_movement_at' =>
-                $movementDate,
+            'quantity' => $quantity,
+            'average_cost' => $averageCost,
+            'last_movement_at' => $movementDate,
         ]);
 
         return $stock->refresh();
+    }
+
+    protected function identityQuery(
+        int $productId,
+        ?int $productVariantId,
+        int $warehouseId,
+        bool $withTrashed = false
+    ) {
+        $query = $this->model->newQuery();
+
+        if ($withTrashed) {
+            $query->withTrashed();
+        }
+
+        return $query
+            ->where('product_id', $productId)
+            ->where('product_variant_key', $productVariantId ?? 0)
+            ->where('warehouse_id', $warehouseId);
     }
 }
