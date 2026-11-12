@@ -144,7 +144,7 @@ class PurchaseGrnAllocationTest extends TestCase
         $this->postJson("/api/purchases/{$bill1->json('data.uuid')}/confirm")->assertOk();
         app(TenantManager::class)->setTenant($this->tenant);
 
-        // The first approved bill posts the full confirmed GRN quantity.
+        // The first approved bill posts only its six received units.
         $stock = ProductStock::query()
             ->where('tenant_id', $this->tenant->id)
             ->where('product_id', $this->product->id)
