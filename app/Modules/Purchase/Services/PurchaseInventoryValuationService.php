@@ -263,7 +263,7 @@ class PurchaseInventoryValuationService
                     );
                 }
 
-                $unitCosts[$item->id] = $this->decimal(
+                $unitCosts[$item->id] = $this->decimalCost(
                     bcdiv($lineAmount, $baseQuantity, 8)
                 );
             }
@@ -287,6 +287,16 @@ class PurchaseInventoryValuationService
         return number_format(
             (float) $value,
             4,
+            '.',
+            ''
+        );
+    }
+
+    protected function decimalCost(mixed $value): string
+    {
+        return number_format(
+            (float) $value,
+            8,
             '.',
             ''
         );
