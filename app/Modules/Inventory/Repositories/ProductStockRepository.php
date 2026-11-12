@@ -2,6 +2,8 @@
 
 namespace App\Modules\Inventory\Repositories;
 
+use Illuminate\Database\QueryException;
+
 use App\Modules\Inventory\Models\ProductStock;
 use App\Modules\Inventory\Repositories\Contracts\ProductStockRepositoryInterface;
 
@@ -55,30 +57,24 @@ class ProductStockRepository
         int $warehouseId
     ): ?ProductStock {
 
-        return $this->model
+        $stock = $this->model
             ->newQuery()
-            ->where(
-                'product_id',
-                $productId
-            )
+            ->withTrashed()
+            ->where('product_id', $productId)
             ->when(
                 $productVariantId !== null,
-                fn ($query) =>
-                    $query->where(
-                        'product_variant_id',
-                        $productVariantId
-                    ),
-                fn ($query) =>
-                    $query->whereNull(
-                        'product_variant_id'
-                    )
+                fn ($query) => $query->where('product_variant_id', $productVariantId),
+                fn ($query) => $query->whereNull('product_variant_id')
             )
-            ->where(
-                'warehouse_id',
-                $warehouseId
-            )
+            ->where('warehouse_id', $warehouseId)
             ->lockForUpdate()
             ->first();
+
+        if ($stock?->trashed()) {
+            $stock->restore();
+        }
+
+        return $stock;
     }
 
     /*
@@ -103,24 +99,48 @@ class ProductStockRepository
             return $stock;
         }
 
-        return $this->model
-            ->newQuery()
-            ->create([
-                'product_id' =>
-                    $productId,
+        try {
+            return $this->model
+                ->newQuery()
+                ->create([
+                    'product_id' => $productId,
+                    'product_variant_id' => $productVariantId,
+                    'warehouse_id' => $warehouseId,
+                    'quantity' => 0,
+                    'average_cost' => 0,
+                ]);
+        } catch (QueryException $exception) {
+            if (! $this->isProductStockUniqueViolation($exception)) {
+                throw $exception;
+            }
 
-                'product_variant_id' =>
-                    $productVariantId,
+            // A concurrent transaction may have created the missing balance.
+            $stock = $this->findForUpdate(
+                $productId,
+                $productVariantId,
+                $warehouseId
+            );
 
-                'warehouse_id' =>
-                    $warehouseId,
+            if ($stock === null) {
+                throw $exception;
+            }
 
-                'quantity' =>
-                    0,
+            return $stock;
+        }
+    }
 
-                'average_cost' =>
-                    0,
-            ]);
+    protected function isProductStockUniqueViolation(
+        QueryException $exception
+    ): bool {
+        $message = strtolower($exception->getMessage());
+
+        return str_contains($message, 'ps_tenant_product_variant_wh_uq')
+            || (
+                str_contains($message, 'product_stocks.tenant_id')
+                && str_contains($message, 'product_stocks.product_id')
+                && str_contains($message, 'product_stocks.product_variant_key')
+                && str_contains($message, 'product_stocks.warehouse_id')
+            );
     }
 
     /*
