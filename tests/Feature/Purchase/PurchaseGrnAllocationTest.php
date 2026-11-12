@@ -278,19 +278,19 @@ class PurchaseGrnAllocationTest extends TestCase
             'expiry_date' => now()->addYear()->toDateString(),
         ]);
 
-        $bill = $this->postJson(route('purchases.store'), [
+        $firstBill = $this->postJson(route('purchases.store'), [
             'supplier_uuid' => $this->supplier->uuid,
             'warehouse_uuid' => $this->warehouse->uuid,
             'goods_receipt_note_uuid' => $grn->uuid,
             'purchase_date' => now()->toDateString(),
             'items' => [[
                 'goods_receipt_note_item_uuid' => $grnItem->uuid,
-                'quantity' => 10,
+                'quantity' => 6,
                 'unit_cost' => 4500,
             ]],
         ])->assertCreated();
 
-        $this->postJson("/api/purchases/{$bill->json('data.uuid')}/confirm")
+        $this->postJson("/api/purchases/{$firstBill->json('data.uuid')}/confirm")
             ->assertOk();
 
         app(TenantManager::class)->setTenant($this->tenant);
@@ -301,7 +301,7 @@ class PurchaseGrnAllocationTest extends TestCase
 
         $this->assertSame('ACTIVE', $batch->status->value);
         $this->assertEquals(10, (float) $batch->original_quantity);
-        $this->assertEquals(10, (float) $batch->remaining_quantity);
+        $this->assertEquals(6, (float) $batch->remaining_quantity);
         $this->assertSame(
             GoodsReceiptNote::class,
             $batch->sourceable_type
@@ -318,6 +318,29 @@ class PurchaseGrnAllocationTest extends TestCase
             ->where('warehouse_id', $this->warehouse->id)
             ->firstOrFail();
 
+        $this->assertEquals(6, (float) $stock->quantity);
+
+        $secondBill = $this->postJson(route('purchases.store'), [
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'goods_receipt_note_uuid' => $grn->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [[
+                'goods_receipt_note_item_uuid' => $grnItem->uuid,
+                'quantity' => 4,
+                'unit_cost' => 4500,
+            ]],
+        ])->assertCreated();
+
+        $this->postJson("/api/purchases/{$secondBill->json('data.uuid')}/confirm")
+            ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $batch->refresh();
+        $stock->refresh();
+
+        $this->assertEquals(10, (float) $batch->remaining_quantity);
         $this->assertEquals(10, (float) $stock->quantity);
     }
 
@@ -360,19 +383,19 @@ class PurchaseGrnAllocationTest extends TestCase
             ]);
         }
 
-        $bill = $this->postJson(route('purchases.store'), [
+        $firstBill = $this->postJson(route('purchases.store'), [
             'supplier_uuid' => $this->supplier->uuid,
             'warehouse_uuid' => $this->warehouse->uuid,
             'goods_receipt_note_uuid' => $grn->uuid,
             'purchase_date' => now()->toDateString(),
             'items' => [[
                 'goods_receipt_note_item_uuid' => $grnItem->uuid,
-                'quantity' => 2,
+                'quantity' => 1,
                 'unit_cost' => 4500,
             ]],
         ])->assertCreated();
 
-        $this->postJson("/api/purchases/{$bill->json('data.uuid')}/confirm")
+        $this->postJson("/api/purchases/{$firstBill->json('data.uuid')}/confirm")
             ->assertOk();
 
         app(TenantManager::class)->setTenant($this->tenant);
@@ -385,12 +408,9 @@ class PurchaseGrnAllocationTest extends TestCase
             'status' => 'AVAILABLE',
         ]);
 
-        $this->assertDatabaseHas('product_serials', [
+        $this->assertDatabaseMissing('product_serials', [
             'tenant_id' => $this->tenant->id,
             'serial_number' => 'GRN-SERIAL-POST-002',
-            'sourceable_type' => GoodsReceiptNote::class,
-            'sourceable_id' => $grn->id,
-            'status' => 'AVAILABLE',
         ]);
 
         $stock = ProductStock::query()
@@ -399,6 +419,34 @@ class PurchaseGrnAllocationTest extends TestCase
             ->where('warehouse_id', $this->warehouse->id)
             ->firstOrFail();
 
+        $this->assertEquals(1, (float) $stock->quantity);
+
+        $secondBill = $this->postJson(route('purchases.store'), [
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'goods_receipt_note_uuid' => $grn->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [[
+                'goods_receipt_note_item_uuid' => $grnItem->uuid,
+                'quantity' => 1,
+                'unit_cost' => 4500,
+            ]],
+        ])->assertCreated();
+
+        $this->postJson("/api/purchases/{$secondBill->json('data.uuid')}/confirm")
+            ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $this->assertDatabaseHas('product_serials', [
+            'tenant_id' => $this->tenant->id,
+            'serial_number' => 'GRN-SERIAL-POST-002',
+            'sourceable_type' => GoodsReceiptNote::class,
+            'sourceable_id' => $grn->id,
+            'status' => 'AVAILABLE',
+        ]);
+
+        $stock->refresh();
         $this->assertEquals(2, (float) $stock->quantity);
     }
 
