@@ -217,10 +217,13 @@ class GoodsReceiptNoteInventoryBatchServiceTest extends TestCase
             $batchService
         );
 
+        $grnBatch = $this->makeGrnBatch();
+        $grnBatch->quantity = 12;
+
         $result = $service->resolve(
             $this->makeGrn(),
             $this->makeItem(),
-            $this->makeGrnBatch(),
+            $grnBatch,
             8000.0,
         );
 
