@@ -3,6 +3,7 @@
 namespace Tests\Feature\Purchase;
 
 use App\Modules\Tenant\Models\Tenant;
+use App\Core\Tenant\TenantManager;
 use App\Modules\User\Models\User;
 use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Warehouse\Models\Warehouse;
@@ -136,6 +137,9 @@ class PurchaseGrnAllocationTest extends TestCase
         $bill1->assertCreated();
         $this->postJson("/api/purchases/{$bill1->json('data.uuid')}/confirm")->assertOk();
 
+        // Restore tenant scope after the API middleware clears its context.
+        app(TenantManager::class)->setTenant($this->tenant);
+
         // The first approved bill posts the complete physical GRN receipt.
         $stockAfterFirstBill = ProductStock::query()
             ->where('product_id', $this->product->id)
@@ -160,6 +164,9 @@ class PurchaseGrnAllocationTest extends TestCase
         ]);
         $bill2->assertCreated();
         $this->postJson("/api/purchases/{$bill2->json('data.uuid')}/confirm")->assertOk();
+
+        // Restore tenant scope after the second API request.
+        app(TenantManager::class)->setTenant($this->tenant);
 
         // A second bill for the same GRN must not repost the same stock.
         $this->assertEquals(
