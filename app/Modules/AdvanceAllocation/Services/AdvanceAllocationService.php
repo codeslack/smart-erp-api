@@ -100,7 +100,18 @@ class AdvanceAllocationService
                 $amount
             ) {
 
-                // Serialize allocation with payment reversal by locking the same source row.
+                // Match Sale confirmation: lock the target document before source payments.
+                $sale = Sale::query()
+                    ->whereKey($sale->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $sale) {
+                    throw new BusinessException(
+                        'Sales invoice not found.'
+                    );
+                }
+
                 $lockedPayment = Payment::query()
                     ->whereKey($payment->id)
                     ->lockForUpdate()
@@ -123,28 +134,13 @@ class AdvanceAllocationService
                     );
                 }
 
-                // All eligibility and balance checks must use the locked, current row.
                 $payment = $lockedPayment;
 
-                $availableAdvance =
-                    $this->getAvailableCustomerAdvance(
-                        $payment
-                    );
+                $availableAdvance = $this->getAvailableCustomerAdvance($payment);
 
                 if ($amount <= 0 || $amount > $availableAdvance) {
                     throw new BusinessException(
                         'Customer advance balance is insufficient.'
-                    );
-                }
-
-                $sale = Sale::query()
-                    ->whereKey($sale->id)
-                    ->lockForUpdate()
-                    ->first();
-
-                if (! $sale) {
-                    throw new BusinessException(
-                        'Sales invoice not found.'
                     );
                 }
 
@@ -197,7 +193,18 @@ class AdvanceAllocationService
                 $amount
             ) {
 
-                // Match the customer-advance lock order: source payment, then target document.
+                // Match Purchase confirmation: lock the target document before source payments.
+                $purchase = Purchase::query()
+                    ->whereKey($purchase->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $purchase) {
+                    throw new BusinessException(
+                        'Purchase bill not found.'
+                    );
+                }
+
                 $lockedPayment = Payment::query()
                     ->whereKey($payment->id)
                     ->lockForUpdate()
@@ -222,19 +229,7 @@ class AdvanceAllocationService
 
                 $payment = $lockedPayment;
 
-                $purchase = Purchase::query()
-                    ->whereKey($purchase->id)
-                    ->lockForUpdate()
-                    ->first();
-
-                if (! $purchase) {
-                    throw new BusinessException(
-                        'Purchase bill not found.'
-                    );
-                }
-
-                $availableAdvance =
-                    $this->getAvailableSupplierAdvance($payment);
+                $availableAdvance = $this->getAvailableSupplierAdvance($payment);
 
                 if ($amount <= 0 || $amount > $availableAdvance) {
                     throw new BusinessException(
