@@ -8,7 +8,7 @@ use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
 use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
 use App\Modules\Accounting\Models\JournalEntry;
-use App\Modules\Accounting\Services\JournalEntryService;
+use App\Modules\Accounting\Services\JournalEntry\JournalEntryService;
 
 use App\Modules\Inventory\Models\StockLedger;
 
