@@ -13,6 +13,9 @@ use App\Modules\User\Models\User;
 use App\Modules\Customer\Models\Customer;
 use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Sales\Models\Sale;
+use App\Modules\Purchase\Models\Purchase;
+use App\Modules\Warehouse\Models\Warehouse;
+use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\SalesReturn\Models\SalesReturn;
 use App\Modules\SalesReturn\Enums\SalesReturnStatus;
 use App\Modules\Payment\Models\Payment;
@@ -25,6 +28,7 @@ use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
 use App\Modules\Accounting\Services\AccountingSetupService;
 use App\Modules\Accounting\Services\Postings\SalesPostingService;
+use App\Modules\Accounting\Services\Postings\PurchasePostingService;
 use App\Modules\Accounting\Services\Postings\SalesReturnPostingService;
 use App\Modules\Accounting\Services\Postings\PaymentPostingService;
 
@@ -95,6 +99,83 @@ class AccountingPostingsTest extends TestCase
             'reference_id' => $sale->id,
             'status' => JournalEntryStatusEnum::POSTED->value,
         ]);
+    }
+
+    public function test_foreign_currency_purchase_posts_base_and_foreign_amounts(): void
+    {
+        $warehouse = Warehouse::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Accounting Posting Warehouse',
+            'code' => 'WH-ACCOUNTING-POST',
+            'is_active' => true,
+        ]);
+
+        $purchase = Purchase::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $warehouse->id,
+            'purchase_no' => 'PUR-USD-101',
+            'purchase_date' => now()->toDateString(),
+            'currency_code' => 'USD',
+            'exchange_rate' => '83.250000',
+            'subtotal' => '82.0000',
+            'tax_amount' => '18.0000',
+            'grand_total' => '100.0000',
+            'paid_amount' => '0.0000',
+            'due_amount' => '100.0000',
+            'status' => 'confirmed',
+        ]);
+
+        app(PurchasePostingService::class)->post($purchase);
+
+        $journal = JournalEntry::query()
+            ->where('reference_type', Purchase::class)
+            ->where('reference_id', $purchase->id)
+            ->firstOrFail();
+
+        $this->assertSame('USD', $journal->currency_code);
+        $this->assertSame('83.25000000', $journal->exchange_rate);
+
+        $lines = $journal->lines()
+            ->with('account')
+            ->get()
+            ->keyBy(fn ($line) => $line->account->account_code);
+
+        $this->assertEquals(
+            6826.50,
+            (float) $lines->get(AccountingAccounts::INVENTORY)->debit
+        );
+        $this->assertEquals(
+            82.00,
+            (float) $lines->get(AccountingAccounts::INVENTORY)->foreign_debit
+        );
+
+        $this->assertEquals(
+            1498.50,
+            (float) $lines->get(AccountingAccounts::INPUT_TAX_RECEIVABLE)->debit
+        );
+        $this->assertEquals(
+            18.00,
+            (float) $lines->get(AccountingAccounts::INPUT_TAX_RECEIVABLE)->foreign_debit
+        );
+
+        $this->assertEquals(
+            8325.00,
+            (float) $lines->get(AccountingAccounts::ACCOUNTS_PAYABLE)->credit
+        );
+        $this->assertEquals(
+            100.00,
+            (float) $lines->get(AccountingAccounts::ACCOUNTS_PAYABLE)->foreign_credit
+        );
+
+        $this->assertEquals(
+            8325.00,
+            (float) $journal->lines()->sum('debit')
+        );
+        $this->assertEquals(
+            8325.00,
+            (float) $journal->lines()->sum('credit')
+        );
     }
 
     public function test_sales_return_posting_creates_posted_journal_entry(): void
