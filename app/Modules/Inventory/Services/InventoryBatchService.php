@@ -9,6 +9,8 @@ use App\Core\Exceptions\BusinessException;
 
 use App\Modules\Inventory\Models\ProductBatch;
 use App\Modules\Inventory\Enums\ProductBatchStatusEnum;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Carbon;
 
 use App\Modules\Inventory\Repositories\Contracts\ProductBatchRepositoryInterface;
 
@@ -160,6 +162,30 @@ class InventoryBatchService
         ) {
             throw new BusinessException(
                 'Batch does not belong to the specified product, warehouse, and variant.'
+            );
+        }
+    }
+
+    /**
+     * Ensure a batch is active and not expired on the inventory transaction date.
+     */
+    public function validateAvailableForIssue(
+        ProductBatch $batch,
+        CarbonInterface|string $transactionDate,
+    ): void {
+        if ($batch->status !== ProductBatchStatusEnum::ACTIVE) {
+            throw new BusinessException(
+                'Only active batches can be issued from inventory.'
+            );
+        }
+
+        $expiryDate = $batch->expiry_date?->toDateString();
+        $issueDate = Carbon::parse($transactionDate)->toDateString();
+
+        // Expiry date is inclusive: a batch remains valid through that day.
+        if ($expiryDate !== null && $expiryDate < $issueDate) {
+            throw new BusinessException(
+                "Batch {$batch->batch_no} expired on {$expiryDate} and cannot be issued on {$issueDate}."
             );
         }
     }
