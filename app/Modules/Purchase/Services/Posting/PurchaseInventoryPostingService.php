@@ -3,6 +3,8 @@
 namespace App\Modules\Purchase\Services\Posting;
 
 use App\Modules\Purchase\Models\Purchase;
+use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNote;
+use App\Modules\GoodsReceiptNote\Services\Inventory\GoodsReceiptNoteInventoryPostingService;
 use App\Modules\Purchase\Models\PurchaseItem;
 use App\Modules\Purchase\Models\PurchaseItemBatch;
 use App\Modules\Purchase\Models\PurchaseItemSerial;
@@ -22,16 +24,31 @@ class PurchaseInventoryPostingService
         protected InventoryBatchService $inventoryBatchService,
         protected InventorySerialRegistrationService $serialRegistrationService,
         protected ProductUnitService $productUnitService,
+        protected GoodsReceiptNoteInventoryPostingService $goodsReceiptNoteInventoryPostingService,
     ) {}
 
     public function post(Purchase $purchase): void
     {
-        // Rule: If linked to a confirmed GRN, stock was already posted by GRN. Do not post again!
-        if ($purchase->goods_receipt_note_id !== null) {
-            return;
+        $purchase->loadMissing(['items.product', 'items.batches', 'items.serials']);
+
+        $hasGrnLinkedItems = $purchase->items->contains(
+            fn (PurchaseItem $item) => $item->goods_receipt_note_item_id !== null
+        );
+
+        if ($purchase->goods_receipt_note_id === null && $hasGrnLinkedItems) {
+            throw new BusinessException(
+                'Purchase lines linked to a GRN item require the matching GRN header reference.'
+            );
         }
 
-        $purchase->loadMissing(['items.product', 'items.batches', 'items.serials']);
+        // GRN receipt quantities become inventory only when a Purchase is approved.
+        if ($purchase->goods_receipt_note_id !== null) {
+            $grn = GoodsReceiptNote::query()
+                ->whereKey($purchase->goods_receipt_note_id)
+                ->firstOrFail();
+
+            $this->goodsReceiptNoteInventoryPostingService->post($grn);
+        }
 
         foreach ($purchase->items as $item) {
             // Rule: Do not post stock for individual lines linked to a GRN item
