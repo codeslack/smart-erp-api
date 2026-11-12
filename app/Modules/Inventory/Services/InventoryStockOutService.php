@@ -64,6 +64,11 @@ class InventoryStockOutService
                         warehouseId: $movement->warehouseId,
                         productVariantId: $movement->productVariantId,
                     );
+
+                    $this->batchService->validateAvailableForIssue(
+                        $batch,
+                        $movement->transactionDate,
+                    );
                 }
 
                 $stock =
