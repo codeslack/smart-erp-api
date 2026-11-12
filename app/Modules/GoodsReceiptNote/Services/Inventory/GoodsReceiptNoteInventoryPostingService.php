@@ -37,9 +37,17 @@ class GoodsReceiptNoteInventoryPostingService
      * Post inventory movements for a confirmed GRN.
      */
     public function post(
-        GoodsReceiptNote $goodsReceiptNote
+        GoodsReceiptNote $goodsReceiptNote,
+        string $currencyCode = 'INR',
+        string|float $exchangeRate = '1.00000000',
+        string $baseCurrency = 'INR',
     ): Collection {
-        return DB::transaction(function () use ($goodsReceiptNote) {
+        return DB::transaction(function () use (
+            $goodsReceiptNote,
+            $currencyCode,
+            $exchangeRate,
+            $baseCurrency,
+        ) {
             $grn = GoodsReceiptNote::query()
                 ->with([
                     'items.product',
@@ -54,6 +62,54 @@ class GoodsReceiptNoteInventoryPostingService
                 throw ValidationException::withMessages([
                     'status' => [
                         'Inventory can only be posted for a confirmed goods receipt note.',
+                    ],
+                ]);
+            }
+
+            $baseCurrency = strtoupper(trim($baseCurrency));
+            $currencyCode = strtoupper(trim($currencyCode ?: $baseCurrency));
+            $exchangeRate = bcadd((string) $exchangeRate, '0', 8);
+
+            if (
+                ! preg_match('/^[A-Z]{3}$/', $currencyCode)
+                || $baseCurrency === ''
+                || bccomp($exchangeRate, '0.00000000', 8) <= 0
+            ) {
+                throw ValidationException::withMessages([
+                    'currency' => [
+                        'A valid GRN inventory currency and positive exchange rate are required.',
+                    ],
+                ]);
+            }
+
+            if (
+                $currencyCode === $baseCurrency
+                && bccomp($exchangeRate, '1.00000000', 8) !== 0
+            ) {
+                throw ValidationException::withMessages([
+                    'exchange_rate' => [
+                        'Exchange rate must be 1 when the inventory currency matches company base currency.',
+                    ],
+                ]);
+            }
+
+            $storedCurrency = strtoupper(
+                (string) ($grn->inventory_currency_code ?? $baseCurrency)
+            );
+            $storedRate = (string) (
+                $grn->inventory_exchange_rate ?? '1.00000000'
+            );
+
+            if (
+                ($grn->inventory_currency_code !== null || $grn->inventory_exchange_rate !== null)
+                && (
+                    $storedCurrency !== $currencyCode
+                    || bccomp($storedRate, $exchangeRate, 8) !== 0
+                )
+            ) {
+                throw ValidationException::withMessages([
+                    'currency' => [
+                        'A GRN inventory valuation currency and exchange rate cannot change after its first Purchase approval.',
                     ],
                 ]);
             }
@@ -77,6 +133,27 @@ class GoodsReceiptNoteInventoryPostingService
                     && $activeLedgers->count() === $expectedCount
                     && $existingLedgers->count() === $expectedCount
                 ) {
+                    if (
+                        $grn->inventory_currency_code === null
+                        && $grn->inventory_exchange_rate === null
+                    ) {
+                        if (
+                            $currencyCode !== $baseCurrency
+                            || bccomp($exchangeRate, '1.00000000', 8) !== 0
+                        ) {
+                            throw ValidationException::withMessages([
+                                'currency' => [
+                                    'Legacy GRN inventory was valued in base currency and cannot be revalued by a later Purchase.',
+                                ],
+                            ]);
+                        }
+
+                        $grn->update([
+                            'inventory_currency_code' => $baseCurrency,
+                            'inventory_exchange_rate' => '1.00000000',
+                        ]);
+                    }
+
                     return $activeLedgers;
                 }
 
@@ -106,7 +183,11 @@ class GoodsReceiptNoteInventoryPostingService
                     continue;
                 }
 
-                $baseCost = (float) $item->base_unit_cost;
+                $baseCost = (float) bcmul(
+                    (string) $item->base_unit_cost,
+                    $exchangeRate,
+                    8,
+                );
 
                 if (
                     $product->inventory_tracking_type === InventoryTrackingTypeEnum::BATCH
@@ -191,6 +272,11 @@ class GoodsReceiptNoteInventoryPostingService
 
                 $ledgers->push($posted);
             }
+
+            $grn->update([
+                'inventory_currency_code' => $currencyCode,
+                'inventory_exchange_rate' => $exchangeRate,
+            ]);
 
             return $ledgers;
         });
