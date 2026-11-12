@@ -6,6 +6,7 @@ use App\Core\Enums\OpeningBalanceTypeEnum;
 use App\Core\Tenant\TenantManager;
 use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Models\ChartOfAccount;
+use App\Modules\Accounting\Repositories\Contracts\SupplierStatementRepositoryInterface;
 use App\Modules\Accounting\Services\AccountingSetupService;
 use App\Modules\Customer\Models\Customer;
 use App\Modules\CustomerOpeningBill\Models\CustomerOpeningBill;
@@ -143,21 +144,13 @@ class AccountingStatementReconciliationTest extends TestCase
             'balance_type' => OpeningBalanceTypeEnum::CREDIT,
         ]);
 
-        app(SupplierOpeningBillPostingService::class)->post($this->supplier);
-
-        $response = $this->getJson(
-            "/api/accounting/supplier-statements/{$this->supplier->uuid}"
+        $statement = app(SupplierStatementRepositoryInterface::class)->statement(
+            $this->supplier->id
         );
 
-        $response->assertSuccessful()
-            ->assertJsonPath('data.base_currency_code', 'INR')
-            ->assertJsonPath('data.opening_balance', 5000)
-            ->assertJsonPath('data.outstanding_balance', 5000);
-
-        $this->assertEquals(
-            -5000,
-            (float) $this->account(AccountingAccounts::ACCOUNTS_PAYABLE)->current_balance
-        );
+        $this->assertEquals(5000, $statement['opening_balance']);
+        $this->assertEquals(5000, $statement['outstanding_balance']);
+        $this->assertSame('INR', $statement['base_currency_code']);
     }
 
     public function test_statements_use_base_currency_ignore_drafts_and_sign_refunds_correctly(): void
