@@ -15,6 +15,8 @@ use App\Modules\ProductUnit\Models\ProductUnit;
 use App\Modules\ProductUnit\Services\ProductUnitService;
 
 use App\Modules\PurchaseOrder\Models\PurchaseOrderItem;
+use App\Modules\Purchase\Models\Purchase;
+use App\Modules\Purchase\Enums\PurchaseStatusEnum;
 use App\Modules\PurchaseOrder\Repositories\Contracts\PurchaseOrderItemRepositoryInterface;
 
 use App\Modules\GoodsReceiptNote\Services\Inventory\GoodsReceiptNoteInventoryPostingService;
@@ -56,6 +58,40 @@ class GoodsReceiptNoteCancellationService
             }
 
             $this->rules->ensureCanCancel($grn);
+
+            /*
+             * Purchase approval owns the stock posting for a GRN.
+             * Once any linked Purchase is confirmed, the GRN is no
+             * longer cancellable; use a Purchase Return to reverse
+             * the approved commercial transaction.
+             */
+            $grnItemIds = $grn->items->pluck('id');
+
+            $hasConfirmedPurchase = Purchase::query()
+                ->whereIn('status', [
+                    PurchaseStatusEnum::CONFIRMED->value,
+                    PurchaseStatusEnum::PARTIALLY_PAID->value,
+                    PurchaseStatusEnum::PAID->value,
+                ])
+                ->where(function ($query) use ($grn, $grnItemIds) {
+                    $query->where(
+                        'goods_receipt_note_id',
+                        $grn->id
+                    )->orWhereHas(
+                        'items',
+                        fn ($items) => $items->whereIn(
+                            'goods_receipt_note_item_id',
+                            $grnItemIds
+                        )
+                    );
+                })
+                ->exists();
+
+            if ($hasConfirmedPurchase) {
+                throw new BusinessException(
+                    'Cannot cancel a GRN after a linked Purchase has been approved. Create a Purchase Return instead.'
+                );
+            }
 
             $purchaseOrder = $grn->purchaseOrder;
 
