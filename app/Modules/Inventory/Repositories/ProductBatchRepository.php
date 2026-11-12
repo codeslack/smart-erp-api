@@ -7,6 +7,7 @@ use Illuminate\Support\Collection;
 use App\Core\Repositories\BaseRepository;
 
 use App\Modules\Inventory\Models\ProductBatch;
+use App\Modules\Inventory\Enums\ProductBatchStatusEnum;
 use App\Modules\Inventory\Repositories\Contracts\ProductBatchRepositoryInterface;
 
 class ProductBatchRepository
