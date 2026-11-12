@@ -46,6 +46,14 @@ class OpeningStockInventoryPostingService
     {
         DB::transaction(function () use ($openingStock) {
 
+            // Always validate the current persisted state under lock. The
+            // caller may hold a stale draft model from before another request
+            // completed posting.
+            $openingStock = OpeningStock::query()
+                ->whereKey($openingStock->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
             $this->ensureDraft($openingStock);
 
             $openingStock->loadMissing([
@@ -117,6 +125,12 @@ class OpeningStockInventoryPostingService
     public function unpost(OpeningStock $openingStock): void
     {
         DB::transaction(function () use ($openingStock) {
+
+            // Serialize unposting with posting and other reversal attempts.
+            $openingStock = OpeningStock::query()
+                ->whereKey($openingStock->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
 
             $this->ensureConfirmed($openingStock);
 
