@@ -150,7 +150,9 @@ class AccountingStatementReconciliationTest extends TestCase
         fwrite(STDERR, "SUP-TEST-3\n");
 
         fwrite(STDERR, "SUP-TEST-4\n");
-        $statement = (new SupplierStatementRepository())->statement(
+        $statementRepository = new SupplierStatementRepository();
+        fwrite(STDERR, "SUP-TEST-4A\n");
+        $statement = $statementRepository->statement(
             $this->supplier->id,
             now()->toDateString(),
             now()->toDateString(),
