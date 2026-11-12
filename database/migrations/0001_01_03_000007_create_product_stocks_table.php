@@ -11,27 +11,13 @@ return new class extends Migration
         Schema::create('product_stocks', function (
             Blueprint $table
         ) {
-
             $table->id();
 
-            $table->uuid('uuid')
-                ->unique();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Tenant
-            |--------------------------------------------------------------------------
-            */
+            $table->uuid('uuid')->unique();
 
             $table->foreignId('tenant_id')
                 ->constrained('tenants')
                 ->cascadeOnDelete();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Relations
-            |--------------------------------------------------------------------------
-            */
 
             $table->foreignId('product_id')
                 ->constrained('products')
@@ -42,68 +28,34 @@ return new class extends Migration
                 ->constrained('product_variants')
                 ->nullOnDelete();
 
+            /*
+             * Normalize NULL variants to 0 so the unique constraint
+             * also protects non-variant stock rows on MySQL.
+             */
+            $table->unsignedBigInteger('product_variant_key')
+                ->storedAs('COALESCE(product_variant_id, 0)');
+
             $table->foreignId('warehouse_id')
                 ->constrained('warehouses')
                 ->cascadeOnDelete();
 
-            /*
-            |--------------------------------------------------------------------------
-            | Current Stock Balance
-            |--------------------------------------------------------------------------
-            */
+            $table->decimal('quantity', 18, 4)->default(0);
+            $table->decimal('average_cost', 18, 4)->default(0);
 
-            $table->decimal(
-                'quantity',
-                18,
-                4
-            )->default(0);
-
-            /*
-            |--------------------------------------------------------------------------
-            | Weighted Average Cost
-            |--------------------------------------------------------------------------
-            */
-
-            $table->decimal(
-                'average_cost',
-                18,
-                4
-            )->default(0);
-
-            /*
-            |--------------------------------------------------------------------------
-            | Tracking
-            |--------------------------------------------------------------------------
-            */
-
-            $table->timestamp('last_movement_at')
-                ->nullable();
+            $table->timestamp('last_movement_at')->nullable();
 
             $table->timestamps();
-
             $table->softDeletes();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Constraints
-            |--------------------------------------------------------------------------
-            */
 
             $table->unique(
                 [
                     'tenant_id',
                     'product_id',
-                    'product_variant_id',
+                    'product_variant_key',
                     'warehouse_id',
                 ],
                 'product_stocks_unique'
             );
-
-            /*
-            |--------------------------------------------------------------------------
-            | Indexes
-            |--------------------------------------------------------------------------
-            */
 
             $table->index([
                 'tenant_id',
@@ -124,8 +76,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists(
-            'product_stocks'
-        );
+        Schema::dropIfExists('product_stocks');
     }
 };
