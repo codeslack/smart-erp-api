@@ -175,7 +175,7 @@ class AccountingSetupTest extends TestCase
         );
 
         $this->assertEquals(
-            16,
+            17,
             ChartOfAccount::query()
                 ->where(
                     'tenant_id',
