@@ -51,6 +51,13 @@ class ProductStock extends TenantModel
     |--------------------------------------------------------------------------
     */
 
+    public function setProductVariantIdAttribute(
+        ?int $value
+    ): void {
+        $this->attributes['product_variant_id'] = $value;
+        $this->attributes['product_variant_key'] = $value ?? 0;
+    }
+
     public function product(): BelongsTo
     {
         return $this->belongsTo(
