@@ -50,7 +50,7 @@ class AccountingSetupTest extends TestCase
 
         $this->assertDatabaseCount(
             'chart_of_accounts',
-            16
+            17
         );
 
         $this->assertDatabaseHas(
@@ -108,6 +108,17 @@ class AccountingSetupTest extends TestCase
                 'account_code' => AccountingAccounts::OPENING_BALANCE_EQUITY,
                 'account_name' => 'Opening Balance Equity',
                 'account_type' => AccountType::EQUITY,
+            ]
+        );
+
+        $this->assertDatabaseHas(
+            'chart_of_accounts',
+            [
+                'tenant_id' => $this->tenant->id,
+                'account_code' => AccountingAccounts::PURCHASE_RETURN_VARIANCE,
+                'account_name' => 'Purchase Return Valuation Variance',
+                'account_type' => AccountType::EXPENSE,
+                'is_system' => true,
             ]
         );
     }
