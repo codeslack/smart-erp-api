@@ -16,6 +16,7 @@ use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 use App\Modules\Purchase\Models\Purchase;
 use App\Modules\Payment\Models\Payment;
 use App\Modules\AdvanceAllocation\Models\AdvanceAllocation;
+use App\Modules\AdvanceAllocation\Services\AdvanceAllocationService;
 use App\Modules\Payment\Services\Contracts\PaymentServiceInterface;
 use App\Modules\Payment\Enums\PaymentTypeEnum;
 use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
@@ -420,6 +421,75 @@ class PurchaseDirectConfirmationTest extends TestCase
                 ->where('target_id', $purchase->id)
                 ->count()
         );
+    }
+
+
+    public function test_reversed_supplier_advance_cannot_be_allocated_to_purchase(): void
+    {
+        $cashAccount = ChartOfAccount::query()
+            ->where('tenant_id', $this->tenant->id)
+            ->where('account_code', '1010')
+            ->firstOrFail();
+
+        $paymentService = app(PaymentServiceInterface::class);
+
+        $advance = $paymentService->create([
+            'uuid' => (string) str()->uuid(),
+            'tenant_id' => $this->tenant->id,
+            'payment_no' => 'SUP-ADV-REVERSED-' . uniqid(),
+            'payment_type' => PaymentTypeEnum::PAYMENT->value,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_ADVANCE->value,
+            'payment_date' => now()->toDateString(),
+            'party_type' => PaymentPartyTypeEnum::SUPPLIER->value,
+            'party_id' => $this->supplier->id,
+            'account_id' => $cashAccount->id,
+            'amount' => 100,
+            'payment_method' => PaymentMethodEnum::CASH->value,
+        ]);
+
+        $advance = $paymentService->confirm($advance);
+        $paymentService->reverse($advance);
+
+        $purchaseResponse = $this->postJson(route('purchases.store'), [
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [[
+                'product_uuid' => $this->product->uuid,
+                'product_variant_uuid' => $this->variant->uuid,
+                'quantity' => 1,
+                'unit_cost' => 150,
+            ]],
+        ])->assertCreated();
+
+        $purchase = Purchase::query()
+            ->where('uuid', $purchaseResponse->json('data.uuid'))
+            ->firstOrFail();
+
+        try {
+            app(AdvanceAllocationService::class)
+                ->allocateSupplierAdvance(
+                    $advance->fresh(),
+                    $purchase,
+                    50,
+                );
+
+            $this->fail('A reversed supplier advance must not be allocatable.');
+        } catch (BusinessException $exception) {
+            $this->assertSame(
+                'Only confirmed supplier advances can be allocated.',
+                $exception->getMessage()
+            );
+        }
+
+        $this->assertSame('reversed', $advance->fresh()->status);
+
+        $this->assertDatabaseMissing('advance_allocations', [
+            'source_type' => Payment::class,
+            'source_id' => $advance->id,
+            'target_type' => Purchase::class,
+            'target_id' => $purchase->id,
+        ]);
     }
 
 }
