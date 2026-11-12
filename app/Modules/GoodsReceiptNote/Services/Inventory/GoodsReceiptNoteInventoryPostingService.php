@@ -57,11 +57,7 @@ class GoodsReceiptNoteInventoryPostingService
                 );
 
             if ($existingLedgers->isNotEmpty()) {
-                throw ValidationException::withMessages([
-                    'inventory' => [
-                        'Inventory has already been posted for this goods receipt note.',
-                    ],
-                ]);
+                return $existingLedgers;
             }
 
             if ($grn->items->isEmpty()) {
@@ -203,15 +199,7 @@ class GoodsReceiptNoteInventoryPostingService
             );
 
             if ($originalLedgers->isEmpty()) {
-                if (! $hasStockItems) {
-                    return;
-                }
-
-                throw ValidationException::withMessages([
-                    'inventory' => [
-                        'No original inventory entries were found to reverse.',
-                    ],
-                ]);
+                return;
             }
 
             foreach ($originalLedgers as $ledger) {
