@@ -89,12 +89,12 @@ class TaxCalculationService
             );
         }
 
-        if ($input->roundingMode->value === 'PER_COMPONENT') {
-            $calculatedComponents = $this->roundingCalculator->roundComponents(
+        $calculatedComponents = $this->roundingCalculator
+            ->roundComponentsForMode(
                 $calculatedComponents,
+                $input->roundingMode,
                 $decimalPlaces,
             );
-        }
 
         $totalTax = array_sum(
             array_map(
@@ -108,8 +108,9 @@ class TaxCalculationService
             $decimalPlaces,
         );
 
-        $totalTax = $this->roundingCalculator->round(
+        $totalTax = $this->roundingCalculator->roundTotalTax(
             $totalTax,
+            $input->roundingMode,
             $decimalPlaces,
         );
 
