@@ -10,7 +10,6 @@ use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
 
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNote;
-use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNoteItem;
 
 use App\Modules\Inventory\Data\InventoryReversalData;
 
@@ -191,12 +190,6 @@ class GoodsReceiptNoteInventoryPostingService
                     (int) $grn->getKey(),
                     InventoryTransactionTypeEnum::PURCHASE->value,
                 );
-
-            $hasStockItems = $grn->items->contains(
-                fn(GoodsReceiptNoteItem $item) =>
-                $item->product !== null
-                    && $item->product->requiresStock()
-            );
 
             if ($originalLedgers->isEmpty()) {
                 return;
