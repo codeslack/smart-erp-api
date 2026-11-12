@@ -11,6 +11,7 @@ use App\Modules\Purchase\Models\PurchaseItemSerial;
 use App\Core\Exceptions\BusinessException;
 use App\Modules\ProductUnit\Models\ProductUnit;
 use App\Modules\ProductUnit\Services\ProductUnitService;
+use App\Modules\Settings\Models\Setting;
 use App\Modules\Inventory\Services\InventoryPostingService;
 use App\Modules\Inventory\Services\InventoryBatchService;
 use App\Modules\Inventory\Services\Serial\InventorySerialRegistrationService;
