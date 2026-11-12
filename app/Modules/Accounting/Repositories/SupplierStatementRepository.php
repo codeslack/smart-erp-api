@@ -34,21 +34,30 @@ class SupplierStatementRepository implements SupplierStatementRepositoryInterfac
         ?string $fromDate = null,
         ?string $toDate = null
     ): array {
+        fwrite(STDERR, "SUP-REPO-A\\n");
         $supplier = Supplier::query()->findOrFail($supplierId);
+        fwrite(STDERR, "SUP-REPO-B\\n");
         $baseCurrency = $this->baseCurrencyCode();
 
+        fwrite(STDERR, "SUP-REPO-C\\n");
         $openingBalance = $this->calculateOpeningBalance(
             $supplierId,
             $fromDate,
             $toDate,
         );
 
+        fwrite(STDERR, "SUP-REPO-D\\n");
         $transactions = collect();
 
+        fwrite(STDERR, "SUP-REPO-E\\n");
         $this->loadOpeningBills($transactions, $supplierId, $fromDate, $toDate, $baseCurrency);
+        fwrite(STDERR, "SUP-REPO-F\\n");
         $this->loadPurchases($transactions, $supplierId, $fromDate, $toDate);
+        fwrite(STDERR, "SUP-REPO-G\\n");
         $this->loadPurchaseReturns($transactions, $supplierId, $fromDate, $toDate);
+        fwrite(STDERR, "SUP-REPO-H\\n");
         $this->loadPayments($transactions, $supplierId, $fromDate, $toDate, $baseCurrency);
+        fwrite(STDERR, "SUP-REPO-I\\n");
 
         $transactions = $this->sortTransactions($transactions);
 
