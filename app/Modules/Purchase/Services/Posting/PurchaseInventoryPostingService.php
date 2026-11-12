@@ -6,6 +6,8 @@ use App\Modules\Purchase\Models\Purchase;
 use App\Modules\Purchase\Models\PurchaseItem;
 use App\Modules\Purchase\Models\PurchaseItemBatch;
 use App\Modules\Purchase\Models\PurchaseItemSerial;
+use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNote;
+use App\Modules\GoodsReceiptNote\Services\Inventory\GoodsReceiptNoteInventoryPostingService;
 use App\Core\Exceptions\BusinessException;
 use App\Modules\ProductUnit\Models\ProductUnit;
 use App\Modules\ProductUnit\Services\ProductUnitService;
@@ -22,16 +24,50 @@ class PurchaseInventoryPostingService
         protected InventoryBatchService $inventoryBatchService,
         protected InventorySerialRegistrationService $serialRegistrationService,
         protected ProductUnitService $productUnitService,
+        protected GoodsReceiptNoteInventoryPostingService $goodsReceiptNoteInventoryPostingService,
     ) {}
 
     public function post(Purchase $purchase): void
     {
-        // Rule: If linked to a confirmed GRN, stock was already posted by GRN. Do not post again!
+        $purchase->loadMissing([
+            'items.product',
+            'items.batches',
+            'items.serials',
+            'items.goodsReceiptNoteItem',
+        ]);
+
+        /*
+         * GRN confirmation records the physical receipt and PO quantities.
+         * Inventory V4 stock posting is deliberately deferred until a
+         * linked Purchase is approved. A GRN can have multiple bills, so
+         * its full receipt is posted once and subsequent bills reuse it.
+         */
+        $grnIds = collect();
+
         if ($purchase->goods_receipt_note_id !== null) {
-            return;
+            $grnIds->push((int) $purchase->goods_receipt_note_id);
         }
 
-        $purchase->loadMissing(['items.product', 'items.batches', 'items.serials']);
+        foreach ($purchase->items as $purchaseItem) {
+            $grnItem = $purchaseItem->goodsReceiptNoteItem;
+
+            if ($grnItem !== null) {
+                $grnIds->push((int) $grnItem->goods_receipt_note_id);
+            }
+        }
+
+        foreach ($grnIds->filter()->unique()->sort()->values() as $grnId) {
+            $grn = GoodsReceiptNote::query()
+                ->findOrFail((int) $grnId);
+
+            if (! $grn->isConfirmed()) {
+                throw new BusinessException(
+                    'A linked Goods Receipt Note must be confirmed before Purchase approval.'
+                );
+            }
+
+            $this->goodsReceiptNoteInventoryPostingService->post($grn);
+        }
 
         foreach ($purchase->items as $item) {
             // Rule: Do not post stock for individual lines linked to a GRN item
