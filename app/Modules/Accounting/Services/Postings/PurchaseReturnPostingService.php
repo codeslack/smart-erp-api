@@ -2,79 +2,233 @@
 
 namespace App\Modules\Accounting\Services\Postings;
 
+use App\Core\Exceptions\BusinessException;
+
 use App\Modules\Accounting\Enums\AccountingAccounts;
-use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
 use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
-use App\Modules\PurchaseReturn\Enums\PurchaseReturnRefundType;
+use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
+use App\Modules\Accounting\Models\JournalEntry;
+use App\Modules\Accounting\Services\JournalEntryService;
+
+use App\Modules\Inventory\Models\StockLedger;
+
 use App\Modules\PurchaseReturn\Models\PurchaseReturn;
+use App\Modules\PurchaseReturn\Enums\PurchaseReturnRefundType;
+
+use App\Modules\Settings\Models\Setting;
 
 class PurchaseReturnPostingService extends BasePostingService
 {
-    public function post(PurchaseReturn $purchaseReturn): void
-    {
-        $grandTotal = $this->decimal($purchaseReturn->grand_total);
-        $this->validateAmount($grandTotal);
+    public function __construct(
+        JournalEntryService $journalEntryService
+    ) {
+        parent::__construct($journalEntryService);
+    }
 
-        $purchaseReturn->loadMissing(['refundAccount']);
+    public function post(
+        PurchaseReturn $purchaseReturn
+    ): JournalEntry {
+        $purchaseReturn->loadMissing([
+            'refundAccount',
+            'purchase',
+        ]);
 
-        $taxAmount = (float) $purchaseReturn->tax_amount;
-        $inventoryAmount = max(0, (float) $purchaseReturn->grand_total - $taxAmount);
+        $purchase = $purchaseReturn->purchase;
 
-        $lines = [];
+        if (! $purchase || ! $purchase->exists) {
+            throw new BusinessException(
+                'The source purchase for this return could not be found.'
+            );
+        }
 
-        // Debit: Accounts Payable (for credit notes) or Refund Account (Cash/Bank)
-        if ($purchaseReturn->refund_type !== PurchaseReturnRefundType::CREDIT_NOTE && $purchaseReturn->refundAccount) {
-            $lines[] = [
-                'chart_of_account_uuid' => $purchaseReturn->refundAccount->uuid,
-                'debit' => $grandTotal,
-                'credit' => '0.0000',
-                'description' => "Purchase Return Refund {$purchaseReturn->return_no}",
+        $baseCurrency = strtoupper((string) (
+            Setting::query()
+                ->where('group', Setting::GROUP_COMPANY)
+                ->where('key', 'currency')
+                ->value('value') ?? 'INR'
+        ));
+
+        $currencyCode = strtoupper((string) (
+            $purchaseReturn->currency_code
+            ?: $purchase->currency_code
+            ?: $baseCurrency
+        ));
+
+        $exchangeRate = $this->decimalRate(
+            $purchaseReturn->exchange_rate
+            ?? $purchase->exchange_rate
+            ?? '1.00000000'
+        );
+
+        if (
+            ! preg_match('/^[A-Z]{3}$/', $currencyCode)
+            || $baseCurrency === ''
+            || bccomp($exchangeRate, '0.00000000', 8) <= 0
+        ) {
+            throw new BusinessException(
+                'Purchase return currency and exchange rate are invalid.'
+            );
+        }
+
+        if (
+            $currencyCode === $baseCurrency
+            && bccomp($exchangeRate, '1.00000000', 8) !== 0
+        ) {
+            throw new BusinessException(
+                'Purchase return exchange rate must be 1 when return currency matches company base currency.'
+            );
+        }
+
+        $grandTotal = $this->decimal(
+            $purchaseReturn->grand_total
+        );
+
+        $taxAmount = $this->decimal(
+            $purchaseReturn->tax_amount ?? '0'
+        );
+
+        if (bccomp($taxAmount, $grandTotal, 4) > 0) {
+            throw new BusinessException(
+                'Purchase return tax amount cannot exceed the return total.'
+            );
+        }
+
+        $baseGrandTotal = $this->decimal(
+            bcmul($grandTotal, $exchangeRate, 8)
+        );
+
+        $baseTaxAmount = $this->decimal(
+            bcmul($taxAmount, $exchangeRate, 8)
+        );
+
+        $baseNetTotal = bcsub(
+            $baseGrandTotal,
+            $baseTaxAmount,
+            4
+        );
+
+        $inventoryCost = $this->decimal(
+            StockLedger::query()
+                ->where('referenceable_type', PurchaseReturn::class)
+                ->where('referenceable_id', $purchaseReturn->id)
+                ->where('quantity_out', '>', 0)
+                ->sum('total_cost')
+        );
+
+        // Non-stock returns have no inventory ledger; preserve the existing
+        // expense/inventory treatment until item-level purchase account mapping
+        // is introduced for non-stock purchases.
+        if (bccomp($inventoryCost, '0.0000', 4) === 0) {
+            $inventoryCost = $baseNetTotal;
+        }
+
+        $variance = bcsub(
+            $baseNetTotal,
+            $inventoryCost,
+            4
+        );
+
+        $foreignInventoryCost = $this->decimal(
+            bcdiv($inventoryCost, $exchangeRate, 8)
+        );
+
+        $foreignVariance = $this->decimal(
+            bcdiv(
+                ltrim($variance, '-'),
+                $exchangeRate,
+                8
+            )
+        );
+
+        $refundType = $purchaseReturn->refund_type;
+
+        if (is_string($refundType)) {
+            $refundType = PurchaseReturnRefundType::from($refundType);
+        }
+
+        if ($refundType === PurchaseReturnRefundType::CREDIT_NOTE) {
+            $counterLines = [
+                $this->debit(
+                    AccountingAccounts::ACCOUNTS_PAYABLE,
+                    $baseGrandTotal,
+                    'Purchase return credit note',
+                    $grandTotal,
+                ),
             ];
         } else {
+            $refundAccount = $purchaseReturn->refundAccount;
+
+            if (! $refundAccount || ! $refundAccount->is_active) {
+                throw new BusinessException(
+                    'A valid active refund account is required for a supplier refund.'
+                );
+            }
+
+            $counterLines = [
+                $this->debit(
+                    $refundAccount->id,
+                    $baseGrandTotal,
+                    'Purchase return refund',
+                    $grandTotal,
+                ),
+            ];
+        }
+
+        $lines = array_merge(
+            $counterLines,
+            [
+                $this->credit(
+                    AccountingAccounts::INVENTORY,
+                    $inventoryCost,
+                    'Inventory returned to supplier',
+                    $foreignInventoryCost,
+                ),
+            ]
+        );
+
+        if (bccomp($baseTaxAmount, '0.0000', 4) > 0) {
+            $lines[] = $this->credit(
+                AccountingAccounts::INPUT_TAX,
+                $baseTaxAmount,
+                'Purchase return input tax reversal',
+                $taxAmount,
+            );
+        }
+
+        if (bccomp($variance, '0.0000', 4) > 0) {
+            $lines[] = $this->credit(
+                AccountingAccounts::PURCHASE_RETURN_VARIANCE,
+                $variance,
+                'Purchase return valuation gain',
+                $foreignVariance,
+            );
+        } elseif (bccomp($variance, '0.0000', 4) < 0) {
             $lines[] = $this->debit(
-                AccountingAccounts::ACCOUNTS_PAYABLE,
-                $grandTotal,
-                "Purchase Return {$purchaseReturn->return_no}"
+                AccountingAccounts::PURCHASE_RETURN_VARIANCE,
+                ltrim($variance, '-'),
+                'Purchase return valuation loss',
+                $foreignVariance,
             );
         }
-
-        // Credit: Inventory for goods cost returned
-        if ($inventoryAmount > 0) {
-            $lines[] = $this->credit(
-                AccountingAccounts::INVENTORY,
-                $this->decimal($inventoryAmount),
-                "Purchase Return Inventory {$purchaseReturn->return_no}"
-            );
-        }
-
-        // Credit: Input Tax Receivable for reversed tax
-        if ($taxAmount > 0) {
-            $lines[] = $this->credit(
-                AccountingAccounts::INPUT_TAX_RECEIVABLE,
-                $this->decimal($taxAmount),
-                "Purchase Return Tax {$purchaseReturn->return_no}"
-            );
-        }
-
-        $entryDate = $purchaseReturn->return_date instanceof \DateTimeInterface
-            ? $purchaseReturn->return_date->format('Y-m-d')
-            : (string) $purchaseReturn->return_date;
 
         $entry = $this->journalEntryService->createAndPost([
-            'voucher_type' => JournalVoucherTypeEnum::PURCHASE_RETURN->value,
+            'tenant_id' => tenantId(),
             'reference_type' => PurchaseReturn::class,
             'reference_id' => $purchaseReturn->id,
-            'entry_date' => $entryDate,
-            'description' => "Purchase Return {$purchaseReturn->return_no}",
+            'voucher_type' => JournalVoucherTypeEnum::PURCHASE_RETURN,
+            'entry_date' => $purchaseReturn->return_date,
+            'description' => 'Purchase Return ' . $purchaseReturn->return_no,
+            'currency_code' => $currencyCode,
+            'exchange_rate' => $exchangeRate,
             'status' => JournalEntryStatusEnum::DRAFT,
-            'created_by' => auth()->id() ?? userId(),
+            'created_by' => userId(),
             'lines' => $lines,
         ]);
 
-        if ($entry) {
-            $purchaseReturn->update([
-                'journal_entry_id' => $entry->id,
-            ]);
-        }
+        $purchaseReturn->update([
+            'journal_entry_id' => $entry->id,
+        ]);
+
+        return $entry;
     }
 }
