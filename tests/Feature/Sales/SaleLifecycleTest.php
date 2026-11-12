@@ -3,6 +3,8 @@
 namespace Tests\Feature\Sales;
 
 use App\Core\Tenant\TenantManager;
+use App\Core\Exceptions\BusinessException;
+use App\Core\Enums\DocumentStatusEnum;
 use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
 use App\Modules\Accounting\Models\ChartOfAccount;
@@ -812,6 +814,22 @@ class SaleLifecycleTest extends TestCase
             'allocated_amount' => 50,
         ]);
 
+        try {
+            app(PaymentServiceInterface::class)->reverse($advancePayment);
+
+            $this->fail('An allocated customer advance must not be reversible.');
+        } catch (BusinessException $exception) {
+            $this->assertStringContainsString(
+                'Release all customer advance allocations',
+                $exception->getMessage()
+            );
+        }
+
+        $this->assertSame(
+            DocumentStatusEnum::CONFIRMED->value,
+            $advancePayment->fresh()->status
+        );
+
         $this->postJson(route('sales.cancel', $saleUuid), [
             'reason' => 'Customer cancelled after advance adjustment',
         ])->assertOk();
@@ -835,6 +853,98 @@ class SaleLifecycleTest extends TestCase
             app(AdvanceAllocationService::class)
                 ->getAvailableCustomerAdvance($advancePayment->fresh())
         );
+
+        app(PaymentServiceInterface::class)->reverse($advancePayment);
+
+        $this->assertSame(
+            DocumentStatusEnum::REVERSED->value,
+            $advancePayment->fresh()->status
+        );
+    }
+
+    public function test_reversed_customer_advance_cannot_be_allocated_to_sale(): void
+    {
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $cashAccount = ChartOfAccount::query()
+            ->where('account_code', AccountingAccounts::CASH)
+            ->firstOrFail();
+
+        $advancePayment = app(PaymentServiceInterface::class)->create([
+            'uuid' => (string) str()->uuid(),
+            'tenant_id' => $this->tenant->id,
+            'payment_no' => 'ADV-REVERSED-ALLOC-' . uniqid(),
+            'payment_type' => PaymentTypeEnum::RECEIPT->value,
+            'purpose' => PaymentPurposeEnum::CUSTOMER_ADVANCE->value,
+            'payment_date' => now()->toDateString(),
+            'party_type' => PaymentPartyTypeEnum::CUSTOMER->value,
+            'party_id' => $this->customer->id,
+            'account_id' => $cashAccount->id,
+            'amount' => 50,
+            'payment_method' => PaymentMethodEnum::CASH->value,
+        ]);
+
+        $advancePayment = app(PaymentServiceInterface::class)->confirm($advancePayment);
+
+        $serviceProduct = $this->createProduct([
+            'product_type' => ProductTypeEnum::SERVICE,
+            'purchase_price' => 0,
+            'selling_price' => 100,
+        ]);
+
+        $saleResponse = $this->postJson(route('sales.store'), [
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $serviceProduct->id,
+                'quantity' => 1,
+                'unit_price' => 100,
+            ]],
+        ])->assertCreated();
+
+        $saleUuid = $saleResponse->json('data.uuid');
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $sale = Sale::query()
+            ->where('uuid', $saleUuid)
+            ->firstOrFail();
+
+        app(PaymentServiceInterface::class)->reverse($advancePayment);
+
+        try {
+            app(AdvanceAllocationService::class)
+                ->allocateCustomerAdvance(
+                    $advancePayment->fresh(),
+                    $sale,
+                    25
+                );
+
+            $this->fail('A reversed customer advance must not be allocatable.');
+        } catch (BusinessException $exception) {
+            $this->assertStringContainsString(
+                'Only confirmed customer advances can be allocated.',
+                $exception->getMessage()
+            );
+        }
+
+        $this->assertSame(
+            DocumentStatusEnum::REVERSED->value,
+            $advancePayment->fresh()->status
+        );
+
+        $this->assertDatabaseMissing('advance_allocations', [
+            'source_type' => Payment::class,
+            'source_id' => $advancePayment->id,
+            'target_type' => Sale::class,
+            'target_id' => $sale->id,
+        ]);
+
+        $sale->refresh();
+
+        $this->assertEquals(0, (float) $sale->paid_amount);
+        $this->assertEquals(100, (float) $sale->due_amount);
     }
 
 

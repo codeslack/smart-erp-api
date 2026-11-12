@@ -10,7 +10,9 @@ use App\Core\Enums\DocumentStatusEnum;
 use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
 use App\Modules\Accounting\Services\AccountingReversalService;
 
+use App\Modules\Payment\Enums\PaymentPurposeEnum;
 use App\Modules\Payment\Enums\PaymentTypeEnum;
+use App\Modules\AdvanceAllocation\Models\AdvanceAllocation;
 use App\Modules\Payment\Models\Payment;
 
 use App\Modules\Payment\Services\Contracts\PaymentReversalServiceInterface;
@@ -53,6 +55,18 @@ class PaymentReversalService
                 $payment->load([
                     'allocations',
                 ]);
+
+                if (
+                    $payment->purpose === PaymentPurposeEnum::CUSTOMER_ADVANCE
+                    && AdvanceAllocation::query()
+                        ->where('source_type', Payment::class)
+                        ->where('source_id', $payment->id)
+                        ->exists()
+                ) {
+                    throw new BusinessException(
+                        'Release all customer advance allocations from Sales before reversing this payment.'
+                    );
+                }
 
                 $voucherType =
                     $payment->payment_type

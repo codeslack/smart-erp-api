@@ -5,6 +5,7 @@ namespace App\Modules\AdvanceAllocation\Services;
 use Illuminate\Support\Facades\DB;
 
 use App\Core\Exceptions\BusinessException;
+use App\Core\Enums\DocumentStatusEnum;
 
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Purchase\Models\Purchase;
@@ -98,6 +99,32 @@ class AdvanceAllocationService
                 $sale,
                 $amount
             ) {
+
+                // Serialize allocation with payment reversal by locking the same source row.
+                $lockedPayment = Payment::query()
+                    ->whereKey($payment->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $lockedPayment) {
+                    throw new BusinessException(
+                        'Customer advance payment not found.'
+                    );
+                }
+
+                $this->ensureCustomerAdvance($lockedPayment);
+
+                if (
+                    $lockedPayment->status
+                    !== DocumentStatusEnum::CONFIRMED->value
+                ) {
+                    throw new BusinessException(
+                        'Only confirmed customer advances can be allocated.'
+                    );
+                }
+
+                // All eligibility and balance checks must use the locked, current row.
+                $payment = $lockedPayment;
 
                 $availableAdvance =
                     $this->getAvailableCustomerAdvance(
