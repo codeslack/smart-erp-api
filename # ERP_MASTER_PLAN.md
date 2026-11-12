@@ -112,6 +112,12 @@ Before enabling any of them, verify service-provider registration, route loading
 
 Do not register a module solely because its directory exists.
 
+### P1 registration audit findings
+
+- **Delivery Note:** remains unregistered. Its legacy service uses race-prone `MAX(id) + 1` numbering, `abort()`-based business validation, and incorrect delivery-quantity handling. It also creates Sales records directly instead of using the complete Sale workflow. Do not activate it until it is rebuilt and covered by end-to-end tests.
+- **Stock Adjustment and Stock Transfer:** remain unregistered. Their models reference an obsolete `TenantModel` namespace, and both services depend on an `InventoryService` class that is absent from the current Inventory module. Their approval paths are not compatible with the current `InventoryPostingService` contract. Do not activate them until rebuilt on the current inventory posting and reversal services.
+- These directories are legacy scaffolding, not active capabilities. Their audit is complete; their implementation and activation remain separate future work.
+
 ---
 
 ## 4. Immediate priorities
