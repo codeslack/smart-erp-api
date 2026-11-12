@@ -345,7 +345,7 @@ class TaxCalculationServiceTest extends TestCase
 
         $this->assertSame(100.56, $result->taxableAmount);
         $this->assertSame(2.51, $result->totalTax);
-        $this->assertSame(103.07, $result->totalAmount);
+        $this->assertEqualsWithDelta(103.07, $result->totalAmount, 0.0000001);
         $this->assertEqualsWithDelta(
             1.2569375,
             $result->components[0]['tax_amount'],
