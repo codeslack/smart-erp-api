@@ -4,6 +4,8 @@ namespace App\Modules\Purchase\Services\Actions;
 
 use App\Core\Exceptions\BusinessException;
 use App\Modules\Purchase\Models\Purchase;
+use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNote;
+use App\Modules\GoodsReceiptNote\Services\Inventory\GoodsReceiptNoteInventoryPostingService;
 use App\Modules\Purchase\Enums\PurchaseStatusEnum;
 use App\Modules\Purchase\Repositories\Contracts\PurchaseRepositoryInterface;
 use App\Modules\Purchase\Services\Validators\PurchaseValidator;
@@ -19,6 +21,7 @@ class ConfirmPurchaseAction
         protected PurchaseRepositoryInterface $repository,
         protected PurchaseValidator $validator,
         protected PurchaseInventoryPostingService $inventoryPostingService,
+        protected GoodsReceiptNoteInventoryPostingService $goodsReceiptNoteInventoryPostingService,
         protected PurchaseAccountingPostingService $accountingPostingService,
         protected SupplierAdvanceAutoAdjustmentService $advanceAdjustmentService,
         protected SupplierAdvanceAdjustmentPostingService $advancePostingService,
@@ -42,7 +45,8 @@ class ConfirmPurchaseAction
             // Lock and re-validate cumulative quantities against GRN
             $this->validator->validateCumulativeBilledQuantities($purchase);
 
-            // Post inventory movements (skips GRN-linked purchases, posts direct purchases)
+            // Post complete linked GRN receipts once, then direct Purchase lines.
+            $this->postLinkedGrnInventory($purchase);
             $this->inventoryPostingService->post($purchase);
 
             // Set confirmed status
@@ -94,5 +98,40 @@ class ConfirmPurchaseAction
                 'paymentAllocations',
             ]);
         });
+    }
+
+    protected function postLinkedGrnInventory(
+        Purchase $purchase
+    ): void {
+        $purchase->loadMissing('items.goodsReceiptNoteItem');
+
+        $grnIds = collect();
+
+        if ($purchase->goods_receipt_note_id !== null) {
+            $grnIds->push((int) $purchase->goods_receipt_note_id);
+        }
+
+        foreach ($purchase->items as $item) {
+            if ($item->goodsReceiptNoteItem !== null) {
+                $grnIds->push(
+                    (int) $item->goodsReceiptNoteItem->goods_receipt_note_id
+                );
+            }
+        }
+
+        foreach ($grnIds->filter()->unique()->sort()->values() as $grnId) {
+            $grn = GoodsReceiptNote::query()
+                ->whereKey((int) $grnId)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (! $grn->isConfirmed()) {
+                throw new BusinessException(
+                    'A linked Goods Receipt Note must be confirmed before Purchase approval.'
+                );
+            }
+
+            $this->goodsReceiptNoteInventoryPostingService->post($grn);
+        }
     }
 }
