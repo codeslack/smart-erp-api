@@ -130,6 +130,8 @@ class PurchaseGrnAllocationTest extends TestCase
             'supplier_uuid' => $this->supplier->uuid,
             'goods_receipt_note_uuid' => $grn->uuid,
             'purchase_date' => now()->toDateString(),
+            'currency_code' => 'USD',
+            'exchange_rate' => 83.25,
             'items' => [
                 [
                     'goods_receipt_note_item_uuid' => $grnItem->uuid,
@@ -176,6 +178,8 @@ class PurchaseGrnAllocationTest extends TestCase
             'supplier_uuid' => $this->supplier->uuid,
             'goods_receipt_note_uuid' => $grn->uuid,
             'purchase_date' => now()->toDateString(),
+            'currency_code' => 'USD',
+            'exchange_rate' => 83.25,
             'items' => [
                 [
                     'goods_receipt_note_item_uuid' => $grnItem->uuid,
