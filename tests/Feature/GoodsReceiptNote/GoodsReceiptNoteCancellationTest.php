@@ -16,6 +16,7 @@ use App\Core\Exceptions\BusinessException;
 use App\Modules\Tenant\Models\Tenant;
 use App\Modules\User\Models\User;
 use App\Modules\Tenant\Services\TenantSetupService;
+use App\Modules\Accounting\Services\AccountingSetupService;
 
 use App\Modules\Settings\Models\Setting;
 
@@ -68,6 +69,9 @@ class GoodsReceiptNoteCancellationTest extends TestCase
 
         app(TenantManager::class)
             ->setTenant($this->tenant);
+
+        app(AccountingSetupService::class)
+            ->setup($this->tenant);
 
         app(TenantSetupService::class)
             ->setup($this->tenant);
