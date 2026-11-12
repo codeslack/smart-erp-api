@@ -97,6 +97,67 @@ class AccountingPostingsTest extends TestCase
         ]);
     }
 
+    public function test_repeated_sales_posting_does_not_duplicate_journal_or_ledger_entries(): void
+    {
+        $sale = Sale::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'warehouse_id' => $this->customer->id,
+            'customer_id' => $this->customer->id,
+            'sale_no' => 'SALE-IDEMPOTENT-101',
+            'sale_date' => now()->toDateString(),
+            'subtotal' => 1500,
+            'grand_total' => 1500,
+            'due_amount' => 1500,
+            'paid_amount' => 0,
+            'status' => 'confirmed',
+        ]);
+
+        $service = app(SalesPostingService::class);
+
+        $service->post($sale);
+        $balancesAfterFirstPost = ChartOfAccount::query()
+            ->where('tenant_id', $this->tenant->id)
+            ->orderBy('id')
+            ->pluck('current_balance')
+            ->all();
+
+        $service->post($sale->fresh());
+
+        $this->assertSame(
+            1,
+            \Illuminate\Support\Facades\DB::table('journal_entries')
+                ->where('tenant_id', $this->tenant->id)
+                ->where('reference_type', Sale::class)
+                ->where('reference_id', $sale->id)
+                ->whereNull('reversal_of_journal_entry_id')
+                ->count()
+        );
+
+        $this->assertSame(
+            2,
+            \Illuminate\Support\Facades\DB::table('account_ledgers')
+                ->where('tenant_id', $this->tenant->id)
+                ->whereIn(
+                    'journal_entry_id',
+                    \Illuminate\Support\Facades\DB::table('journal_entries')
+                        ->select('id')
+                        ->where('tenant_id', $this->tenant->id)
+                        ->where('reference_type', Sale::class)
+                        ->where('reference_id', $sale->id)
+                )
+                ->count()
+        );
+
+        $this->assertSame(
+            $balancesAfterFirstPost,
+            ChartOfAccount::query()
+                ->where('tenant_id', $this->tenant->id)
+                ->orderBy('id')
+                ->pluck('current_balance')
+                ->all()
+        );
+    }
+
     public function test_sales_return_posting_creates_posted_journal_entry(): void
     {
         $sale = Sale::query()->create([
