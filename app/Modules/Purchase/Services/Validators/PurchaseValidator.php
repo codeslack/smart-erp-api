@@ -51,11 +51,11 @@ class PurchaseValidator
         }
 
         foreach ($items as $item) {
-            $this->validateLineItem($item, $grnId, $poId);
+            $this->validateLineItem($item, $grnId, $poId, $supplierId);
         }
     }
 
-    public function validateLineItem(array $item, ?int $headerGrnId = null, ?int $headerPoId = null): void
+    public function validateLineItem(array $item, ?int $headerGrnId = null, ?int $headerPoId = null, ?int $supplierId = null): void
     {
         $productId = (int) ($item['product_id'] ?? 0);
         $variantId = isset($item['product_variant_id']) ? (int) $item['product_variant_id'] : null;
@@ -85,6 +85,24 @@ class PurchaseValidator
             if ($headerGrnId !== null && (int) $grnItem->goods_receipt_note_id !== $headerGrnId) {
                 throw new BusinessException("GRN item does not belong to the selected Goods Receipt Note.");
             }
+
+            $grn = $grnItem->goodsReceiptNote;
+
+            if (! $grn || ! $grn->isConfirmed()) {
+                throw new BusinessException(
+                    'Goods Receipt Note must be confirmed before creating a purchase bill.'
+                );
+            }
+
+            if (
+                $supplierId !== null
+                && (int) $grn->supplier_id !== $supplierId
+            ) {
+                throw new BusinessException(
+                    'GRN item does not belong to the selected supplier.'
+                );
+            }
+
             if ((int) $grnItem->product_id !== $productId) {
                 throw new BusinessException("Line product does not match GRN item product.");
             }
@@ -109,6 +127,16 @@ class PurchaseValidator
             }
         }
 
+        if (
+            $headerGrnId !== null
+            && $grnItemId === null
+            && $product->requiresStock()
+        ) {
+            throw new BusinessException(
+                'Every stock-tracked Purchase line linked to a GRN must reference its GRN item.'
+            );
+        }
+
         if ($headerGrnId === null && $grnItemId === null) {
             $this->batchSerialValidator->validate($product, $item);
         }
@@ -121,14 +149,30 @@ class PurchaseValidator
                 continue;
             }
 
-            /** @var GoodsReceiptNoteItem|null $grnItem */
-            $grnItem = GoodsReceiptNoteItem::query()
-                ->lockForUpdate()
+            /** @var GoodsReceiptNoteItem|null $unlockedGrnItem */
+            $unlockedGrnItem = GoodsReceiptNoteItem::query()
                 ->find($item->goods_receipt_note_item_id);
 
-            if (! $grnItem) {
+            if (! $unlockedGrnItem) {
                 throw new BusinessException("GRN item not found for line [{$item->id}].");
             }
+
+            $grn = GoodsReceiptNote::query()
+                ->whereKey($unlockedGrnItem->goods_receipt_note_id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $grn || ! $grn->isConfirmed()) {
+                throw new BusinessException(
+                    'Goods Receipt Note must remain confirmed until the linked Purchase is approved.'
+                );
+            }
+
+            /** @var GoodsReceiptNoteItem|null $grnItem */
+            $grnItem = GoodsReceiptNoteItem::query()
+                ->whereKey($unlockedGrnItem->getKey())
+                ->lockForUpdate()
+                ->first();
 
             $alreadyBilled = (float) PurchaseItem::query()
                 ->where('goods_receipt_note_item_id', $grnItem->id)
