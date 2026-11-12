@@ -121,6 +121,17 @@ class AccountingSetupTest extends TestCase
                 'is_system' => true,
             ]
         );
+
+        $this->assertDatabaseHas(
+            'chart_of_accounts',
+            [
+                'tenant_id' => $this->tenant->id,
+                'account_code' => AccountingAccounts::PURCHASE_EXPENSE,
+                'account_name' => 'Non-Stock Purchase Expense',
+                'account_type' => AccountType::EXPENSE,
+                'is_system' => true,
+            ]
+        );
     }
 
     public function test_setup_is_idempotent(): void
@@ -175,7 +186,7 @@ class AccountingSetupTest extends TestCase
         );
 
         $this->assertEquals(
-            17,
+            18,
             ChartOfAccount::query()
                 ->where(
                     'tenant_id',
