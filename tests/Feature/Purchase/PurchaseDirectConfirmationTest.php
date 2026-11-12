@@ -386,6 +386,8 @@ class PurchaseDirectConfirmationTest extends TestCase
         $this->postJson("/api/purchases/{$purchaseUuid}/confirm")
             ->assertOk();
 
+        app(TenantManager::class)->setTenant($this->tenant);
+
         $purchase = Purchase::query()
             ->where('uuid', $purchaseUuid)
             ->firstOrFail();
@@ -461,6 +463,8 @@ class PurchaseDirectConfirmationTest extends TestCase
                 'unit_cost' => 150,
             ]],
         ])->assertCreated();
+
+        app(TenantManager::class)->setTenant($this->tenant);
 
         $purchase = Purchase::query()
             ->where('uuid', $purchaseResponse->json('data.uuid'))
