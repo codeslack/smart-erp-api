@@ -152,7 +152,7 @@ class PurchaseGrnAllocationTest extends TestCase
             ->where('warehouse_id', $this->warehouse->id)
             ->firstOrFail();
 
-        $this->assertEquals(10, (float) $stock->quantity);
+        $this->assertEquals(6, (float) $stock->quantity);
         $this->assertEqualsWithDelta(
             374625,
             (float) $stock->average_cost,
@@ -167,10 +167,17 @@ class PurchaseGrnAllocationTest extends TestCase
             1,
             StockLedger::query()
                 ->where('tenant_id', $this->tenant->id)
-                ->where('referenceable_type', GoodsReceiptNote::class)
-                ->where('referenceable_id', $grn->id)
+                ->where('referenceable_type', Purchase::class)
                 ->where('transaction_type', 'PURCHASE')
                 ->count()
+        );
+
+        $this->assertEquals(
+            6,
+            (float) StockLedger::query()
+                ->where('referenceable_type', Purchase::class)
+                ->where('transaction_type', 'PURCHASE')
+                ->sum('quantity_in')
         );
 
         // Bill 2: 4 units (confirmed) -> Total = 10 units
@@ -192,18 +199,25 @@ class PurchaseGrnAllocationTest extends TestCase
         $this->postJson("/api/purchases/{$bill2->json('data.uuid')}/confirm")->assertOk();
         app(TenantManager::class)->setTenant($this->tenant);
 
-        // A second bill must not post the same GRN inventory twice.
+        // The second bill posts only its remaining GRN quantity.
         $stock->refresh();
         $this->assertEquals(10, (float) $stock->quantity);
 
         $this->assertSame(
-            1,
+            2,
             StockLedger::query()
                 ->where('tenant_id', $this->tenant->id)
-                ->where('referenceable_type', GoodsReceiptNote::class)
-                ->where('referenceable_id', $grn->id)
+                ->where('referenceable_type', Purchase::class)
                 ->where('transaction_type', 'PURCHASE')
                 ->count()
+        );
+
+        $this->assertEquals(
+            10,
+            (float) StockLedger::query()
+                ->where('referenceable_type', Purchase::class)
+                ->where('transaction_type', 'PURCHASE')
+                ->sum('quantity_in')
         );
 
         // Bill 3: tries to confirm 1 more unit -> Should fail with 422
