@@ -332,6 +332,73 @@ class TaxCalculationServiceTest extends TestCase
         );
     }
 
+
+    public function test_rounding_modes_apply_at_the_configured_calculation_level(): void
+    {
+        $group = $this->taxGroup([
+            $this->groupComponent('CGST', 9),
+            $this->groupComponent('SGST', 9),
+        ]);
+
+        $repository = Mockery::mock(TaxGroupRepositoryInterface::class);
+
+        $repository
+            ->shouldReceive('findForCalculation')
+            ->times(3)
+            ->with(1, '2026-10-01')
+            ->andReturn($group);
+
+        $service = $this->service($repository);
+
+        $perComponent = $service->calculate(
+            new TaxCalculationInput(
+                taxGroupId: 1,
+                taxableAmount: 1.03,
+                pricingMode: TaxPricingModeEnum::EXCLUSIVE,
+                roundingMode: TaxRoundingModeEnum::PER_COMPONENT,
+                calculationDate: '2026-10-01',
+            ),
+            2,
+        );
+
+        $perLine = $service->calculate(
+            new TaxCalculationInput(
+                taxGroupId: 1,
+                taxableAmount: 1.03,
+                pricingMode: TaxPricingModeEnum::EXCLUSIVE,
+                roundingMode: TaxRoundingModeEnum::PER_LINE,
+                calculationDate: '2026-10-01',
+            ),
+            2,
+        );
+
+        $perDocument = $service->calculate(
+            new TaxCalculationInput(
+                taxGroupId: 1,
+                taxableAmount: 1.03,
+                pricingMode: TaxPricingModeEnum::EXCLUSIVE,
+                roundingMode: TaxRoundingModeEnum::PER_DOCUMENT,
+                calculationDate: '2026-10-01',
+            ),
+            2,
+        );
+
+        $this->assertSame(0.18, $perComponent->totalTax);
+        $this->assertEqualsWithDelta(0.19, $perLine->totalTax, 0.000001);
+        $this->assertEqualsWithDelta(0.1854, $perDocument->totalTax, 0.000001);
+
+        $this->assertEqualsWithDelta(
+            0.0927,
+            $perDocument->components[0]['tax_amount'],
+            0.000001,
+        );
+        $this->assertEqualsWithDelta(
+            1.2154,
+            $perDocument->totalAmount,
+            0.000001,
+        );
+    }
+
     protected function service(
         TaxGroupRepositoryInterface $repository,
     ): TaxCalculationService {
