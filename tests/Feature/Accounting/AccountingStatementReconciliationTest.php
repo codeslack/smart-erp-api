@@ -60,10 +60,10 @@ class AccountingStatementReconciliationTest extends TestCase
         parent::setUp();
 
         $this->tenant = $this->createTestTenant();
-        $this->user = $this->createTestUser();
-
-        Sanctum::actingAs($this->user);
         app(TenantManager::class)->setTenant($this->tenant);
+
+        $this->user = $this->createTestUser();
+        Sanctum::actingAs($this->user);
         app(AccountingSetupService::class)->setup($this->tenant);
 
         $this->customer = $this->createCustomer();
