@@ -46,7 +46,8 @@ class CustomerStatementRepository implements CustomerStatementRepositoryInterfac
 
         $openingBalance = $this->calculateOpeningBalance(
             $customerId,
-            $fromDate
+            $fromDate,
+            $toDate,
         );
 
         $transactions = collect();
@@ -74,7 +75,8 @@ class CustomerStatementRepository implements CustomerStatementRepositoryInterfac
 
     private function calculateOpeningBalance(
         int $customerId,
-        ?string $fromDate
+        ?string $fromDate,
+        ?string $toDate
     ): float {
         $openingBalance = 0.0;
 
@@ -83,6 +85,10 @@ class CustomerStatementRepository implements CustomerStatementRepositoryInterfac
             ->when(
                 $fromDate,
                 fn ($query) => $query->whereDate('bill_date', '<', $fromDate)
+            )
+            ->when(
+                $toDate,
+                fn ($query) => $query->whereDate('bill_date', '<=', $toDate)
             )
             ->get();
 
