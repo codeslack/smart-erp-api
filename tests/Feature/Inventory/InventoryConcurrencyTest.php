@@ -15,7 +15,6 @@ use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 use App\Modules\SystemNumber\Enums\SystemNumberTypeEnum;
 use App\Modules\Inventory\Models\ProductStock;
 use App\Modules\Inventory\Models\StockLedger;
-use App\Modules\Inventory\Models\ProductStock;
 use App\Modules\Inventory\Repositories\Contracts\ProductStockRepositoryInterface;
 use App\Modules\Inventory\Data\InventoryMovementData;
 use App\Modules\Inventory\Services\InventoryPostingService;
