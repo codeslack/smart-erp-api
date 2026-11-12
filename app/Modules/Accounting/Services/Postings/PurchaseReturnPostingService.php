@@ -166,7 +166,7 @@ class PurchaseReturnPostingService extends BasePostingService
 
             $counterLines = [
                 $this->debit(
-                    $refundAccount->id,
+                    $refundAccount->account_code,
                     $baseGrandTotal,
                     'Purchase return refund',
                     $grandTotal,
