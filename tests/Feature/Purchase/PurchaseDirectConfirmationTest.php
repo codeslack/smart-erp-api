@@ -15,6 +15,8 @@ use App\Modules\Product\Enums\ProductTypeEnum;
 use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 use App\Modules\Purchase\Models\Purchase;
 use App\Modules\Payment\Models\Payment;
+use App\Modules\AdvanceAllocation\Models\AdvanceAllocation;
+use App\Modules\Payment\Services\Contracts\PaymentServiceInterface;
 use App\Modules\Payment\Enums\PaymentTypeEnum;
 use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
 use App\Modules\Payment\Enums\PaymentPurposeEnum;
@@ -22,6 +24,7 @@ use App\Modules\Payment\Enums\PaymentMethodEnum;
 use App\Modules\Payment\Enums\PaymentStatusEnum;
 use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Accounting\Services\AccountingSetupService;
+use App\Core\Exceptions\BusinessException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\Support\CreatesTenant;
@@ -339,4 +342,84 @@ class PurchaseDirectConfirmationTest extends TestCase
             'due_amount' => 200,
         ]);
     }
+
+    public function test_allocated_supplier_advance_cannot_be_reversed(): void
+    {
+        $cashAccount = ChartOfAccount::query()
+            ->where('tenant_id', $this->tenant->id)
+            ->where('account_code', '1010')
+            ->firstOrFail();
+
+        $paymentService = app(PaymentServiceInterface::class);
+
+        $advance = $paymentService->create([
+            'uuid' => (string) str()->uuid(),
+            'tenant_id' => $this->tenant->id,
+            'payment_no' => 'SUP-ADV-LIFECYCLE-' . uniqid(),
+            'payment_type' => PaymentTypeEnum::PAYMENT->value,
+            'purpose' => PaymentPurposeEnum::SUPPLIER_ADVANCE->value,
+            'payment_date' => now()->toDateString(),
+            'party_type' => PaymentPartyTypeEnum::SUPPLIER->value,
+            'party_id' => $this->supplier->id,
+            'account_id' => $cashAccount->id,
+            'amount' => 100,
+            'payment_method' => PaymentMethodEnum::CASH->value,
+        ]);
+
+        $advance = $paymentService->confirm($advance);
+
+        $purchaseResponse = $this->postJson(route('purchases.store'), [
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [[
+                'product_uuid' => $this->product->uuid,
+                'product_variant_uuid' => $this->variant->uuid,
+                'quantity' => 2,
+                'unit_cost' => 150,
+            ]],
+        ])->assertCreated();
+
+        $purchaseUuid = $purchaseResponse->json('data.uuid');
+
+        $this->postJson("/api/purchases/{$purchaseUuid}/confirm")
+            ->assertOk();
+
+        $purchase = Purchase::query()
+            ->where('uuid', $purchaseUuid)
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('advance_allocations', [
+            'tenant_id' => $this->tenant->id,
+            'source_type' => Payment::class,
+            'source_id' => $advance->id,
+            'target_type' => Purchase::class,
+            'target_id' => $purchase->id,
+            'allocated_amount' => 100,
+        ]);
+
+        try {
+            $paymentService->reverse($advance);
+
+            $this->fail('An allocated supplier advance must not be reversible.');
+        } catch (BusinessException $exception) {
+            $this->assertStringContainsString(
+                'Release all supplier advance allocations',
+                $exception->getMessage()
+            );
+        }
+
+        $this->assertSame('confirmed', $advance->fresh()->status);
+
+        $this->assertSame(
+            1,
+            AdvanceAllocation::query()
+                ->where('source_type', Payment::class)
+                ->where('source_id', $advance->id)
+                ->where('target_type', Purchase::class)
+                ->where('target_id', $purchase->id)
+                ->count()
+        );
+    }
+
 }
