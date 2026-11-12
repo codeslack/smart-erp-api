@@ -40,12 +40,6 @@ class WeightedAverageCostingService
             );
         }
 
-        if ($currentQuantity < 0) {
-            throw new BusinessException(
-                'Current quantity cannot be negative.'
-            );
-        }
-
         if ($currentAverageCost < 0) {
             throw new BusinessException(
                 'Current average cost cannot be negative.'
@@ -56,6 +50,28 @@ class WeightedAverageCostingService
             throw new BusinessException(
                 'Incoming unit cost cannot be negative.'
             );
+        }
+
+        $newQuantity = bcadd(
+            (string) $currentQuantity,
+            (string) $incomingQuantity,
+            4
+        );
+
+        $quantityComparison = bccomp(
+            $newQuantity,
+            '0',
+            4
+        );
+
+        // Preserve the existing valuation while the balance remains negative.
+        if ($quantityComparison < 0) {
+            return $currentAverageCost;
+        }
+
+        // The negative balance has been completely cleared.
+        if ($quantityComparison === 0) {
+            return 0.0;
         }
 
         $currentValue = bcmul(
@@ -69,22 +85,6 @@ class WeightedAverageCostingService
             (string) $incomingUnitCost,
             8
         );
-
-        $newQuantity = bcadd(
-            (string) $currentQuantity,
-            (string) $incomingQuantity,
-            4
-        );
-
-        if (
-            bccomp(
-                $newQuantity,
-                '0',
-                4
-            ) <= 0
-        ) {
-            return 0.0;
-        }
 
         $totalValue = bcadd(
             $currentValue,
