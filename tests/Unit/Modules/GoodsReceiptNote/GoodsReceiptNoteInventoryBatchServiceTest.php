@@ -176,6 +176,57 @@ class GoodsReceiptNoteInventoryBatchServiceTest extends TestCase
         }
     }
 
+
+    public function test_new_batch_uses_the_base_currency_unit_cost(): void
+    {
+        $batchService = $this->createMock(InventoryBatchService::class);
+
+        $batch = new ProductBatch();
+        $batch->forceFill([
+            $batch->getKeyName() => 56,
+            'status' => ProductBatchStatusEnum::DRAFT,
+        ]);
+
+        $batchService
+            ->expects($this->once())
+            ->method('findByBatchNumber')
+            ->with('BATCH-001', 10, 20, null)
+            ->willReturn(null);
+
+        $batchService
+            ->expects($this->once())
+            ->method('createDraft')
+            ->with($this->callback(
+                fn (array $data): bool =>
+                    (float) $data['unit_cost'] === 8000.0
+            ))
+            ->willReturn($batch);
+
+        $batchService
+            ->expects($this->once())
+            ->method('initializeOriginalQuantity')
+            ->with($batch, 12.0);
+
+        $batchService
+            ->expects($this->once())
+            ->method('activate')
+            ->with($batch)
+            ->willReturn($batch);
+
+        $service = new GoodsReceiptNoteInventoryBatchService(
+            $batchService
+        );
+
+        $result = $service->resolve(
+            $this->makeGrn(),
+            $this->makeItem(),
+            $this->makeGrnBatch(),
+            8000.0,
+        );
+
+        $this->assertSame($batch, $result);
+    }
+
     private function duplicateBatchException(): QueryException
     {
         return new QueryException(
