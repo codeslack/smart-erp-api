@@ -10,11 +10,14 @@ use App\Modules\Inventory\Enums\ProductSerialStatusEnum;
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNote;
 
 use App\Modules\Inventory\Services\InventorySerialService;
+use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
+use App\Modules\Inventory\Repositories\Contracts\StockLedgerRepositoryInterface;
 
 class GoodsReceiptNoteSerialRestorationService
 {
     public function __construct(
         protected InventorySerialService $serialService,
+        protected StockLedgerRepositoryInterface $stockLedgers,
     ) {}
 
     /**
@@ -30,7 +33,19 @@ class GoodsReceiptNoteSerialRestorationService
                 'Serial restoration must run inside a database transaction.'
             );
         }
-        
+
+        $originalLedgers = $this->stockLedgers->findByReference(
+            GoodsReceiptNote::class,
+            (int) $goodsReceiptNote->getKey(),
+            InventoryTransactionTypeEnum::PURCHASE->value,
+        );
+
+        // GRN confirmation no longer registers inventory serials. If no
+        // Purchase has posted this GRN, there is nothing to restore.
+        if ($originalLedgers->isEmpty()) {
+            return;
+        }
+
         $goodsReceiptNote->loadMissing('items.serials');
 
         foreach ($goodsReceiptNote->items as $item) {
