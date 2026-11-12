@@ -50,7 +50,7 @@ class PurchasePostingService extends BasePostingService
                 continue;
             }
 
-            if (! $charge->chartOfAccount) {
+            if (! $charge->chartOfAccount || ! $charge->chartOfAccount->is_active) {
                 throw new BusinessException(
                     'Every expense purchase charge must have an active expense account.'
                 );
