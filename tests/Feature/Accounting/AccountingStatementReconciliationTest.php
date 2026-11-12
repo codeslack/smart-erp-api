@@ -236,8 +236,8 @@ class AccountingStatementReconciliationTest extends TestCase
             'subtotal' => 10,
             'tax_amount' => 0,
             'grand_total' => 10,
-            'refund_type' => SalesReturnRefundType::CREDIT_NOTE,
-            'status' => SalesReturnStatus::CONFIRMED,
+            'refund_type' => SalesReturnRefundType::CREDIT_NOTE->value,
+            'status' => SalesReturnStatus::CONFIRMED->value,
         ]);
 
         Purchase::query()->create([
@@ -278,8 +278,8 @@ class AccountingStatementReconciliationTest extends TestCase
             'subtotal' => 10,
             'tax_amount' => 0,
             'grand_total' => 10,
-            'refund_type' => PurchaseReturnRefundType::CREDIT_NOTE,
-            'status' => PurchaseReturnStatus::CONFIRMED,
+            'refund_type' => PurchaseReturnRefundType::CREDIT_NOTE->value,
+            'status' => PurchaseReturnStatus::CONFIRMED->value,
         ]);
 
         Payment::query()->create([
@@ -292,7 +292,7 @@ class AccountingStatementReconciliationTest extends TestCase
             'account_id' => $this->cashAccount()->id,
             'amount' => 100,
             'payment_method' => PaymentMethodEnum::CASH,
-            'status' => PaymentStatusEnum::CONFIRMED,
+            'status' => PaymentStatusEnum::CONFIRMED->value,
         ]);
 
         Payment::query()->create([
@@ -305,7 +305,7 @@ class AccountingStatementReconciliationTest extends TestCase
             'account_id' => $this->cashAccount()->id,
             'amount' => 5,
             'payment_method' => PaymentMethodEnum::CASH,
-            'status' => PaymentStatusEnum::CONFIRMED,
+            'status' => PaymentStatusEnum::CONFIRMED->value,
         ]);
 
         Payment::query()->create([
@@ -318,7 +318,7 @@ class AccountingStatementReconciliationTest extends TestCase
             'account_id' => $this->cashAccount()->id,
             'amount' => 100,
             'payment_method' => PaymentMethodEnum::CASH,
-            'status' => PaymentStatusEnum::CONFIRMED,
+            'status' => PaymentStatusEnum::CONFIRMED->value,
         ]);
 
         Payment::query()->create([
@@ -331,7 +331,7 @@ class AccountingStatementReconciliationTest extends TestCase
             'account_id' => $this->cashAccount()->id,
             'amount' => 5,
             'payment_method' => PaymentMethodEnum::CASH,
-            'status' => PaymentStatusEnum::CONFIRMED,
+            'status' => PaymentStatusEnum::CONFIRMED->value,
         ]);
 
         $customerResponse = $this->getJson(
