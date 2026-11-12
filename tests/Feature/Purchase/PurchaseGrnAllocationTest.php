@@ -14,8 +14,11 @@ use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 use App\Modules\Unit\Models\Unit;
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNote;
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNoteItem;
+use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNoteItemBatch;
+use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNoteItemSerial;
 use App\Modules\Inventory\Models\ProductStock;
 use App\Modules\Inventory\Models\StockLedger;
+use App\Modules\Inventory\Models\ProductBatch;
 use App\Modules\GoodsReceiptNote\Enums\GoodsReceiptNoteStatusEnum;
 use App\Modules\Accounting\Services\AccountingSetupService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -208,4 +211,168 @@ class PurchaseGrnAllocationTest extends TestCase
         $confirmFail = $this->postJson("/api/purchases/{$bill3->json('data.uuid')}/confirm");
         $confirmFail->assertStatus(422);
     }
+
+    public function test_grn_batch_is_created_and_valued_on_purchase_confirmation(): void
+    {
+        $this->product->update([
+            'inventory_tracking_type' => InventoryTrackingTypeEnum::BATCH,
+        ]);
+
+        $grn = GoodsReceiptNote::create([
+            'tenant_id' => $this->tenant->id,
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'purchase_order_id' => 1,
+            'grn_number' => 'GRN-BATCH-POST-001',
+            'grn_date' => now()->toDateString(),
+            'status' => GoodsReceiptNoteStatusEnum::CONFIRMED->value,
+        ]);
+
+        $grnItem = GoodsReceiptNoteItem::create([
+            'tenant_id' => $this->tenant->id,
+            'goods_receipt_note_id' => $grn->id,
+            'purchase_order_item_id' => 1,
+            'product_id' => $this->product->id,
+            'product_variant_id' => $this->variant->id,
+            'warehouse_id' => $this->warehouse->id,
+            'unit_id' => $this->unit->id,
+            'quantity_received' => 10,
+            'base_quantity' => 10,
+            'unit_cost' => 4500,
+            'base_unit_cost' => 4500,
+            'line_total' => 45000,
+        ]);
+
+        GoodsReceiptNoteItemBatch::create([
+            'tenant_id' => $this->tenant->id,
+            'goods_receipt_note_item_id' => $grnItem->id,
+            'batch_no' => 'GRN-BATCH-POST-001',
+            'quantity' => 10,
+            'expiry_date' => now()->addYear()->toDateString(),
+        ]);
+
+        $bill = $this->postJson(route('purchases.store'), [
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'goods_receipt_note_uuid' => $grn->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [[
+                'goods_receipt_note_item_uuid' => $grnItem->uuid,
+                'quantity' => 10,
+                'unit_cost' => 4500,
+            ]],
+        ])->assertCreated();
+
+        $this->postJson("/api/purchases/{$bill->json('data.uuid')}/confirm")
+            ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $batch = ProductBatch::query()
+            ->where('batch_no', 'GRN-BATCH-POST-001')
+            ->firstOrFail();
+
+        $this->assertSame('ACTIVE', $batch->status->value);
+        $this->assertEquals(10, (float) $batch->original_quantity);
+        $this->assertEquals(10, (float) $batch->remaining_quantity);
+        $this->assertSame(
+            GoodsReceiptNote::class,
+            $batch->sourceable_type
+        );
+        $this->assertSame($grn->id, $batch->sourceable_id);
+        $this->assertSame(
+            now()->addYear()->toDateString(),
+            $batch->expiry_date->toDateString()
+        );
+
+        $stock = ProductStock::query()
+            ->where('product_id', $this->product->id)
+            ->where('product_variant_id', $this->variant->id)
+            ->where('warehouse_id', $this->warehouse->id)
+            ->firstOrFail();
+
+        $this->assertEquals(10, (float) $stock->quantity);
+    }
+
+    public function test_grn_serials_are_registered_on_purchase_confirmation(): void
+    {
+        $this->product->update([
+            'inventory_tracking_type' => InventoryTrackingTypeEnum::SERIAL,
+        ]);
+
+        $grn = GoodsReceiptNote::create([
+            'tenant_id' => $this->tenant->id,
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'purchase_order_id' => 1,
+            'grn_number' => 'GRN-SERIAL-POST-001',
+            'grn_date' => now()->toDateString(),
+            'status' => GoodsReceiptNoteStatusEnum::CONFIRMED->value,
+        ]);
+
+        $grnItem = GoodsReceiptNoteItem::create([
+            'tenant_id' => $this->tenant->id,
+            'goods_receipt_note_id' => $grn->id,
+            'purchase_order_item_id' => 1,
+            'product_id' => $this->product->id,
+            'product_variant_id' => $this->variant->id,
+            'warehouse_id' => $this->warehouse->id,
+            'unit_id' => $this->unit->id,
+            'quantity_received' => 2,
+            'base_quantity' => 2,
+            'unit_cost' => 4500,
+            'base_unit_cost' => 4500,
+            'line_total' => 9000,
+        ]);
+
+        foreach (['GRN-SERIAL-POST-001', 'GRN-SERIAL-POST-002'] as $serialNumber) {
+            GoodsReceiptNoteItemSerial::create([
+                'tenant_id' => $this->tenant->id,
+                'goods_receipt_note_item_id' => $grnItem->id,
+                'serial_number' => $serialNumber,
+            ]);
+        }
+
+        $bill = $this->postJson(route('purchases.store'), [
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'goods_receipt_note_uuid' => $grn->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [[
+                'goods_receipt_note_item_uuid' => $grnItem->uuid,
+                'quantity' => 2,
+                'unit_cost' => 4500,
+            ]],
+        ])->assertCreated();
+
+        $this->postJson("/api/purchases/{$bill->json('data.uuid')}/confirm")
+            ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $this->assertDatabaseHas('product_serials', [
+            'tenant_id' => $this->tenant->id,
+            'serial_number' => 'GRN-SERIAL-POST-001',
+            'sourceable_type' => GoodsReceiptNote::class,
+            'sourceable_id' => $grn->id,
+            'status' => 'AVAILABLE',
+        ]);
+
+        $this->assertDatabaseHas('product_serials', [
+            'tenant_id' => $this->tenant->id,
+            'serial_number' => 'GRN-SERIAL-POST-002',
+            'sourceable_type' => GoodsReceiptNote::class,
+            'sourceable_id' => $grn->id,
+            'status' => 'AVAILABLE',
+        ]);
+
+        $stock = ProductStock::query()
+            ->where('product_id', $this->product->id)
+            ->where('product_variant_id', $this->variant->id)
+            ->where('warehouse_id', $this->warehouse->id)
+            ->firstOrFail();
+
+        $this->assertEquals(2, (float) $stock->quantity);
+    }
+
 }
