@@ -110,8 +110,8 @@ class PurchasePostingService extends BasePostingService
         $this->createJournalEntry(
             referenceType: Purchase::class,
             referenceId: $purchase->id,
-            voucherType: JournalVoucherTypeEnum::PURCHASE,
-            entryDate: $purchase->purchase_date,
+            voucherType: JournalVoucherTypeEnum::PURCHASE->value,
+            entryDate: $purchase->purchase_date->toDateString(),
             description: 'Purchase ' . $purchase->purchase_no,
             lines: $lines,
             currencyCode: $currencyCode,
