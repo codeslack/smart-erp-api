@@ -137,7 +137,16 @@ class AdvanceAllocationService
                     );
                 }
 
-                $sale->refresh();
+                $sale = Sale::query()
+                    ->whereKey($sale->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $sale) {
+                    throw new BusinessException(
+                        'Sales invoice not found.'
+                    );
+                }
 
                 if ($amount > $sale->due_amount) {
                     throw new BusinessException(
