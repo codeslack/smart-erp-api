@@ -13,6 +13,8 @@ use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 use App\Modules\Unit\Models\Unit;
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNote;
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNoteItem;
+use App\Modules\Inventory\Models\ProductStock;
+use App\Modules\Inventory\Models\StockLedger;
 use App\Modules\GoodsReceiptNote\Enums\GoodsReceiptNoteStatusEnum;
 use App\Modules\Accounting\Services\AccountingSetupService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -135,6 +137,26 @@ class PurchaseGrnAllocationTest extends TestCase
         $bill1->assertCreated();
         $this->postJson("/api/purchases/{$bill1->json('data.uuid')}/confirm")->assertOk();
 
+        // The first approved bill posts the full confirmed GRN quantity.
+        $stock = ProductStock::query()
+            ->where('tenant_id', $this->tenant->id)
+            ->where('product_id', $this->product->id)
+            ->where('product_variant_id', $this->variant->id)
+            ->where('warehouse_id', $this->warehouse->id)
+            ->firstOrFail();
+
+        $this->assertEquals(10, (float) $stock->quantity);
+
+        $this->assertSame(
+            1,
+            StockLedger::query()
+                ->where('tenant_id', $this->tenant->id)
+                ->where('referenceable_type', GoodsReceiptNote::class)
+                ->where('referenceable_id', $grn->id)
+                ->where('transaction_type', 'PURCHASE')
+                ->count()
+        );
+
         // Bill 2: 4 units (confirmed) -> Total = 10 units
         $bill2 = $this->postJson(route('purchases.store'), [
             'supplier_uuid' => $this->supplier->uuid,
@@ -150,6 +172,20 @@ class PurchaseGrnAllocationTest extends TestCase
         ]);
         $bill2->assertCreated();
         $this->postJson("/api/purchases/{$bill2->json('data.uuid')}/confirm")->assertOk();
+
+        // A second bill must not post the same GRN inventory twice.
+        $stock->refresh();
+        $this->assertEquals(10, (float) $stock->quantity);
+
+        $this->assertSame(
+            1,
+            StockLedger::query()
+                ->where('tenant_id', $this->tenant->id)
+                ->where('referenceable_type', GoodsReceiptNote::class)
+                ->where('referenceable_id', $grn->id)
+                ->where('transaction_type', 'PURCHASE')
+                ->count()
+        );
 
         // Bill 3: tries to confirm 1 more unit -> Should fail with 422
         $bill3 = $this->postJson(route('purchases.store'), [
