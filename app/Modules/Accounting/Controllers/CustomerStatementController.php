@@ -46,6 +46,7 @@ class CustomerStatementController extends ApiController
             'message' => 'Customer Statement fetched successfully',
             'data' => [
                 'customer' => $statement['customer'],
+                'base_currency_code' => $statement['base_currency_code'],
                 'opening_balance' => $statement['opening_balance'],
                 'outstanding_balance' => $statement['outstanding_balance'],
                 'transactions' => CustomerStatementResource::collection(
