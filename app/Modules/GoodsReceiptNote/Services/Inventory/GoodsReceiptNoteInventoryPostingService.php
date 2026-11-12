@@ -107,6 +107,28 @@ class GoodsReceiptNoteInventoryPostingService
                 ]);
             }
 
+            $storedCurrency = strtoupper(
+                (string) ($grn->inventory_currency_code ?? $baseCurrency)
+            );
+
+            $storedRate = (string) (
+                $grn->inventory_exchange_rate ?? '1.00000000'
+            );
+
+            if (
+                ($grn->inventory_currency_code !== null || $grn->inventory_exchange_rate !== null)
+                && (
+                    $storedCurrency !== $currencyCode
+                    || bccomp($storedRate, $exchangeRate, 8) !== 0
+                )
+            ) {
+                throw ValidationException::withMessages([
+                    'currency' => [
+                        'All Purchase bills for one GRN must use the same currency and exchange rate.',
+                    ],
+                ]);
+            }
+
             $existingPurchaseLedgers = $this->stockLedgerRepository
                 ->findByReference(
                     Purchase::class,
@@ -143,28 +165,6 @@ class GoodsReceiptNoteInventoryPostingService
                 throw ValidationException::withMessages([
                     'inventory' => [
                         'Legacy GRN inventory posting exists. Reverse or reconcile it before confirming a linked Purchase.',
-                    ],
-                ]);
-            }
-
-            $storedCurrency = strtoupper(
-                (string) ($grn->inventory_currency_code ?? $baseCurrency)
-            );
-
-            $storedRate = (string) (
-                $grn->inventory_exchange_rate ?? '1.00000000'
-            );
-
-            if (
-                ($grn->inventory_currency_code !== null || $grn->inventory_exchange_rate !== null)
-                && (
-                    $storedCurrency !== $currencyCode
-                    || bccomp($storedRate, $exchangeRate, 8) !== 0
-                )
-            ) {
-                throw ValidationException::withMessages([
-                    'currency' => [
-                        'All Purchase bills for one GRN must use the same currency and exchange rate.',
                     ],
                 ]);
             }
