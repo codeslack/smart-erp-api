@@ -284,6 +284,75 @@ class TaxCalculationServiceTest extends TestCase
         $this->assertSame(1050.0, $result->totalAmount);
     }
 
+    public function test_per_document_rounding_preserves_unrounded_line_tax(): void
+    {
+        $group = $this->taxGroup([
+            $this->groupComponent('CGST', 5),
+            $this->groupComponent('SGST', 5),
+        ]);
+
+        $repository = Mockery::mock(TaxGroupRepositoryInterface::class);
+
+        $repository
+            ->shouldReceive('findForCalculation')
+            ->once()
+            ->with(1, '2026-10-01')
+            ->andReturn($group);
+
+        $result = $this->service($repository)->calculate(
+            new TaxCalculationInput(
+                taxGroupId: 1,
+                taxableAmount: 0.05,
+                pricingMode: TaxPricingModeEnum::EXCLUSIVE,
+                roundingMode: TaxRoundingModeEnum::PER_DOCUMENT,
+                calculationDate: '2026-10-01',
+            ),
+            decimalPlaces: 2,
+        );
+
+        $this->assertEqualsWithDelta(0.05, $result->taxableAmount, 0.0000001);
+        $this->assertEqualsWithDelta(0.005, $result->totalTax, 0.0000001);
+        $this->assertEqualsWithDelta(0.055, $result->totalAmount, 0.0000001);
+        $this->assertEqualsWithDelta(0.0025, $result->components[0]['tax_amount'], 0.0000001);
+        $this->assertEqualsWithDelta(0.0025, $result->components[1]['tax_amount'], 0.0000001);
+    }
+
+    public function test_per_line_rounding_rounds_the_line_total_not_each_component(): void
+    {
+        $group = $this->taxGroup([
+            $this->groupComponent('CGST', 1.25),
+            $this->groupComponent('SGST', 1.25),
+        ]);
+
+        $repository = Mockery::mock(TaxGroupRepositoryInterface::class);
+
+        $repository
+            ->shouldReceive('findForCalculation')
+            ->once()
+            ->with(1, '2026-10-01')
+            ->andReturn($group);
+
+        $result = $this->service($repository)->calculate(
+            new TaxCalculationInput(
+                taxGroupId: 1,
+                taxableAmount: 100.555,
+                pricingMode: TaxPricingModeEnum::EXCLUSIVE,
+                roundingMode: TaxRoundingModeEnum::PER_LINE,
+                calculationDate: '2026-10-01',
+            ),
+            decimalPlaces: 2,
+        );
+
+        $this->assertSame(100.56, $result->taxableAmount);
+        $this->assertSame(2.51, $result->totalTax);
+        $this->assertSame(103.07, $result->totalAmount);
+        $this->assertEqualsWithDelta(
+            1.2569375,
+            $result->components[0]['tax_amount'],
+            0.0000001,
+        );
+    }
+
     public function test_negative_amount_is_rejected(): void
     {
         $repository = Mockery::mock(TaxGroupRepositoryInterface::class);
