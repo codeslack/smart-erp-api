@@ -3,6 +3,9 @@
 namespace App\Modules\Accounting\Services\JournalEntry;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Model;
+
+use App\Core\Exceptions\BusinessException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 use App\Modules\Accounting\Models\JournalEntry;
