@@ -40,6 +40,25 @@ class JournalEntryRepository
             ->findOrFail($id);
     }
 
+    public function findOriginalPostedByReference(
+        string $referenceType,
+        int $referenceId,
+        string $voucherType
+    ): ?JournalEntry {
+        return $this->model
+            ->newQuery()
+            ->where('reference_type', $referenceType)
+            ->where('reference_id', $referenceId)
+            ->where('voucher_type', $voucherType)
+            ->where(
+                'status',
+                JournalEntryStatusEnum::POSTED->value
+            )
+            ->whereNull('reversal_of_journal_entry_id')
+            ->with(['lines.account', 'reversal'])
+            ->first();
+    }
+
     public function findPostedByReference(
         string $referenceType,
         int $referenceId,
