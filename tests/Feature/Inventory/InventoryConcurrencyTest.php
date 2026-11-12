@@ -4,6 +4,7 @@ namespace Tests\Feature\Inventory;
 
 use Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Database\QueryException;
 use Tests\Support\CreatesTenant;
 use App\Core\Tenant\TenantManager;
 use App\Modules\Tenant\Models\Tenant;
@@ -14,6 +15,8 @@ use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 use App\Modules\SystemNumber\Enums\SystemNumberTypeEnum;
 use App\Modules\Inventory\Models\ProductStock;
 use App\Modules\Inventory\Models\StockLedger;
+use App\Modules\Inventory\Models\ProductStock;
+use App\Modules\Inventory\Repositories\Contracts\ProductStockRepositoryInterface;
 use App\Modules\Inventory\Data\InventoryMovementData;
 use App\Modules\Inventory\Services\InventoryPostingService;
 use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
@@ -184,4 +187,78 @@ class InventoryConcurrencyTest extends TestCase
             'reference_no' => 'CON-ROLLBACK-OUT',
         ]);
     }
+
+    public function test_non_variant_stock_row_is_reused_by_get_or_create(): void
+    {
+        $repository = app(ProductStockRepositoryInterface::class);
+
+        $first = $repository->getOrCreateForUpdate(
+            $this->product->id,
+            null,
+            $this->warehouse->id,
+        );
+
+        $second = $repository->getOrCreateForUpdate(
+            $this->product->id,
+            null,
+            $this->warehouse->id,
+        );
+
+        $this->assertSame($first->id, $second->id);
+        $this->assertDatabaseCount('product_stocks', 1);
+    }
+
+    public function test_database_rejects_duplicate_non_variant_stock_rows(): void
+    {
+        ProductStock::create([
+            'tenant_id' => $this->tenant->id,
+            'product_id' => $this->product->id,
+            'product_variant_id' => null,
+            'warehouse_id' => $this->warehouse->id,
+            'quantity' => 5,
+            'average_cost' => 10,
+        ]);
+
+        try {
+            ProductStock::create([
+                'tenant_id' => $this->tenant->id,
+                'product_id' => $this->product->id,
+                'product_variant_id' => null,
+                'warehouse_id' => $this->warehouse->id,
+                'quantity' => 7,
+                'average_cost' => 12,
+            ]);
+
+            $this->fail('A duplicate non-variant stock row should violate the unique constraint.');
+        } catch (QueryException) {
+            $this->assertDatabaseCount('product_stocks', 1);
+        }
+    }
+
+    public function test_get_or_create_restores_a_soft_deleted_stock_row(): void
+    {
+        $stock = ProductStock::create([
+            'tenant_id' => $this->tenant->id,
+            'product_id' => $this->product->id,
+            'product_variant_id' => null,
+            'warehouse_id' => $this->warehouse->id,
+            'quantity' => 12,
+            'average_cost' => 25,
+        ]);
+
+        $stock->delete();
+
+        $restored = app(ProductStockRepositoryInterface::class)
+            ->getOrCreateForUpdate(
+                $this->product->id,
+                null,
+                $this->warehouse->id,
+            );
+
+        $this->assertSame($stock->id, $restored->id);
+        $this->assertFalse($restored->trashed());
+        $this->assertEquals(12, (float) $restored->quantity);
+        $this->assertEquals(25, (float) $restored->average_cost);
+    }
+
 }
