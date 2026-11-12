@@ -10,6 +10,7 @@ use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
 
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNote;
+use App\Modules\GoodsReceiptNote\Enums\GoodsReceiptNoteStatusEnum;
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNoteItem;
 
 use App\Modules\Inventory\Data\InventoryReversalData;
@@ -49,6 +50,14 @@ class GoodsReceiptNoteInventoryPostingService
                 ->lockForUpdate()
                 ->firstOrFail();
 
+            if ($grn->status !== GoodsReceiptNoteStatusEnum::CONFIRMED) {
+                throw ValidationException::withMessages([
+                    'status' => [
+                        'Inventory can only be posted for a confirmed goods receipt note.',
+                    ],
+                ]);
+            }
+
             $existingLedgers = $this->stockLedgerRepository
                 ->findByReference(
                     GoodsReceiptNote::class,
@@ -57,9 +66,23 @@ class GoodsReceiptNoteInventoryPostingService
                 );
 
             if ($existingLedgers->isNotEmpty()) {
+                $activeLedgers = $existingLedgers
+                    ->filter(fn ($ledger) => ! $ledger->reversal()->exists())
+                    ->values();
+
+                $expectedCount = $this->expectedLedgerCount($grn);
+
+                if (
+                    $expectedCount > 0
+                    && $activeLedgers->count() === $expectedCount
+                    && $existingLedgers->count() === $expectedCount
+                ) {
+                    return $activeLedgers;
+                }
+
                 throw ValidationException::withMessages([
                     'inventory' => [
-                        'Inventory has already been posted for this goods receipt note.',
+                        'The goods receipt note has an incomplete or reversed inventory posting and requires reconciliation.',
                     ],
                 ]);
             }
@@ -173,6 +196,46 @@ class GoodsReceiptNoteInventoryPostingService
         });
     }
 
+    public function hasPosting(
+        GoodsReceiptNote $goodsReceiptNote
+    ): bool {
+        return $this->stockLedgerRepository
+            ->findByReference(
+                GoodsReceiptNote::class,
+                (int) $goodsReceiptNote->getKey(),
+                InventoryTransactionTypeEnum::PURCHASE->value,
+            )
+            ->isNotEmpty();
+    }
+
+    protected function expectedLedgerCount(
+        GoodsReceiptNote $grn
+    ): int {
+        $count = 0;
+
+        foreach ($grn->items as $item) {
+            $product = $item->product;
+
+            if (! $product || ! $product->requiresStock()) {
+                continue;
+            }
+
+            if ($product->isBatchTracked()) {
+                $count += $item->batches->count();
+                continue;
+            }
+
+            if ($product->isSerialTracked()) {
+                $count += $item->serials->count();
+                continue;
+            }
+
+            $count++;
+        }
+
+        return $count;
+    }
+
     /**
      * Reverse original PURCHASE stock-ledger entries for this GRN.
      *
@@ -215,7 +278,7 @@ class GoodsReceiptNoteInventoryPostingService
             }
 
             foreach ($originalLedgers as $ledger) {
-                if ($ledger->reversed_by_id !== null) {
+                if ($ledger->reversal()->exists()) {
                     continue;
                 }
 
