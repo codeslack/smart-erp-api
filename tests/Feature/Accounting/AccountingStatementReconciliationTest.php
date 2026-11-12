@@ -135,7 +135,6 @@ class AccountingStatementReconciliationTest extends TestCase
 
     public function test_supplier_opening_bill_reconciles_to_payable_control(): void
     {
-        fwrite(STDERR, "SUP-TEST-A\n");
         $openingBill = SupplierOpeningBill::query()->create([
             'supplier_id' => $this->supplier->id,
             'bill_no' => 'SOB-RECON-001',
@@ -145,20 +144,15 @@ class AccountingStatementReconciliationTest extends TestCase
             'balance_type' => OpeningBalanceTypeEnum::CREDIT,
         ]);
 
-        fwrite(STDERR, "SUP-TEST-2\n");
         app(SupplierOpeningBillPostingService::class)->post($this->supplier);
-        fwrite(STDERR, "SUP-TEST-3\n");
 
-        fwrite(STDERR, "SUP-TEST-4\n");
         $statementRepository = new SupplierStatementRepository();
-        fwrite(STDERR, "SUP-TEST-4A\n");
-        $statement = $statementRepository->statement(
+        $statement = $statementRepository->getStatement(
             $this->supplier->id,
             now()->toDateString(),
             now()->toDateString(),
         );
 
-        fwrite(STDERR, "SUP-TEST-5\n");
         $this->assertEquals(0, $statement['opening_balance']);
         $this->assertEquals(5000, $statement['outstanding_balance']);
         $this->assertSame('INR', $statement['base_currency_code']);
