@@ -57,6 +57,15 @@ class PurchaseReturnPayloadResolver
             }
 
             $data['supplier_id'] = $purchaseSupplierId ?? ($data['supplier_id'] ?? null);
+
+            $purchase = Purchase::query()->find((int) $data['purchase_id']);
+
+            if ($purchase !== null) {
+                // Returns use the original purchase's transaction currency
+                // and exchange-rate snapshot, not client-supplied values.
+                $data['currency_code'] = $purchase->currency_code;
+                $data['exchange_rate'] = $purchase->exchange_rate;
+            }
         }
 
         if (isset($data['refund_account_uuid']) && ! isset($data['refund_account_id'])) {
