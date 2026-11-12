@@ -6,7 +6,7 @@ use App\Core\Enums\OpeningBalanceTypeEnum;
 use App\Core\Tenant\TenantManager;
 use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Models\ChartOfAccount;
-use App\Modules\Accounting\Repositories\Contracts\SupplierStatementRepositoryInterface;
+use App\Modules\Accounting\Repositories\SupplierStatementRepository;
 use App\Modules\Accounting\Services\AccountingSetupService;
 use App\Modules\Customer\Models\Customer;
 use App\Modules\CustomerOpeningBill\Models\CustomerOpeningBill;
@@ -147,7 +147,7 @@ class AccountingStatementReconciliationTest extends TestCase
 
         fwrite(STDERR, "SUPPLIER-STATEMENT-STEP-2\\n");
 
-        $statement = app(SupplierStatementRepositoryInterface::class)->statement(
+        $statement = (new SupplierStatementRepository())->statement(
             $this->supplier->id,
             now()->toDateString(),
             now()->toDateString(),
