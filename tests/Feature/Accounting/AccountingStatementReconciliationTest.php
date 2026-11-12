@@ -152,8 +152,6 @@ class AccountingStatementReconciliationTest extends TestCase
             now()->toDateString(),
         );
 
-        $statement['transactions'] = collect($statement['transactions']);
-
         $this->assertEquals(0, $statement['opening_balance']);
         $this->assertEquals(5000, $statement['outstanding_balance']);
         $this->assertSame('INR', $statement['base_currency_code']);
