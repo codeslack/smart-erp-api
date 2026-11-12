@@ -31,6 +31,11 @@ use App\Modules\Unit\Models\Unit;
 use App\Modules\Product\Models\Product;
 use App\Modules\ProductUnit\Services\ProductUnitService;
 
+use App\Modules\Purchase\Models\Purchase;
+use App\Modules\Purchase\Models\PurchaseItem;
+use App\Modules\Purchase\Enums\PurchaseStatusEnum;
+use App\Modules\Purchase\Services\Actions\ConfirmPurchaseAction;
+
 use App\Modules\PurchaseOrder\Enums\PurchaseOrderStatusEnum;
 use App\Modules\PurchaseOrder\Models\PurchaseOrder;
 use App\Modules\PurchaseOrder\Models\PurchaseOrderItem;
@@ -144,12 +149,93 @@ class GoodsReceiptNoteCancellationTest extends TestCase
         );
     }
 
-    public function test_cancellation_reverses_inventory_stock_and_creates_reversal_ledger(): void
+    public function test_grn_confirmation_does_not_post_stock_before_purchase_approval(): void
     {
         [$grn] = $this->createConfirmedGrn(
             orderedQuantity: 10,
             receivedBaseQuantity: 50
         );
+
+        $this->assertSame(
+            0,
+            ProductStock::query()
+                ->where('product_id', $this->product->id)
+                ->whereNull('product_variant_id')
+                ->where('warehouse_id', $this->warehouse->id)
+                ->count()
+        );
+
+        $this->assertSame(
+            0,
+            StockLedger::query()
+                ->where('referenceable_type', GoodsReceiptNote::class)
+                ->where('referenceable_id', $grn->id)
+                ->count()
+        );
+
+        $cancelled = app(
+            GoodsReceiptNoteCancellationService::class
+        )->cancel($grn);
+
+        $this->assertSame(
+            GoodsReceiptNoteStatusEnum::CANCELLED,
+            $cancelled->status
+        );
+
+        $this->assertSame(
+            0,
+            StockLedger::query()
+                ->where('referenceable_type', GoodsReceiptNote::class)
+                ->where('referenceable_id', $grn->id)
+                ->count()
+        );
+    }
+
+    public function test_purchase_approval_posts_full_grn_stock_and_prevents_grn_cancellation(): void
+    {
+        [$grn] = $this->createConfirmedGrn(
+            orderedQuantity: 10,
+            receivedBaseQuantity: 50
+        );
+
+        $purchase = Purchase::create([
+            'tenant_id' => $this->tenant->id,
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'goods_receipt_note_id' => $grn->id,
+            'purchase_no' => 'PUR-GRN-CANCEL-' . uniqid(),
+            'purchase_date' => now()->toDateString(),
+            'currency_code' => 'INR',
+            'exchange_rate' => 1,
+            'subtotal' => 2500,
+            'tax_amount' => 0,
+            'grand_total' => 2500,
+            'paid_amount' => 0,
+            'due_amount' => 2500,
+            'status' => PurchaseStatusEnum::DRAFT->value,
+        ]);
+
+        $grnItem = $grn->items()->firstOrFail();
+
+        PurchaseItem::create([
+            'tenant_id' => $this->tenant->id,
+            'purchase_id' => $purchase->id,
+            'goods_receipt_note_item_id' => $grnItem->id,
+            'product_id' => $grnItem->product_id,
+            'product_variant_id' => $grnItem->product_variant_id,
+            'warehouse_id' => $grnItem->warehouse_id,
+            'unit_id' => $grnItem->unit_id,
+            'quantity' => 50,
+            'base_quantity' => 50,
+            'unit_cost' => 50,
+            'base_unit_cost' => 50,
+            'line_total' => 2500,
+            'subtotal' => 2500,
+            'tax_amount' => 0,
+            'total_amount' => 2500,
+        ]);
+
+        app(ConfirmPurchaseAction::class)->execute($purchase);
 
         $stock = ProductStock::query()
             ->where('product_id', $this->product->id)
@@ -157,13 +243,9 @@ class GoodsReceiptNoteCancellationTest extends TestCase
             ->where('warehouse_id', $this->warehouse->id)
             ->firstOrFail();
 
-        // Confirmation must add the received base quantity to stock.
-        $this->assertEquals(
-            50,
-            (float) $stock->quantity
-        );
+        $this->assertEquals(50, (float) $stock->quantity);
 
-        $purchaseLedger = StockLedger::query()
+        $originalLedger = StockLedger::query()
             ->where('referenceable_type', GoodsReceiptNote::class)
             ->where('referenceable_id', $grn->id)
             ->where(
@@ -172,167 +254,31 @@ class GoodsReceiptNoteCancellationTest extends TestCase
             )
             ->firstOrFail();
 
-        $this->assertEquals(
-            50,
-            (float) $purchaseLedger->quantity_in
-        );
-
-        app(
-            GoodsReceiptNoteCancellationService::class
-        )->cancel($grn);
-
-        // Cancellation must reverse the stock quantity.
-        $stock->refresh();
-
-        $this->assertEquals(
-            0,
-            (float) $stock->quantity
-        );
-
-        // The original purchase ledger must remain for audit history.
-        $this->assertDatabaseHas('stock_ledgers', [
-            'id' => $purchaseLedger->id,
-            'quantity_in' => 50,
-        ]);
-
-        // The reversal ledger must link back to the original ledger.
-        $reversalLedger = StockLedger::query()
-            ->where('reversal_of_ledger_id', $purchaseLedger->id)
-            ->firstOrFail();
-
-        $this->assertSame(
-            InventoryTransactionTypeEnum::REVERSAL_OUT,
-            $reversalLedger->transaction_type
-        );
-
-        $this->assertEquals(
-            50,
-            (float) $reversalLedger->quantity_out
-        );
-
-        $this->assertEquals(
-            0,
-            (float) $reversalLedger->quantity_in
-        );
-    }
-
-    public function test_cancellation_fails_when_fifo_cost_layer_has_been_consumed(): void
-    {
-        /*
-        |--------------------------------------------------------------------------
-        | Enable FIFO before confirming the GRN.
-        |--------------------------------------------------------------------------
-        */
-
-        Setting::updateOrCreate(
-            [
-                'tenant_id' => $this->tenant->id,
-                'group' => 'inventory',
-                'key' => 'costing_method',
-            ],
-            [
-                'value' => 'FIFO',
-            ]
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Confirm GRN and create the original FIFO cost layer.
-        |--------------------------------------------------------------------------
-        */
-
-        [$grn] = $this->createConfirmedGrn(
-            orderedQuantity: 10,
-            receivedBaseQuantity: 50,
-        );
-
-        $originalLedger = StockLedger::query()
-            ->where('product_id', $this->product->id)
-            ->where('warehouse_id', $this->warehouse->id)
-            ->where(
-                'transaction_type',
-                InventoryTransactionTypeEnum::PURCHASE->value
-            )
-            ->firstOrFail();
-
-        $this->assertEquals(
-            50,
-            (float) $originalLedger->quantity_in
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Consume one unit from the received stock.
-        |--------------------------------------------------------------------------
-        */
-
-        app(InventoryPostingService::class)->stockOut(
-            new InventoryMovementData(
-                productId: $this->product->id,
-                productVariantId: null,
-                warehouseId: $this->warehouse->id,
-                quantity: 1,
-                unitCost: 0,
-                transactionType: 'SALE',
-                transactionDate: now(),
-                referenceNo: 'SALE-GRN-CANCEL-TEST',
-                remarks: 'Consume stock before GRN cancellation',
-            )
-        );
-
-        $stock = ProductStock::query()
-            ->where('product_id', $this->product->id)
-            ->where('warehouse_id', $this->warehouse->id)
-            ->firstOrFail();
-
-        $this->assertEquals(
-            49,
-            (float) $stock->quantity
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Cancellation must fail because the FIFO layer was consumed.
-        |--------------------------------------------------------------------------
-        */
+        $this->assertEquals(50, (float) $originalLedger->quantity_in);
 
         try {
-            app(
-                GoodsReceiptNoteCancellationService::class
-            )->cancel($grn);
-
+            app(GoodsReceiptNoteCancellationService::class)
+                ->cancel($grn);
             $this->fail(
-                'Expected cancellation to fail because the FIFO cost layer was consumed.'
+                'A GRN linked to an approved Purchase must not be cancellable.'
             );
         } catch (BusinessException $exception) {
-            // Expected: the original FIFO layer is no longer untouched.
-            $this->assertNotSame('', $exception->getMessage());
+            $this->assertStringContainsString(
+                'Purchase Return',
+                $exception->getMessage()
+            );
         }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Verify the failed cancellation was rolled back.
-        |--------------------------------------------------------------------------
-        */
 
         $this->assertSame(
             GoodsReceiptNoteStatusEnum::CONFIRMED,
             $grn->fresh()->status
         );
 
-        $stock->refresh();
+        $this->assertEquals(50, (float) $stock->fresh()->quantity);
 
-        $this->assertEquals(
-            49,
-            (float) $stock->quantity
-        );
-
-        $this->assertDatabaseMissing(
-            'stock_ledgers',
-            [
-                'reversal_of_ledger_id' => $originalLedger->id,
-            ]
-        );
+        $this->assertDatabaseMissing('stock_ledgers', [
+            'reversal_of_ledger_id' => $originalLedger->id,
+        ]);
     }
 
     public function test_cancellation_changes_partial_po_back_to_confirmed(): void
