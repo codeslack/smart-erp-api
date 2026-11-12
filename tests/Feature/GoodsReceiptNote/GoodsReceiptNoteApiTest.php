@@ -401,6 +401,8 @@ class GoodsReceiptNoteApiTest extends TestCase
         $this->postJson('/api/goods-receipt-notes/' . $grn->uuid . '/confirm')
             ->assertOk();
 
+        app(TenantManager::class)->setTenant($this->tenant);
+
         $existingBatch->refresh();
         $this->assertSame(ProductBatchStatusEnum::ACTIVE, $existingBatch->status);
         $this->assertEquals(50, (float) $existingBatch->original_quantity);
@@ -408,6 +410,8 @@ class GoodsReceiptNoteApiTest extends TestCase
 
         $this->postJson('/api/goods-receipt-notes/' . $grn->uuid . '/cancel')
             ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
 
         $existingBatch->refresh();
         $this->assertSame(ProductBatchStatusEnum::ACTIVE, $existingBatch->status);
