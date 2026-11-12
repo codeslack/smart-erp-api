@@ -46,6 +46,7 @@ class JournalEntryRepository
         return $this->model
             ->newQuery()
             ->where('posting_key', $postingKey)
+            ->whereDoesntHave('reversal')
             ->with(['lines.account', 'reversal'])
             ->first();
     }
