@@ -12,10 +12,8 @@ interface JournalEntryRepositoryInterface
         int|string $id
     ): JournalEntry;
 
-    public function findOriginalPostedByReference(
-        string $referenceType,
-        int $referenceId,
-        string $voucherType
+    public function findByPostingKey(
+        string $postingKey
     ): ?JournalEntry;
 
     public function findPostedByReference(
