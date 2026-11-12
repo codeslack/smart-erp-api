@@ -94,6 +94,7 @@ class PurchaseInventoryPostingService
 
             $this->goodsReceiptNoteInventoryPostingService->post(
                 $grn,
+                $purchase,
                 $currencyCode,
                 $exchangeRate,
                 $baseCurrency,
