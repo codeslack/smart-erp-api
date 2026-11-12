@@ -196,7 +196,7 @@ class GoodsReceiptNoteInventoryPostingService
         });
     }
 
-    public function hasPosting(
+    public function hasActivePosting(
         GoodsReceiptNote $goodsReceiptNote
     ): bool {
         return $this->stockLedgerRepository
@@ -205,7 +205,7 @@ class GoodsReceiptNoteInventoryPostingService
                 (int) $goodsReceiptNote->getKey(),
                 InventoryTransactionTypeEnum::PURCHASE->value,
             )
-            ->isNotEmpty();
+            ->contains(fn ($ledger) => ! $ledger->reversal()->exists());
     }
 
     protected function expectedLedgerCount(
