@@ -67,7 +67,7 @@ Do not infer a percentage from these labels without a measured module-by-module 
 | Purchase Return | Implemented | Return tracking and stock reversal. |
 | Sales Quotation | Implemented | Approval and conversion workflow. |
 | Sales Order | Implemented | Approval, pending quantity tracking and delivery/sale progression. |
-| Delivery Note | Code exists; registration needs verification | Its module directory exists but it is not listed in the current module registry. Validate route and workflow ownership before activation. |
+| Delivery Note | Legacy code exists; not registered; workflow not verified | Controller/routes/provider/service files exist, but no `DeliveryNoteModule` is registered. The legacy service uses max-ID document numbering, `abort_if`, and directly mutates Sales Order delivery counters. Do not activate without a rewrite against current document-numbering, tenant, inventory and Sales workflows. |
 | Sales | Implemented | Approval, stock deduction and accounting posting. |
 | Sales Return | Implemented | Stock reversal and accounting reversal using saved transaction snapshots. |
 
@@ -108,9 +108,14 @@ The following module directories exist but are not currently registered there:
 - `StockAdjustment`
 - `StockTransfer`
 
-Before enabling any of them, verify service-provider registration, route loading, permission definitions, tenant setup requirements, dependencies, and automated tests. In particular, confirm whether stock adjustment and transfer functionality is intentionally owned by the Inventory module before registering separate modules.
+Audit result (2026-11-12): none of these four directories is registered in `config/modules.php`; the three document/inventory workflows below are not safe to activate as-is.
 
-Do not register a module solely because its directory exists.
+- `DeliveryNote`: legacy controller, routes, provider and service exist, but there is no `DeliveryNoteModule`. Its service generates numbers from `MAX(id)`, uses `abort_if`, and updates Sales Order delivery counters directly. It has no verified integration with the current Sales confirmation and inventory posting boundary.
+- `StockAdjustment`: legacy service uses the old `InventoryService` / `StockTransactionType` API, reads stock without row locks, and uses `abort_if` rather than the current business exception/workflow conventions. No current end-to-end workflow coverage was found.
+- `StockTransfer`: legacy service uses the old inventory API, performs an unlocked source-stock pre-check, and posts source/destination movements without a verified current FIFO/WAC, batch/serial, unit-conversion or reversal workflow. No current end-to-end workflow coverage was found.
+- `DocumentNumber`: directory exists but is not registered as a business module; document-numbering infrastructure is already provided by the current shared service.
+
+Do not register or expose these routes until each workflow is rewritten around current tenant-scoped repositories, document-numbering services, inventory posting/reversal services, row locks, permissions and regression tests. This audit documents the deferral; it does not claim the three workflows are implemented or verified.
 
 ---
 
@@ -132,7 +137,7 @@ Do not register a module solely because its directory exists.
 3. Verify transaction boundaries and rollback behavior for posting and reversal.
 4. Prevent duplicate stock/accounting posting on retries.
 5. Verify FIFO/WAC valuation, batch, serial, expiry and unit conversion edge cases.
-6. Audit Delivery Note, Stock Adjustment and Stock Transfer registration and workflow coverage.
+6. Audit Delivery Note, Stock Adjustment and Stock Transfer registration and workflow coverage. **Audit completed:** all three legacy directories are unregistered and their current services are not safe to activate; findings and rewrite requirements are recorded in Section 3. Workflow implementation remains deferred.
 7. Verify that GRN receipt does not bypass the Purchase posting boundary.
 
 ### P1 — Accounting and tax reconciliation
