@@ -318,4 +318,64 @@ class ProductUnitServiceTest extends TestCase
 
         $this->service->ensureSalesUnit($productUnit);
     }
+    public function test_fractional_purchase_unit_quantity_cost_and_reverse_conversion(): void
+    {
+        $productUnit = $this->service->create([
+            'product_id' => $this->product->id,
+            'unit_id' => $this->alternateUnit->id,
+            'conversion_factor' => 12.5,
+            'is_purchase_unit' => true,
+            'is_sales_unit' => true,
+        ]);
+
+        $baseQuantity = $this->service->toBaseQuantity(
+            $productUnit,
+            0.3333,
+        );
+
+        $this->assertEqualsWithDelta(4.16625, $baseQuantity, 0.00000001);
+
+        $this->assertEqualsWithDelta(
+            0.3333,
+            $this->service->fromBaseQuantity($productUnit, $baseQuantity),
+            0.00000001,
+        );
+
+        $this->assertEqualsWithDelta(
+            9.876536,
+            $this->service->toBaseUnitCost($productUnit, 123.4567),
+            0.00000001,
+        );
+    }
+
+    public function test_fractional_unit_smaller_than_base_unit_converts_in_both_directions(): void
+    {
+        $productUnit = $this->service->create([
+            'product_id' => $this->product->id,
+            'unit_id' => $this->alternateUnit->id,
+            'conversion_factor' => 0.125,
+            'is_purchase_unit' => true,
+            'is_sales_unit' => true,
+        ]);
+
+        $baseQuantity = $this->service->toBaseQuantity(
+            $productUnit,
+            8.125,
+        );
+
+        $this->assertEqualsWithDelta(1.015625, $baseQuantity, 0.00000001);
+
+        $this->assertEqualsWithDelta(
+            8.125,
+            $this->service->fromBaseQuantity($productUnit, $baseQuantity),
+            0.00000001,
+        );
+
+        $this->assertEqualsWithDelta(
+            18.7648,
+            $this->service->toBaseUnitCost($productUnit, 2.3456),
+            0.00000001,
+        );
+    }
+
 }
