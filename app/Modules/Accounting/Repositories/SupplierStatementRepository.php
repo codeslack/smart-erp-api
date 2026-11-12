@@ -39,7 +39,8 @@ class SupplierStatementRepository implements SupplierStatementRepositoryInterfac
 
         $openingBalance = $this->calculateOpeningBalance(
             $supplierId,
-            $fromDate
+            $fromDate,
+            $toDate,
         );
 
         $transactions = collect();
@@ -67,7 +68,8 @@ class SupplierStatementRepository implements SupplierStatementRepositoryInterfac
 
     private function calculateOpeningBalance(
         int $supplierId,
-        ?string $fromDate
+        ?string $fromDate,
+        ?string $toDate
     ): float {
         $openingBalance = 0.0;
 
@@ -76,6 +78,10 @@ class SupplierStatementRepository implements SupplierStatementRepositoryInterfac
             ->when(
                 $fromDate,
                 fn ($query) => $query->whereDate('bill_date', '<', $fromDate)
+            )
+            ->when(
+                $toDate,
+                fn ($query) => $query->whereDate('bill_date', '<=', $toDate)
             )
             ->get();
 
