@@ -254,7 +254,7 @@ class GoodsReceiptNoteApiTest extends TestCase
         )->assertNotFound();
     }
 
-    public function test_api_confirms_draft_grn_and_updates_stock(): void
+    public function test_api_confirms_draft_grn_without_posting_stock(): void
     {
         $purchaseOrderItem = $this->createPurchaseOrderItem(
             status: 'confirmed'
@@ -274,7 +274,6 @@ class GoodsReceiptNoteApiTest extends TestCase
             ->assertJsonPath('data.uuid', $grn->uuid)
             ->assertJsonPath('data.status', 'confirmed');
 
-        // Restore tenant context before querying inventory records.
         app(TenantManager::class)->setTenant($this->tenant);
 
         $this->assertDatabaseHas('goods_receipt_notes', [
@@ -282,16 +281,22 @@ class GoodsReceiptNoteApiTest extends TestCase
             'status' => 'confirmed',
         ]);
 
-        // 2 purchase units × 10 base units = 20 base units.
-        $stock = ProductStock::query()
-            ->where('product_id', $this->product->id)
-            ->where('warehouse_id', $this->warehouse->id)
-            ->whereNull('product_variant_id')
-            ->firstOrFail();
+        // GRN records receipt progress; stock is posted by Purchase approval.
+        $this->assertSame(
+            0,
+            ProductStock::query()
+                ->where('product_id', $this->product->id)
+                ->where('warehouse_id', $this->warehouse->id)
+                ->whereNull('product_variant_id')
+                ->count()
+        );
 
-        $this->assertEquals(
-            20,
-            (float) $stock->quantity
+        $this->assertSame(
+            0,
+            StockLedger::query()
+                ->where('referenceable_type', GoodsReceiptNote::class)
+                ->where('referenceable_id', $grn->id)
+                ->count()
         );
 
         $this->assertEquals(
@@ -300,7 +305,7 @@ class GoodsReceiptNoteApiTest extends TestCase
         );
     }
 
-    public function test_api_cancels_confirmed_grn_and_reverses_stock(): void
+    public function test_api_cancels_confirmed_grn_without_posting_stock(): void
     {
         $purchaseOrderItem = $this->createPurchaseOrderItem(
             status: 'confirmed'
@@ -316,27 +321,15 @@ class GoodsReceiptNoteApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.status', 'confirmed');
 
-        // Restore tenant context after the API middleware clears it.
         app(TenantManager::class)->setTenant($this->tenant);
 
-        $originalLedger = StockLedger::query()
-            ->where('referenceable_type', GoodsReceiptNote::class)
-            ->where('referenceable_id', $grn->id)
-            ->where('transaction_type', InventoryTransactionTypeEnum::PURCHASE)
-            ->firstOrFail();
-
-        $this->assertGreaterThan(
+        $this->assertSame(
             0,
-            (float) $originalLedger->quantity_in
+            StockLedger::query()
+                ->where('referenceable_type', GoodsReceiptNote::class)
+                ->where('referenceable_id', $grn->id)
+                ->count()
         );
-
-        $stock = ProductStock::query()
-            ->where('product_id', $this->product->id)
-            ->where('warehouse_id', $this->warehouse->id)
-            ->whereNull('product_variant_id')
-            ->firstOrFail();
-
-        $this->assertEquals(20, (float) $stock->quantity);
 
         $response = $this->postJson(
             '/api/goods-receipt-notes/' . $grn->uuid . '/cancel'
@@ -348,73 +341,37 @@ class GoodsReceiptNoteApiTest extends TestCase
             ->assertJsonPath('data.uuid', $grn->uuid)
             ->assertJsonPath('data.status', 'cancelled');
 
-        // Restore tenant context after the cancellation middleware clears it.
         app(TenantManager::class)->setTenant($this->tenant);
-
-        $this->assertSame(
-            1,
-            StockLedger::query()
-                ->where('reversal_of_ledger_id', $originalLedger->id)
-                ->count()
-        );
 
         $this->assertDatabaseHas('goods_receipt_notes', [
             'id' => $grn->id,
             'status' => 'cancelled',
         ]);
 
-        $stock->refresh();
-
-        $this->assertEquals(
+        $this->assertSame(
             0,
-            (float) $stock->quantity
+            StockLedger::query()
+                ->where('referenceable_type', GoodsReceiptNote::class)
+                ->where('referenceable_id', $grn->id)
+                ->count()
+        );
+
+        $this->assertSame(
+            0,
+            ProductStock::query()
+                ->where('product_id', $this->product->id)
+                ->where('warehouse_id', $this->warehouse->id)
+                ->whereNull('product_variant_id')
+                ->count()
         );
 
         $this->assertEquals(
             0,
             (float) $purchaseOrderItem->fresh()->received_quantity
         );
-
-        $originalLedger->refresh();
-
-        $this->assertDatabaseHas('stock_ledgers', [
-            'id' => $originalLedger->id,
-            'reversal_of_ledger_id' => null,
-        ]);
-
-        $reversalLedgers = StockLedger::query()
-            ->where('reversal_of_ledger_id', $originalLedger->id)
-            ->get();
-
-        $this->assertCount(1, $reversalLedgers);
-
-        $this->assertEquals(
-            (float) $originalLedger->quantity_in,
-            (float) $reversalLedgers->first()->quantity_out
-        );
-
-        $this->assertEquals(
-            InventoryTransactionTypeEnum::REVERSAL_OUT,
-            $reversalLedgers->first()->transaction_type
-        );
-
-        $this->assertEquals(
-            GoodsReceiptNote::class,
-            $reversalLedgers->first()->referenceable_type
-        );
-
-        $this->assertEquals(
-            $grn->id,
-            $reversalLedgers->first()->referenceable_id
-        );
-
-        $this->assertEquals(
-            0,
-            (float) $reversalLedgers->first()->quantity_in
-        );
     }
 
-    public function test_cancelling_grn_restores_its_new_batch_to_draft(): void
+    public function test_cancelling_unbilled_grn_does_not_create_or_restore_batches(): void
     {
         $this->product->update([
             'inventory_tracking_type' => InventoryTrackingTypeEnum::BATCH,
@@ -441,41 +398,13 @@ class GoodsReceiptNoteApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.status', 'confirmed');
 
-
-        // Restore tenant context after the API middleware clears it.
         app(TenantManager::class)->setTenant($this->tenant);
 
-        $batch = ProductBatch::query()
-            ->where('batch_no', 'GRN-CANCEL-BATCH-001')
-            ->where('product_id', $this->product->id)
-            ->where('warehouse_id', $this->warehouse->id)
-            ->firstOrFail();
-
-        $this->assertSame(
-            ProductBatchStatusEnum::ACTIVE,
-            $batch->status
-        );
-
-        $this->assertEquals(
-            20,
-            (float) $batch->remaining_quantity
-        );
-
-        $this->assertEquals(
-            20,
-            (float) $batch->original_quantity,
-            'A newly created GRN batch should record its initial received quantity.'
-        );
-
-        $this->assertEquals(
-            GoodsReceiptNote::class,
-            $batch->sourceable_type
-        );
-
-        $this->assertEquals(
-            $grn->id,
-            $batch->sourceable_id
-        );
+        $this->assertDatabaseMissing('product_batches', [
+            'batch_no' => 'GRN-CANCEL-BATCH-001',
+            'product_id' => $this->product->id,
+            'warehouse_id' => $this->warehouse->id,
+        ]);
 
         $this->postJson(
             '/api/goods-receipt-notes/' . $grn->uuid . '/cancel'
@@ -483,23 +412,11 @@ class GoodsReceiptNoteApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.status', 'cancelled');
 
-        $batch->refresh();
-
-        $this->assertSame(
-            ProductBatchStatusEnum::DRAFT,
-            $batch->status,
-            'A batch created by this GRN should return to DRAFT after cancellation.'
-        );
-
-        $this->assertEquals(
-            0,
-            (float) $batch->original_quantity
-        );
-
-        $this->assertEquals(
-            0,
-            (float) $batch->remaining_quantity
-        );
+        $this->assertDatabaseMissing('product_batches', [
+            'batch_no' => 'GRN-CANCEL-BATCH-001',
+            'product_id' => $this->product->id,
+            'warehouse_id' => $this->warehouse->id,
+        ]);
     }
 
     public function test_cancelling_grn_preserves_a_pre_existing_batch(): void
@@ -553,8 +470,9 @@ class GoodsReceiptNoteApiTest extends TestCase
         );
 
         $this->assertEquals(
-            70,
-            (float) $existingBatch->remaining_quantity
+            50,
+            (float) $existingBatch->remaining_quantity,
+            'GRN confirmation must not mutate inventory batches before Purchase approval.'
         );
 
         $this->postJson(
@@ -580,11 +498,11 @@ class GoodsReceiptNoteApiTest extends TestCase
         $this->assertEquals(
             50,
             (float) $existingBatch->remaining_quantity,
-            'Cancellation must restore the batch quantity to its pre-GRN balance.'
+            'An unbilled GRN must leave the pre-existing batch unchanged.'
         );
     }
 
-    public function test_cancelling_grn_restores_its_new_serials_to_draft(): void
+    public function test_cancelling_unbilled_grn_does_not_register_serials(): void
     {
         $this->product->update([
             'inventory_tracking_type' => InventoryTrackingTypeEnum::SERIAL,
@@ -595,15 +513,11 @@ class GoodsReceiptNoteApiTest extends TestCase
         );
 
         $payload = $this->grnPayload($purchaseOrderItem);
-
         $payload['items'][0]['serials'] = [];
 
         for ($i = 1; $i <= 20; $i++) {
             $payload['items'][0]['serials'][] = [
-                'serial_number' => sprintf(
-                    'GRN-CANCEL-SERIAL-%03d',
-                    $i
-                ),
+                'serial_number' => sprintf('GRN-CANCEL-SERIAL-%03d', $i),
             ];
         }
 
@@ -613,10 +527,8 @@ class GoodsReceiptNoteApiTest extends TestCase
         );
 
         $response->assertCreated();
-
         $uuid = $response->json('data.uuid');
 
-        // Restore tenant context after the API middleware clears it.
         app(TenantManager::class)->setTenant($this->tenant);
 
         $grn = GoodsReceiptNote::query()
@@ -627,32 +539,20 @@ class GoodsReceiptNoteApiTest extends TestCase
             '/api/goods-receipt-notes/' . $uuid . '/confirm'
         )->assertOk();
 
-        $this->assertDatabaseHas('product_serials', [
+        $this->assertDatabaseMissing('product_serials', [
             'serial_number' => 'GRN-CANCEL-SERIAL-001',
             'sourceable_type' => GoodsReceiptNote::class,
             'sourceable_id' => $grn->id,
-            'status' => 'AVAILABLE',
-            'deleted_at' => null,
         ]);
 
         $this->postJson(
             '/api/goods-receipt-notes/' . $uuid . '/cancel'
         )->assertOk();
 
-        $this->assertDatabaseCount('product_serials', 20);
-
-        foreach (range(1, 20) as $i) {
-            $this->assertDatabaseHas('product_serials', [
-                'serial_number' => sprintf(
-                    'GRN-CANCEL-SERIAL-%03d',
-                    $i
-                ),
-                'sourceable_type' => GoodsReceiptNote::class,
-                'sourceable_id' => $grn->id,
-                'status' => 'DRAFT',
-                'deleted_at' => null,
-            ]);
-        }
+        $this->assertDatabaseMissing('product_serials', [
+            'sourceable_type' => GoodsReceiptNote::class,
+            'sourceable_id' => $grn->id,
+        ]);
     }
 
     public function test_api_cannot_cancel_draft_grn(): void
@@ -1073,7 +973,7 @@ class GoodsReceiptNoteApiTest extends TestCase
         ]);
     }
 
-    public function test_api_reconfirming_grn_does_not_duplicate_inventory_or_received_quantity(): void
+    public function test_api_reconfirming_grn_does_not_duplicate_received_quantity_or_post_stock(): void
     {
         $purchaseOrderItem = $this->createPurchaseOrderItem(
             status: 'confirmed'
@@ -1085,7 +985,6 @@ class GoodsReceiptNoteApiTest extends TestCase
         );
 
         $response->assertCreated();
-
         $uuid = $response->json('data.uuid');
 
         $this->postJson(
@@ -1095,20 +994,28 @@ class GoodsReceiptNoteApiTest extends TestCase
         $this->postJson(
             '/api/goods-receipt-notes/' . $uuid . '/confirm'
         )->assertUnprocessable();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $grn = GoodsReceiptNote::query()->where('uuid', $uuid)->firstOrFail();
 
         $this->assertDatabaseHas('purchase_order_items', [
             'id' => $purchaseOrderItem->id,
             'received_quantity' => 2,
         ]);
 
-        $this->assertDatabaseHas('product_stocks', [
+        $this->assertDatabaseMissing('product_stocks', [
             'product_id' => $purchaseOrderItem->product_id,
             'warehouse_id' => $purchaseOrderItem->purchaseOrder->warehouse_id,
-            'quantity' => 20,
+        ]);
+
+        $this->assertDatabaseMissing('stock_ledgers', [
+            'referenceable_type' => GoodsReceiptNote::class,
+            'referenceable_id' => $grn->id,
         ]);
     }
 
-    public function test_api_recancelling_grn_does_not_reverse_inventory_twice(): void
+    public function test_api_recancelling_unbilled_grn_does_not_touch_inventory(): void
     {
         $purchaseOrderItem = $this->createPurchaseOrderItem(
             status: 'confirmed'
@@ -1120,7 +1027,6 @@ class GoodsReceiptNoteApiTest extends TestCase
         );
 
         $response->assertCreated();
-
         $uuid = $response->json('data.uuid');
 
         $this->postJson(
@@ -1135,15 +1041,23 @@ class GoodsReceiptNoteApiTest extends TestCase
             '/api/goods-receipt-notes/' . $uuid . '/cancel'
         )->assertUnprocessable();
 
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $grn = GoodsReceiptNote::query()->where('uuid', $uuid)->firstOrFail();
+
         $this->assertDatabaseHas('purchase_order_items', [
             'id' => $purchaseOrderItem->id,
             'received_quantity' => 0,
         ]);
 
-        $this->assertDatabaseHas('product_stocks', [
+        $this->assertDatabaseMissing('product_stocks', [
             'product_id' => $purchaseOrderItem->product_id,
             'warehouse_id' => $purchaseOrderItem->purchaseOrder->warehouse_id,
-            'quantity' => 0,
+        ]);
+
+        $this->assertDatabaseMissing('stock_ledgers', [
+            'referenceable_type' => GoodsReceiptNote::class,
+            'referenceable_id' => $grn->id,
         ]);
     }
 
