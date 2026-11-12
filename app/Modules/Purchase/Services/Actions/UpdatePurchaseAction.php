@@ -45,16 +45,24 @@ class UpdatePurchaseAction
             $effectiveHeader = [...$purchase->toArray(), ...$resolvedHeader];
 
             if (! array_key_exists('discount_amount', $resolvedHeader)) {
-                $existingItemDiscount = (float) $purchase->items->sum(
-                    'discount_amount'
-                );
+                if (
+                    array_key_exists('discount_type', $resolvedHeader)
+                    || array_key_exists('discount_rate', $resolvedHeader)
+                ) {
+                    // Recalculate a changed percentage/fixed header discount.
+                    $effectiveHeader['discount_amount'] = 0;
+                } else {
+                    $existingItemDiscount = (float) $purchase->items->sum(
+                        'discount_amount'
+                    );
 
-                // Purchase.discount_amount stores item + header discounts.
-                // Recover only the header portion before recalculating.
-                $effectiveHeader['discount_amount'] = max(
-                    0,
-                    (float) $purchase->discount_amount - $existingItemDiscount
-                );
+                    // Purchase.discount_amount stores item + header discounts.
+                    // Recover only the header portion before recalculating.
+                    $effectiveHeader['discount_amount'] = max(
+                        0,
+                        (float) $purchase->discount_amount - $existingItemDiscount
+                    );
+                }
             }
 
             $recalculationFields = [
