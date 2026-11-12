@@ -18,6 +18,16 @@ class ProductStock extends TenantModel
 
     protected $table = 'product_stocks';
 
+    protected static function booted(): void
+    {
+        parent::booted();
+
+        static::saving(function (ProductStock $stock): void {
+            $stock->product_variant_key =
+                $stock->product_variant_id ?? 0;
+        });
+    }
+
     protected $fillable = [
         'product_id',
         'product_variant_id',
