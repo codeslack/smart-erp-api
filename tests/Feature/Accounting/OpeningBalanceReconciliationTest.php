@@ -105,9 +105,25 @@ class OpeningBalanceReconciliationTest extends TestCase
 
         $posting->repost($customer);
 
+        $original = $original->fresh();
+
         $this->assertSame(
-            JournalEntryStatusEnum::REVERSED,
-            $original->fresh()->status
+            JournalEntryStatusEnum::POSTED,
+            $original->status
+        );
+
+        $reversal = $original->reversal;
+
+        $this->assertNotNull($reversal);
+
+        $this->assertSame(
+            $original->id,
+            $reversal->reversal_of_journal_entry_id
+        );
+
+        $this->assertSame(
+            JournalEntryStatusEnum::POSTED,
+            $reversal->status
         );
 
         $this->assertEquals(
@@ -191,9 +207,25 @@ class OpeningBalanceReconciliationTest extends TestCase
 
         $posting->repost($supplier);
 
+        $original = $original->fresh();
+
         $this->assertSame(
-            JournalEntryStatusEnum::REVERSED,
-            $original->fresh()->status
+            JournalEntryStatusEnum::POSTED,
+            $original->status
+        );
+
+        $reversal = $original->reversal;
+
+        $this->assertNotNull($reversal);
+
+        $this->assertSame(
+            $original->id,
+            $reversal->reversal_of_journal_entry_id
+        );
+
+        $this->assertSame(
+            JournalEntryStatusEnum::POSTED,
+            $reversal->status
         );
 
         $this->assertEquals(
