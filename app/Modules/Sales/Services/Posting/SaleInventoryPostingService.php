@@ -5,7 +5,6 @@ namespace App\Modules\Sales\Services\Posting;
 use App\Modules\Inventory\Data\InventoryMovementData;
 use App\Modules\Inventory\Data\InventoryReversalData;
 use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
-use App\Modules\Inventory\Enums\ProductSerialStatusEnum;
 use App\Modules\Inventory\Models\ProductBatch;
 use App\Modules\Inventory\Models\ProductSerial;
 use App\Modules\Inventory\Models\StockLedger;
@@ -201,10 +200,6 @@ class SaleInventoryPostingService
 
                     $lineTotalCost += (float) $ledger->total_cost;
 
-                    $serial->update([
-                        'status' => ProductSerialStatusEnum::SOLD,
-                        'sold_at' => now(),
-                    ]);
                 }
 
                 $item->update([
