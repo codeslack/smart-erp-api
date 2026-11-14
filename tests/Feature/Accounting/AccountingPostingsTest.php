@@ -21,6 +21,7 @@ use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
 use App\Modules\Payment\Enums\PaymentMethodEnum;
 use App\Modules\Payment\Enums\PaymentPurposeEnum;
 use App\Modules\Accounting\Models\ChartOfAccount;
+use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Enums\AccountingAccounts;
 use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
 use App\Modules\Accounting\Services\AccountingSetupService;
@@ -192,4 +193,109 @@ class AccountingPostingsTest extends TestCase
             'status' => JournalEntryStatusEnum::POSTED->value,
         ]);
     }
+
+    public function test_foreign_currency_sale_posts_base_and_foreign_amounts(): void
+    {
+        $sale = Sale::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'warehouse_id' => $this->customer->id,
+            'customer_id' => $this->customer->id,
+            'sale_no' => 'SALE-FX-101',
+            'sale_date' => now()->toDateString(),
+            'currency_code' => 'USD',
+            'exchange_rate' => 83.25,
+            'subtotal' => 100,
+            'grand_total' => 100,
+            'due_amount' => 100,
+            'paid_amount' => 0,
+            'status' => 'confirmed',
+        ]);
+
+        app(SalesPostingService::class)->post($sale);
+
+        $entry = JournalEntry::query()
+            ->with('lines.account')
+            ->where('reference_type', Sale::class)
+            ->where('reference_id', $sale->id)
+            ->firstOrFail();
+
+        $this->assertSame('USD', $entry->currency_code);
+        $this->assertEquals(83.25, (float) $entry->exchange_rate);
+
+        $receivable = $entry->lines->first(
+            fn ($line) => $line->account->account_code === AccountingAccounts::ACCOUNTS_RECEIVABLE
+        );
+
+        $revenue = $entry->lines->first(
+            fn ($line) => $line->account->account_code === AccountingAccounts::SALES_REVENUE
+        );
+
+        $this->assertNotNull($receivable);
+        $this->assertNotNull($revenue);
+
+        $this->assertEquals(8325, (float) $receivable->debit);
+        $this->assertEquals(100, (float) $receivable->foreign_debit);
+        $this->assertEquals(8325, (float) $revenue->credit);
+        $this->assertEquals(100, (float) $revenue->foreign_credit);
+    }
+
+    public function test_sales_return_inherits_source_sale_exchange_rate_for_posting(): void
+    {
+        $sale = Sale::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'warehouse_id' => $this->customer->id,
+            'customer_id' => $this->customer->id,
+            'sale_no' => 'SALE-FX-102',
+            'sale_date' => now()->toDateString(),
+            'currency_code' => 'USD',
+            'exchange_rate' => 83.25,
+            'subtotal' => 100,
+            'grand_total' => 100,
+            'due_amount' => 100,
+            'paid_amount' => 0,
+            'status' => 'confirmed',
+        ]);
+
+        $salesReturn = SalesReturn::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'warehouse_id' => $this->customer->id,
+            'customer_id' => $this->customer->id,
+            'sale_id' => $sale->id,
+            'return_no' => 'SR-FX-101',
+            'return_date' => now()->toDateString(),
+            'subtotal' => 100,
+            'tax_amount' => 0,
+            'grand_total' => 100,
+            'refund_type' => 'credit_note',
+            'status' => SalesReturnStatus::CONFIRMED->value,
+        ]);
+
+        app(SalesReturnPostingService::class)->post($salesReturn);
+
+        $entry = JournalEntry::query()
+            ->with('lines.account')
+            ->where('reference_type', SalesReturn::class)
+            ->where('reference_id', $salesReturn->id)
+            ->firstOrFail();
+
+        $this->assertSame('USD', $entry->currency_code);
+        $this->assertEquals(83.25, (float) $entry->exchange_rate);
+
+        $returnAccount = $entry->lines->first(
+            fn ($line) => $line->account->account_code === AccountingAccounts::SALES_RETURN
+        );
+
+        $receivable = $entry->lines->first(
+            fn ($line) => $line->account->account_code === AccountingAccounts::ACCOUNTS_RECEIVABLE
+        );
+
+        $this->assertNotNull($returnAccount);
+        $this->assertNotNull($receivable);
+
+        $this->assertEquals(8325, (float) $returnAccount->debit);
+        $this->assertEquals(100, (float) $returnAccount->foreign_debit);
+        $this->assertEquals(8325, (float) $receivable->credit);
+        $this->assertEquals(100, (float) $receivable->foreign_credit);
+    }
+
 }

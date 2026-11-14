@@ -34,6 +34,8 @@ class GoodsReceiptNote extends TenantModel
         'transporter_name',
         'remarks',
         'total_received_valuation',
+        'inventory_currency_code',
+        'inventory_exchange_rate',
         'journal_entry_id',
         'confirmed_at',
         'confirmed_by',
@@ -52,6 +54,7 @@ class GoodsReceiptNote extends TenantModel
                 'delivery_challan_date' => 'date',
                 'status' => GoodsReceiptNoteStatusEnum::class,
                 'total_received_valuation' => 'decimal:4',
+                'inventory_exchange_rate' => 'decimal:8',
                 'confirmed_at' => 'datetime',
                 'cancelled_at' => 'datetime',
             ]

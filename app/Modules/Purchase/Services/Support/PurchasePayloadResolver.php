@@ -14,6 +14,7 @@ use App\Modules\Product\Models\ProductVariant;
 use App\Modules\Unit\Models\Unit;
 use App\Modules\Tax\Models\Tax;
 use App\Modules\Accounting\Models\ChartOfAccount;
+use App\Modules\Settings\Models\Setting;
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNoteItem;
 use App\Modules\PurchaseOrder\Models\PurchaseOrderItem;
 
@@ -49,6 +50,51 @@ class PurchasePayloadResolver
             $data['payment_term_id'] = PaymentTerm::query()->where('uuid', $data['payment_term_uuid'])->value('id');
             unset($data['payment_term_uuid']);
         }
+
+        $baseCurrency = strtoupper((string) (
+            Setting::query()
+                ->where('group', Setting::GROUP_COMPANY)
+                ->where('key', 'currency')
+                ->value('value') ?? 'INR'
+        ));
+
+        $sourceCurrency = null;
+        $sourceExchangeRate = null;
+
+        if ($data['goods_receipt_note_id'] ?? null) {
+            $grn = GoodsReceiptNote::query()
+                ->with('purchaseOrder')
+                ->find($data['goods_receipt_note_id']);
+
+            $sourceCurrency = $grn?->purchaseOrder?->currency_code;
+            $sourceExchangeRate = $grn?->purchaseOrder?->exchange_rate;
+        } elseif ($data['purchase_order_id'] ?? null) {
+            $purchaseOrder = PurchaseOrder::query()
+                ->find($data['purchase_order_id']);
+
+            $sourceCurrency = $purchaseOrder?->currency_code;
+            $sourceExchangeRate = $purchaseOrder?->exchange_rate;
+        }
+
+        $currencyCode = strtoupper((string) (
+            $data['currency_code']
+            ?? $sourceCurrency
+            ?? $baseCurrency
+        ));
+
+        if (! isset($data['exchange_rate'])) {
+            if ($sourceCurrency !== null && $currencyCode === strtoupper($sourceCurrency)) {
+                $data['exchange_rate'] = $sourceExchangeRate ?? '1.00000000';
+            } elseif ($currencyCode === $baseCurrency) {
+                $data['exchange_rate'] = '1.00000000';
+            } else {
+                throw new BusinessException(
+                    'Exchange rate is required for a foreign-currency Purchase.'
+                );
+            }
+        }
+
+        $data['currency_code'] = $currencyCode;
 
         return $data;
     }

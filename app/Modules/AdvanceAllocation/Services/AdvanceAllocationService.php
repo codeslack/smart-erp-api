@@ -12,6 +12,7 @@ use App\Modules\Purchase\Models\Purchase;
 
 use App\Modules\Payment\Models\Payment;
 use App\Modules\Payment\Enums\PaymentPurposeEnum;
+use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
 
 use App\Modules\AdvanceAllocation\Models\AdvanceAllocation;
 
@@ -100,7 +101,18 @@ class AdvanceAllocationService
                 $amount
             ) {
 
-                // Serialize allocation with payment reversal by locking the same source row.
+                // Match Sale confirmation: lock the target document before source payments.
+                $sale = Sale::query()
+                    ->whereKey($sale->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $sale) {
+                    throw new BusinessException(
+                        'Sales invoice not found.'
+                    );
+                }
+
                 $lockedPayment = Payment::query()
                     ->whereKey($payment->id)
                     ->lockForUpdate()
@@ -123,21 +135,24 @@ class AdvanceAllocationService
                     );
                 }
 
-                // All eligibility and balance checks must use the locked, current row.
                 $payment = $lockedPayment;
 
-                $availableAdvance =
-                    $this->getAvailableCustomerAdvance(
-                        $payment
+                if (
+                    $payment->party_type !== PaymentPartyTypeEnum::CUSTOMER
+                    || (int) $payment->party_id !== (int) $sale->customer_id
+                ) {
+                    throw new BusinessException(
+                        'Customer advance does not belong to the selected customer.'
                     );
+                }
+
+                $availableAdvance = $this->getAvailableCustomerAdvance($payment);
 
                 if ($amount <= 0 || $amount > $availableAdvance) {
                     throw new BusinessException(
                         'Customer advance balance is insufficient.'
                     );
                 }
-
-                $sale->refresh();
 
                 if ($amount > $sale->due_amount) {
                     throw new BusinessException(
@@ -188,18 +203,58 @@ class AdvanceAllocationService
                 $amount
             ) {
 
-                $availableAdvance =
-                    $this->getAvailableSupplierAdvance(
-                        $payment
+                // Match Purchase confirmation: lock the target document before source payments.
+                $purchase = Purchase::query()
+                    ->whereKey($purchase->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $purchase) {
+                    throw new BusinessException(
+                        'Purchase bill not found.'
                     );
+                }
+
+                $lockedPayment = Payment::query()
+                    ->whereKey($payment->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $lockedPayment) {
+                    throw new BusinessException(
+                        'Supplier advance payment not found.'
+                    );
+                }
+
+                $this->ensureSupplierAdvance($lockedPayment);
+
+                if (
+                    $lockedPayment->status
+                    !== DocumentStatusEnum::CONFIRMED->value
+                ) {
+                    throw new BusinessException(
+                        'Only confirmed supplier advances can be allocated.'
+                    );
+                }
+
+                $payment = $lockedPayment;
+
+                if (
+                    $payment->party_type !== PaymentPartyTypeEnum::SUPPLIER
+                    || (int) $payment->party_id !== (int) $purchase->supplier_id
+                ) {
+                    throw new BusinessException(
+                        'Supplier advance does not belong to the selected supplier.'
+                    );
+                }
+
+                $availableAdvance = $this->getAvailableSupplierAdvance($payment);
 
                 if ($amount <= 0 || $amount > $availableAdvance) {
                     throw new BusinessException(
                         'Supplier advance balance is insufficient.'
                     );
                 }
-
-                $purchase->refresh();
 
                 if ($amount > $purchase->due_amount) {
                     throw new BusinessException(

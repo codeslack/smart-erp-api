@@ -47,6 +47,10 @@ class GoodsReceiptNoteResource extends JsonResource
             'remarks' => $this->remarks,
 
             'total_received_valuation' => $this->total_received_valuation,
+            'inventory_currency_code' => $this->inventory_currency_code,
+            'inventory_exchange_rate' => $this->inventory_exchange_rate === null
+                ? null
+                : (float) $this->inventory_exchange_rate,
 
             'items' => $this->whenLoaded(
                 'items',

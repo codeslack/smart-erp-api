@@ -4,6 +4,7 @@ namespace App\Modules\Inventory\Services;
 
 use Illuminate\Support\Collection;
 use Illuminate\Database\QueryException;
+use Carbon\Carbon;
 
 use App\Core\Exceptions\BusinessException;
 
@@ -115,7 +116,13 @@ class InventoryBatchService
             ?? $exception->getPrevious()?->errorInfo
             ?? [];
 
-        $errorCode = (int) (
+        $sqlState = (string) (
+            $errorInfo[0]
+            ?? $exception->getPrevious()?->getCode()
+            ?? $exception->getCode()
+        );
+
+        $driverCode = (int) (
             $errorInfo[1]
             ?? $exception->getPrevious()?->getCode()
             ?? 0
@@ -127,7 +134,10 @@ class InventoryBatchService
                 . $exception->getPrevious()?->getMessage()
         );
 
-        return $errorCode === 1062
+        $isUniqueViolation = $driverCode === 1062
+            || $sqlState === '23505';
+
+        return $isUniqueViolation
             && str_contains(
                 $message,
                 'product_batches_unique_batch'
@@ -195,6 +205,20 @@ class InventoryBatchService
             : null;
 
         $unitCost = (float) ($data['unit_cost'] ?? 0);
+        $expiryDate = $data['expiry_date'] ?? null;
+        $receivedAt = $data['received_at'] ?? null;
+
+        if (
+            $expiryDate !== null
+            && $receivedAt !== null
+            && Carbon::parse($expiryDate)->lt(
+                Carbon::parse($receivedAt)->startOfDay()
+            )
+        ) {
+            throw new BusinessException(
+                'A batch cannot be received after its expiry date.'
+            );
+        }
 
         if ($unitCost < 0) {
             throw new BusinessException(
@@ -325,6 +349,7 @@ class InventoryBatchService
         float $quantity
     ): void {
         $this->validateQuantity($quantity);
+        $this->ensureActive($batch);
 
         $this->batches->increaseQuantity(
             $batch,
@@ -337,6 +362,7 @@ class InventoryBatchService
         float $quantity
     ): void {
         $this->validateQuantity($quantity);
+        $this->ensureActive($batch);
 
         if ((float) $batch->remaining_quantity < $quantity) {
             throw new BusinessException(
@@ -348,6 +374,16 @@ class InventoryBatchService
             $batch,
             $quantity
         );
+    }
+
+    protected function ensureActive(
+        ProductBatch $batch
+    ): void {
+        if ($batch->status !== ProductBatchStatusEnum::ACTIVE) {
+            throw new BusinessException(
+                'Only active batches can receive or issue inventory.'
+            );
+        }
     }
 
     protected function validateQuantity(

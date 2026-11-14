@@ -62,7 +62,11 @@ class AccountingAccounts
 
     public const COST_OF_GOODS_SOLD = '5000';
 
+    public const PURCHASE_EXPENSE = '5050';
+
     public const PURCHASE_FREIGHT = '5100';
 
     public const PURCHASE_HANDLING = '5200';
+
+    public const PURCHASE_RETURN_VARIANCE = '5300';
 }

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Purchase;
 
 use App\Modules\Tenant\Models\Tenant;
+use Illuminate\Support\Facades\DB;
 use App\Modules\User\Models\User;
 use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Warehouse\Models\Warehouse;
@@ -175,10 +176,19 @@ class PurchaseWorkflowTest extends TestCase
         $confirmResponse->assertOk()
             ->assertJsonPath('data.status', 'confirmed');
 
-        // Verify GRN-linked Purchase Bill does NOT post stock ledger (stock belongs to GRN)
-        $this->assertDatabaseMissing('stock_ledgers', [
+        // Inventory is posted at Purchase approval and linked to this Purchase.
+        $purchaseId = DB::table('purchases')
+            ->where('tenant_id', $this->tenant->id)
+            ->where('uuid', $purchaseUuid)
+            ->value('id');
+
+        $this->assertNotNull($purchaseId);
+
+        $this->assertDatabaseHas('stock_ledgers', [
             'tenant_id' => $this->tenant->id,
             'referenceable_type' => Purchase::class,
+            'referenceable_id' => $purchaseId,
+            'quantity_in' => 10,
         ]);
 
         // Verify balanced Accounting Journal Entry was created

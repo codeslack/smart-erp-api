@@ -50,7 +50,7 @@ class AccountingSetupTest extends TestCase
 
         $this->assertDatabaseCount(
             'chart_of_accounts',
-            16
+            18
         );
 
         $this->assertDatabaseHas(
@@ -110,6 +110,28 @@ class AccountingSetupTest extends TestCase
                 'account_type' => AccountType::EQUITY,
             ]
         );
+
+        $this->assertDatabaseHas(
+            'chart_of_accounts',
+            [
+                'tenant_id' => $this->tenant->id,
+                'account_code' => AccountingAccounts::PURCHASE_RETURN_VARIANCE,
+                'account_name' => 'Purchase Return Valuation Variance',
+                'account_type' => AccountType::EXPENSE,
+                'is_system' => true,
+            ]
+        );
+
+        $this->assertDatabaseHas(
+            'chart_of_accounts',
+            [
+                'tenant_id' => $this->tenant->id,
+                'account_code' => AccountingAccounts::PURCHASE_EXPENSE,
+                'account_name' => 'Purchase Expense',
+                'account_type' => AccountType::EXPENSE,
+                'is_system' => true,
+            ]
+        );
     }
 
     public function test_setup_is_idempotent(): void
@@ -164,7 +186,7 @@ class AccountingSetupTest extends TestCase
         );
 
         $this->assertEquals(
-            16,
+            18,
             ChartOfAccount::query()
                 ->where(
                     'tenant_id',

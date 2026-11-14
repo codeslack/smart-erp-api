@@ -134,6 +134,19 @@ class GoodsReceiptNoteConfirmationTest extends TestCase
             5,
             (float) $poItem->received_quantity
         );
+
+        // GRN confirmation updates PO receiving only; Purchase approval posts stock.
+        $this->assertDatabaseMissing('product_stocks', [
+            'tenant_id' => $this->tenant->id,
+            'product_id' => $this->product->id,
+            'warehouse_id' => $this->warehouse->id,
+        ]);
+
+        $this->assertDatabaseMissing('stock_ledgers', [
+            'tenant_id' => $this->tenant->id,
+            'referenceable_type' => GoodsReceiptNote::class,
+            'referenceable_id' => $grn->id,
+        ]);
     }
 
     public function test_confirmed_grn_cannot_be_confirmed_again(): void

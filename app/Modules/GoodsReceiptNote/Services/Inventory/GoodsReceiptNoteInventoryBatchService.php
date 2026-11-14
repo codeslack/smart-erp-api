@@ -3,6 +3,8 @@
 namespace App\Modules\GoodsReceiptNote\Services\Inventory;
 
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 use Illuminate\Validation\ValidationException;
 
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNote;
@@ -31,6 +33,7 @@ class GoodsReceiptNoteInventoryBatchService
         GoodsReceiptNote $grn,
         GoodsReceiptNoteItem $item,
         GoodsReceiptNoteItemBatch $grnBatch,
+        float $baseUnitCost,
     ): ProductBatch {
         $batchNumber = trim((string) $grnBatch->batch_no);
 
@@ -49,22 +52,27 @@ class GoodsReceiptNoteInventoryBatchService
         );
 
         if ($batch !== null) {
-            return $this->resolveExistingBatch($batch, $batchNumber);
+            return $this->resolveExistingBatch($batch, $grn, $grnBatch, $batchNumber);
         }
 
         try {
-            $batch = $this->inventoryBatchService->createDraft([
-                'product_id' => $productId,
-                'product_variant_id' => $productVariantId,
-                'warehouse_id' => $warehouseId,
-                'batch_no' => $batchNumber,
-                'expiry_date' => $grnBatch->expiry_date,
-                'received_at' => $grn->grn_date,
-                'unit_cost' => (float) $item->base_unit_cost,
-                'sourceable_type' => GoodsReceiptNote::class,
-                'sourceable_id' => (int) $grn->getKey(),
-                'remarks' => 'GRN ' . $grn->grn_number,
-            ]);
+            // Isolate the insert in a savepoint. PostgreSQL marks the current
+            // transaction failed after a unique violation; the savepoint lets
+            // the duplicate-recovery lookup continue in the outer GRN transaction.
+            $batch = DB::transaction(
+                fn () => $this->inventoryBatchService->createDraft([
+                    'product_id' => $productId,
+                    'product_variant_id' => $productVariantId,
+                    'warehouse_id' => $warehouseId,
+                    'batch_no' => $batchNumber,
+                    'expiry_date' => $grnBatch->expiry_date,
+                    'received_at' => $grn->grn_date,
+                    'unit_cost' => $baseUnitCost,
+                    'sourceable_type' => GoodsReceiptNote::class,
+                    'sourceable_id' => (int) $grn->getKey(),
+                    'remarks' => 'GRN ' . $grn->grn_number,
+                ])
+            );
         } catch (QueryException $exception) {
             if (
                 ! $this->inventoryBatchService
@@ -94,6 +102,8 @@ class GoodsReceiptNoteInventoryBatchService
 
             return $this->resolveExistingBatch(
                 $batch,
+                $grn,
+                $grnBatch,
                 $batchNumber,
             );
         }
@@ -115,6 +125,8 @@ class GoodsReceiptNoteInventoryBatchService
      */
     protected function resolveExistingBatch(
         ProductBatch $batch,
+        GoodsReceiptNote $grn,
+        GoodsReceiptNoteItemBatch $grnBatch,
         string $batchNumber,
     ): ProductBatch {
         $batch = $this->inventoryBatchService->lock(
@@ -125,6 +137,28 @@ class GoodsReceiptNoteInventoryBatchService
             throw ValidationException::withMessages([
                 'batches' => [
                     "Batch {$batchNumber} exists but is not active.",
+                ],
+            ]);
+        }
+
+        $existingExpiry = $batch->expiry_date?->toDateString();
+        $incomingExpiry = $grnBatch->expiry_date?->toDateString();
+
+        if (
+            $existingExpiry !== null
+            && $existingExpiry < Carbon::parse($grn->grn_date)->toDateString()
+        ) {
+            throw ValidationException::withMessages([
+                'batches' => [
+                    "Batch {$batchNumber} was already expired on the GRN date.",
+                ],
+            ]);
+        }
+
+        if ($existingExpiry !== $incomingExpiry) {
+            throw ValidationException::withMessages([
+                'batches' => [
+                    "Batch {$batchNumber} expiry date does not match the existing inventory batch.",
                 ],
             ]);
         }

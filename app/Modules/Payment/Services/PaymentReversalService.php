@@ -57,15 +57,21 @@ class PaymentReversalService
                 ]);
 
                 if (
-                    $payment->purpose === PaymentPurposeEnum::CUSTOMER_ADVANCE
+                    in_array($payment->purpose, [
+                        PaymentPurposeEnum::CUSTOMER_ADVANCE,
+                        PaymentPurposeEnum::SUPPLIER_ADVANCE,
+                    ], true)
                     && AdvanceAllocation::query()
+                        ->where('tenant_id', tenantId())
                         ->where('source_type', Payment::class)
                         ->where('source_id', $payment->id)
                         ->exists()
                 ) {
-                    throw new BusinessException(
-                        'Release all customer advance allocations from Sales before reversing this payment.'
-                    );
+                    $message = $payment->purpose === PaymentPurposeEnum::CUSTOMER_ADVANCE
+                        ? 'Release all customer advance allocations from Sales before reversing this payment.'
+                        : 'Release all supplier advance allocations from Purchases before reversing this payment.';
+
+                    throw new BusinessException($message);
                 }
 
                 $voucherType =

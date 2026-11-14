@@ -4,6 +4,7 @@ namespace App\Modules\GoodsReceiptNote\Services\Inventory;
 
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNote;
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNoteItem;
+use App\Modules\Purchase\Models\Purchase;
 
 use App\Modules\Inventory\Data\InventoryMovementData;
 use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
@@ -11,6 +12,7 @@ use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
 class GoodsReceiptNoteInventoryMovementFactory
 {
     public function make(
+        Purchase $purchase,
         GoodsReceiptNote $grn,
         GoodsReceiptNoteItem $item,
         float $quantity,
@@ -27,13 +29,14 @@ class GoodsReceiptNoteInventoryMovementFactory
             quantity: $quantity,
             unitCost: $unitCost,
             transactionType: InventoryTransactionTypeEnum::PURCHASE->value,
-            transactionDate: $grn->grn_date,
-            referenceType: GoodsReceiptNote::class,
-            referenceId: (int) $grn->getKey(),
-            referenceNo: $grn->grn_number,
+            transactionDate: $purchase->purchase_date,
+            referenceType: Purchase::class,
+            referenceId: (int) $purchase->getKey(),
+            referenceNo: $purchase->purchase_no,
             batchId: $batchId,
             serialId: $serialId,
-            remarks: 'Goods receipt ' . $grn->grn_number,
+            remarks: 'Purchase ' . $purchase->purchase_no
+                . ' received through GRN ' . $grn->grn_number,
         );
     }
 }

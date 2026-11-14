@@ -68,9 +68,83 @@ class GoodsReceiptNoteInventoryBatchServiceTest extends TestCase
             $this->makeGrn(),
             $this->makeItem(),
             $this->makeGrnBatch(),
+            100,
         );
 
         $this->assertSame($batch, $result);
+    }
+
+
+
+    public function test_batch_duplicate_detection_supports_postgresql_unique_violations(): void
+    {
+        $repository = $this->createMock(
+            \App\Modules\Inventory\Repositories\Contracts\ProductBatchRepositoryInterface::class
+        );
+
+        $service = new InventoryBatchService($repository);
+
+        $exception = new QueryException(
+            'pgsql',
+            'insert into product_batches (...) values (...)',
+            [],
+            new \PDOException(
+                'SQLSTATE[23505]: unique_violation: duplicate key value '
+                    . 'violates unique constraint "product_batches_unique_batch"',
+                23505
+            )
+        );
+
+        $this->assertTrue(
+            $service->isDuplicateBatchException($exception)
+        );
+    }
+
+    public function test_it_rejects_an_existing_batch_with_a_different_expiry_date(): void
+    {
+        $batchService = $this->createMock(InventoryBatchService::class);
+
+        $batch = new ProductBatch();
+        $batch->forceFill([
+            $batch->getKeyName() => 55,
+            'status' => ProductBatchStatusEnum::ACTIVE,
+            'expiry_date' => '2028-06-30',
+        ]);
+
+        $batchService
+            ->expects($this->once())
+            ->method('findByBatchNumber')
+            ->with('BATCH-001', 10, 20, null)
+            ->willReturn($batch);
+
+        $batchService
+            ->expects($this->once())
+            ->method('lock')
+            ->with(55)
+            ->willReturn($batch);
+
+        $grnBatch = $this->makeGrnBatch();
+        $grnBatch->expiry_date = '2028-12-31';
+
+        $service = new GoodsReceiptNoteInventoryBatchService(
+            $batchService
+        );
+
+        try {
+            $service->resolve(
+                $this->makeGrn(),
+                $this->makeItem(),
+                $grnBatch,
+                100,
+            );
+
+            $this->fail('Expected an existing batch expiry mismatch to be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey(
+                'batches',
+                $exception->errors()
+            );
+        }
     }
 
     public function test_it_rethrows_an_unrelated_database_exception(): void
@@ -117,6 +191,7 @@ class GoodsReceiptNoteInventoryBatchServiceTest extends TestCase
                 $this->makeGrn(),
                 $this->makeItem(),
                 $this->makeGrnBatch(),
+                100,
             );
 
             $this->fail('Expected the database exception to be rethrown.');
@@ -165,6 +240,7 @@ class GoodsReceiptNoteInventoryBatchServiceTest extends TestCase
                 $this->makeGrn(),
                 $this->makeItem(),
                 $this->makeGrnBatch(),
+                100,
             );
 
             $this->fail('Expected an inactive batch to be rejected.');

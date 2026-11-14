@@ -35,6 +35,27 @@ class PurchaseValidator
             if ((int) $grn->supplier_id !== $supplierId) {
                 throw new BusinessException('Goods Receipt Note does not belong to the selected supplier.');
             }
+
+            $warehouseId = (int) ($data['warehouse_id'] ?? 0);
+
+            if (
+                $warehouseId > 0
+                && $warehouseId !== (int) $grn->warehouse_id
+            ) {
+                throw new BusinessException(
+                    'Goods Receipt Note does not belong to the selected warehouse.'
+                );
+            }
+
+            if (
+                $poId !== null
+                && (int) $grn->purchase_order_id !== $poId
+            ) {
+                throw new BusinessException(
+                    'Purchase Order does not match the selected Goods Receipt Note.'
+                );
+            }
+
             if (! $grn->isConfirmed()) {
                 throw new BusinessException('Goods Receipt Note must be confirmed before creating a purchase bill.');
             }
@@ -90,6 +111,17 @@ class PurchaseValidator
             }
             if ((int) ($grnItem->product_variant_id ?? 0) !== (int) ($variantId ?? 0)) {
                 throw new BusinessException("Line variant does not match GRN item variant.");
+            }
+
+            $warehouseId = (int) ($item['warehouse_id'] ?? 0);
+
+            if (
+                $warehouseId > 0
+                && $warehouseId !== (int) $grnItem->warehouse_id
+            ) {
+                throw new BusinessException(
+                    'Line warehouse does not match GRN item warehouse.'
+                );
             }
         }
 

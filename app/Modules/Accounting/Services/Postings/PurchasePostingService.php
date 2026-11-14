@@ -2,69 +2,125 @@
 
 namespace App\Modules\Accounting\Services\Postings;
 
-use App\Modules\Purchase\Models\Purchase;
+use App\Core\Exceptions\BusinessException;
+
 use App\Modules\Accounting\Enums\AccountingAccounts;
+use App\Modules\Accounting\Enums\AccountType;
 use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
+use App\Modules\Accounting\Services\JournalEntry\JournalEntryService;
+
+use App\Modules\Purchase\Models\Purchase;
+use App\Modules\Purchase\Services\PurchaseInventoryValuationService;
 
 class PurchasePostingService extends BasePostingService
 {
-    public function post(Purchase $purchase): void
-    {
-        $grandTotal = $this->decimal($purchase->grand_total);
-        $this->validateAmount($grandTotal);
+    public function __construct(
+        JournalEntryService $journalEntryService,
+        protected PurchaseInventoryValuationService $valuationService,
+    ) {
+        parent::__construct($journalEntryService);
+    }
 
-        $purchase->loadMissing(['charges.chartOfAccount']);
+    public function post(
+        Purchase $purchase
+    ): void {
+        $valuation = $this->valuationService->calculate(
+            $purchase
+        );
+
+        $currencyCode = $valuation['currency_code'];
+        $exchangeRate = $valuation['exchange_rate'];
+
+        $grandTotal = $valuation['grand_total'];
+        $taxAmount = $valuation['tax_amount'];
+        $stockAmount = $valuation['stock_amount'];
+        $nonStockAmount = $valuation['non_stock_amount'];
+
+        $baseGrandTotal = $this->decimal(
+            bcmul($grandTotal, $exchangeRate, 8)
+        );
+
+        $baseTaxAmount = $this->decimal(
+            bcmul($taxAmount, $exchangeRate, 8)
+        );
+
         $lines = [];
-        $expenseChargesTotal = 0.0;
 
         foreach ($purchase->charges as $charge) {
-            $chargeAmount = (float) $charge->amount;
-            if ($chargeAmount <= 0) {
+            if ($charge->treatment !== 'expense' || $charge->isLandedCost()) {
                 continue;
             }
 
-            if ($charge->treatment === 'expense' && $charge->chartOfAccount) {
-                $expenseChargesTotal += $chargeAmount;
-                $lines[] = [
-                    'chart_of_account_uuid' => $charge->chartOfAccount->uuid,
-                    'debit' => $this->decimal($chargeAmount),
-                    'credit' => '0',
-                    'description' => "Charge: {$charge->name}",
-                ];
+            if (
+                ! $charge->chartOfAccount
+                || ! $charge->chartOfAccount->is_active
+                || $charge->chartOfAccount->account_type !== AccountType::EXPENSE
+            ) {
+                throw new BusinessException(
+                    'Every expense purchase charge must have an active expense account.'
+                );
             }
-        }
 
-        $taxAmount = (float) $purchase->tax_amount;
-        $inventoryAmount = max(0, (float) $purchase->grand_total - $taxAmount - $expenseChargesTotal);
+            $chargeAmount = $this->decimal($charge->amount);
+            $baseChargeAmount = $this->decimal(
+                bcmul($chargeAmount, $exchangeRate, 8)
+            );
 
-        if ($inventoryAmount > 0) {
+            if (bccomp($chargeAmount, '0.0000', 4) <= 0) {
+                continue;
+            }
+
             $lines[] = $this->debit(
-                AccountingAccounts::INVENTORY,
-                $this->decimal($inventoryAmount)
+                $charge->chartOfAccount->account_code,
+                $baseChargeAmount,
+                'Purchase expense charge: ' . $charge->name,
+                $chargeAmount,
             );
         }
 
-        if ($taxAmount > 0) {
+        if (bccomp($stockAmount, '0.0000', 4) > 0) {
+            $lines[] = $this->debit(
+                AccountingAccounts::INVENTORY,
+                $this->decimal(bcmul($stockAmount, $exchangeRate, 8)),
+                'Inventory purchase',
+                $stockAmount,
+            );
+        }
+
+        if (bccomp($nonStockAmount, '0.0000', 4) > 0) {
+            $lines[] = $this->debit(
+                AccountingAccounts::PURCHASE_EXPENSE,
+                $this->decimal(bcmul($nonStockAmount, $exchangeRate, 8)),
+                'Non-stock purchase expense',
+                $nonStockAmount,
+            );
+        }
+
+        if (bccomp($baseTaxAmount, '0.0000', 4) > 0) {
             $lines[] = $this->debit(
                 AccountingAccounts::INPUT_TAX_RECEIVABLE,
-                $this->decimal($taxAmount)
+                $baseTaxAmount,
+                'Purchase input tax',
+                $taxAmount,
             );
         }
 
         $lines[] = $this->credit(
             AccountingAccounts::ACCOUNTS_PAYABLE,
-            $grandTotal
+            $baseGrandTotal,
+            'Purchase payable',
+            $grandTotal,
         );
 
         $this->createJournalEntry(
-            entryDate: $purchase->purchase_date instanceof \DateTimeInterface
-                ? $purchase->purchase_date->format('Y-m-d')
-                : (string) $purchase->purchase_date,
-            voucherType: JournalVoucherTypeEnum::PURCHASE->value,
             referenceType: Purchase::class,
             referenceId: $purchase->id,
-            description: "Purchase {$purchase->purchase_no}",
-            lines: $lines
+            voucherType: JournalVoucherTypeEnum::PURCHASE->value,
+            entryDate: $purchase->purchase_date->toDateString(),
+            description: 'Purchase ' . $purchase->purchase_no,
+            lines: $lines,
+            currencyCode: $currencyCode,
+            exchangeRate: $exchangeRate,
         );
     }
 }

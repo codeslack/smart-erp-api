@@ -3,12 +3,15 @@
 namespace App\Modules\Purchase\Services\Posting;
 
 use App\Modules\Purchase\Models\Purchase;
+use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNote;
+use App\Modules\GoodsReceiptNote\Services\Inventory\GoodsReceiptNoteInventoryPostingService;
 use App\Modules\Purchase\Models\PurchaseItem;
 use App\Modules\Purchase\Models\PurchaseItemBatch;
 use App\Modules\Purchase\Models\PurchaseItemSerial;
 use App\Core\Exceptions\BusinessException;
 use App\Modules\ProductUnit\Models\ProductUnit;
 use App\Modules\ProductUnit\Services\ProductUnitService;
+use App\Modules\Purchase\Services\PurchaseInventoryValuationService;
 use App\Modules\Inventory\Services\InventoryPostingService;
 use App\Modules\Inventory\Services\InventoryBatchService;
 use App\Modules\Inventory\Services\Serial\InventorySerialRegistrationService;
@@ -22,16 +25,65 @@ class PurchaseInventoryPostingService
         protected InventoryBatchService $inventoryBatchService,
         protected InventorySerialRegistrationService $serialRegistrationService,
         protected ProductUnitService $productUnitService,
+        protected GoodsReceiptNoteInventoryPostingService $goodsReceiptNoteInventoryPostingService,
+        protected PurchaseInventoryValuationService $valuationService,
     ) {}
 
     public function post(Purchase $purchase): void
     {
-        // Rule: If linked to a confirmed GRN, stock was already posted by GRN. Do not post again!
-        if ($purchase->goods_receipt_note_id !== null) {
-            return;
+        $purchase->loadMissing(['items.product', 'items.batches', 'items.serials']);
+
+        $hasGrnLinkedItems = $purchase->items->contains(
+            fn (PurchaseItem $item) => $item->goods_receipt_note_item_id !== null
+        );
+
+        if ($purchase->goods_receipt_note_id === null && $hasGrnLinkedItems) {
+            throw new BusinessException(
+                'Purchase lines linked to a GRN item require the matching GRN header reference.'
+            );
         }
 
-        $purchase->loadMissing(['items.product', 'items.batches', 'items.serials']);
+        if (
+            $purchase->goods_receipt_note_id !== null
+            && $purchase->items->contains(
+                fn (PurchaseItem $item) => $item->goods_receipt_note_item_id === null
+            )
+        ) {
+            throw new BusinessException(
+                'Every item in a GRN-linked Purchase must reference an item from that GRN.'
+            );
+        }
+
+        $valuation = $this->valuationService->calculate(
+            $purchase
+        );
+
+        $baseCurrency = $valuation['base_currency'];
+        $currencyCode = $valuation['currency_code'];
+        $exchangeRate = $valuation['exchange_rate'];
+
+        foreach ($purchase->items as $item) {
+            if (isset($valuation['stock_item_unit_costs'][$item->id])) {
+                $item->update([
+                    'base_unit_cost' => $valuation['stock_item_unit_costs'][$item->id],
+                ]);
+            }
+        }
+
+        // GRN receipt quantities become inventory only when a Purchase is approved.
+        if ($purchase->goods_receipt_note_id !== null) {
+            $grn = GoodsReceiptNote::query()
+                ->whereKey($purchase->goods_receipt_note_id)
+                ->firstOrFail();
+
+            $this->goodsReceiptNoteInventoryPostingService->post(
+                $grn,
+                $purchase,
+                $currencyCode,
+                $exchangeRate,
+                $baseCurrency,
+            );
+        }
 
         foreach ($purchase->items as $item) {
             // Rule: Do not post stock for individual lines linked to a GRN item
@@ -46,14 +98,20 @@ class PurchaseInventoryPostingService
 
             $productUnit = $this->resolveProductUnit($item);
 
-            $baseUnitCost = $item->base_unit_cost !== null
-                ? (float) $item->base_unit_cost
-                : ($productUnit
+            $foreignUnitCost = $item->base_unit_cost !== null
+                ? (string) $item->base_unit_cost
+                : (string) ($productUnit
                     ? $this->productUnitService->toBaseUnitCost(
                         $productUnit,
                         (float) $item->unit_cost
                     )
                     : (float) $item->unit_cost);
+
+            $baseUnitCost = (float) bcmul(
+                $foreignUnitCost,
+                $exchangeRate,
+                8,
+            );
 
             $baseQuantity = $item->base_quantity !== null
                 ? (float) $item->base_quantity
@@ -266,6 +324,32 @@ class PurchaseInventoryPostingService
         );
 
         if ($batch !== null) {
+            if (
+                $batch->expiry_date !== null
+                && $batch->expiry_date->lt(
+                    \Carbon\Carbon::parse($purchase->purchase_date)->startOfDay()
+                )
+            ) {
+                throw new BusinessException(
+                    "Batch [{$batchItem->batch_no}] was already expired on the Purchase date."
+                );
+            }
+
+            $existingManufacturingDate = $batch->manufacturing_date?->toDateString();
+            $incomingManufacturingDate = $batchItem->manufacturing_date?->toDateString();
+
+            $existingExpiryDate = $batch->expiry_date?->toDateString();
+            $incomingExpiryDate = $batchItem->expiry_date?->toDateString();
+
+            if (
+                $existingManufacturingDate !== $incomingManufacturingDate
+                || $existingExpiryDate !== $incomingExpiryDate
+            ) {
+                throw new BusinessException(
+                    "Batch [{$batchItem->batch_no}] manufacturing or expiry dates do not match the existing inventory batch."
+                );
+            }
+
             return $batch;
         }
 

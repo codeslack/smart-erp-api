@@ -57,6 +57,17 @@ class PurchaseReturnPayloadResolver
             }
 
             $data['supplier_id'] = $purchaseSupplierId ?? ($data['supplier_id'] ?? null);
+
+            $purchase = Purchase::query()
+                ->whereKey($data['purchase_id'])
+                ->first();
+
+            if (! $purchase) {
+                throw new BusinessException('Purchase not found for currency snapshot.');
+            }
+
+            $data['currency_code'] = $purchase->currency_code;
+            $data['exchange_rate'] = $purchase->exchange_rate;
         }
 
         if (isset($data['refund_account_uuid']) && ! isset($data['refund_account_id'])) {

@@ -10,6 +10,7 @@ use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Services\AccountingSetupService;
 use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
 use App\Modules\Inventory\Models\ProductStock;
+use App\Modules\Inventory\Models\StockLedger;
 use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 use App\Modules\Product\Enums\ProductTypeEnum;
 use App\Modules\Product\Models\Product;
@@ -198,4 +199,265 @@ class PurchaseReturnConfirmationTest extends TestCase
         $debitLine = $journalEntry->lines->firstWhere('debit', '>', 0);
         $this->assertEquals($bankAccount->id, $debitLine->chart_of_account_id);
     }
+
+    public function test_foreign_currency_purchase_and_return_reconcile_base_inventory_and_gl(): void
+    {
+        $purchaseService = app(PurchaseService::class);
+
+        $foreignPurchase = $purchaseService->create([
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'currency_code' => 'USD',
+            'exchange_rate' => 83.25,
+            'items' => [[
+                'product_uuid' => $this->product->uuid,
+                'quantity' => 1,
+                'unit_cost' => 100,
+            ]],
+        ]);
+
+        $foreignPurchase = $purchaseService->confirm($foreignPurchase);
+
+        $stock = ProductStock::query()
+            ->where('product_id', $this->product->id)
+            ->where('warehouse_id', $this->warehouse->id)
+            ->firstOrFail();
+
+        $this->assertEqualsWithDelta(
+            1470.8333,
+            (float) $stock->average_cost,
+            0.0001
+        );
+
+        $purchaseEntry = JournalEntry::query()
+            ->with('lines.account')
+            ->where('reference_type', Purchase::class)
+            ->where('reference_id', $foreignPurchase->id)
+            ->firstOrFail();
+
+        $this->assertSame('USD', $purchaseEntry->currency_code);
+        $this->assertEquals(83.25, (float) $purchaseEntry->exchange_rate);
+
+        $purchasePayable = $purchaseEntry->lines->first(
+            fn ($line) => $line->account->account_code === AccountingAccounts::ACCOUNTS_PAYABLE
+        );
+
+        $this->assertNotNull($purchasePayable);
+        $this->assertEquals(8325, (float) $purchasePayable->credit);
+        $this->assertEquals(100, (float) $purchasePayable->foreign_credit);
+
+        $purchaseItem = $foreignPurchase->items()->firstOrFail();
+
+        $createResponse = $this->postJson('/api/purchase-returns', [
+            'purchase_uuid' => $foreignPurchase->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'purchase_item_uuid' => $purchaseItem->uuid,
+                'returned_quantity' => 1,
+                'unit_cost' => 100,
+            ]],
+        ])->assertCreated();
+
+        $returnUuid = $createResponse->json('data.uuid');
+
+        $this->postJson("/api/purchase-returns/{$returnUuid}/confirm")
+            ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $purchaseReturn = PurchaseReturn::query()
+            ->where('uuid', $returnUuid)
+            ->firstOrFail();
+
+        $this->assertSame('USD', $purchaseReturn->currency_code);
+        $this->assertEquals(83.25, (float) $purchaseReturn->exchange_rate);
+
+        $returnEntry = JournalEntry::query()
+            ->with('lines.account')
+            ->where('voucher_type', JournalVoucherTypeEnum::PURCHASE_RETURN->value)
+            ->where('reference_id', $purchaseReturn->id)
+            ->firstOrFail();
+
+        $inventoryLedger = StockLedger::query()
+            ->where('referenceable_type', PurchaseReturn::class)
+            ->where('referenceable_id', $purchaseReturn->id)
+            ->where('quantity_out', '>', 0)
+            ->firstOrFail();
+
+        $inventoryLine = $returnEntry->lines->first(
+            fn ($line) => $line->account->account_code === AccountingAccounts::INVENTORY
+        );
+
+        $varianceLine = $returnEntry->lines->first(
+            fn ($line) => $line->account->account_code === AccountingAccounts::PURCHASE_RETURN_VARIANCE
+        );
+
+        $this->assertNotNull($inventoryLine);
+        $this->assertNotNull($varianceLine);
+
+        $this->assertEquals(
+            (float) $inventoryLedger->total_cost,
+            (float) $inventoryLine->credit
+        );
+
+        $this->assertEqualsWithDelta(
+            8325 - (float) $inventoryLedger->total_cost,
+            (float) $varianceLine->credit,
+            0.0001
+        );
+
+        $this->assertEquals(
+            (float) $returnEntry->lines->sum('debit'),
+            (float) $returnEntry->lines->sum('credit')
+        );
+
+        $this->assertEquals(100, (float) $inventoryLine->foreign_credit + (float) $varianceLine->foreign_credit);
+    }
+
+
+    public function test_purchase_line_discount_reduces_stock_and_inventory_gl_valuation(): void
+    {
+        $purchase = app(PurchaseService::class)->create([
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [[
+                'product_uuid' => $this->product->uuid,
+                'quantity' => 2,
+                'unit_cost' => 100,
+                'discount_amount' => 20,
+            ]],
+        ]);
+
+        $purchase = app(PurchaseService::class)->confirm($purchase);
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $item = $purchase->items()->firstOrFail();
+
+        $this->assertEquals(90, (float) $item->base_unit_cost);
+
+        $stock = ProductStock::query()
+            ->where('product_id', $this->product->id)
+            ->where('warehouse_id', $this->warehouse->id)
+            ->firstOrFail();
+
+        $this->assertEquals(7, (float) $stock->quantity);
+        $this->assertEqualsWithDelta(
+            97.1429,
+            (float) $stock->average_cost,
+            0.0001
+        );
+
+        $entry = JournalEntry::query()
+            ->with('lines.account')
+            ->where('reference_type', Purchase::class)
+            ->where('reference_id', $purchase->id)
+            ->firstOrFail();
+
+        $inventoryLine = $entry->lines->first(
+            fn ($line) => $line->account->account_code === AccountingAccounts::INVENTORY
+        );
+
+        $this->assertNotNull($inventoryLine);
+        $this->assertEquals(180, (float) $inventoryLine->debit);
+    }
+
+    public function test_non_stock_purchase_posts_to_purchase_expense_not_inventory(): void
+    {
+        $serviceProduct = Product::create([
+            'tenant_id' => $this->tenant->id,
+            'code' => 'PRD-SERVICE-01',
+            'sku' => 'SKU-SERVICE-01',
+            'name' => 'Service Purchase',
+            'slug' => 'service-purchase',
+            'product_type' => ProductTypeEnum::SERVICE,
+            'inventory_tracking_type' => InventoryTrackingTypeEnum::NONE,
+            'is_active' => true,
+            'purchase_price' => 500,
+            'selling_price' => 0,
+        ]);
+
+        $purchase = app(PurchaseService::class)->create([
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [[
+                'product_uuid' => $serviceProduct->uuid,
+                'quantity' => 1,
+                'unit_cost' => 500,
+            ]],
+        ]);
+
+        $purchase = app(PurchaseService::class)->confirm($purchase);
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $entry = JournalEntry::query()
+            ->with('lines.account')
+            ->where('reference_type', Purchase::class)
+            ->where('reference_id', $purchase->id)
+            ->firstOrFail();
+
+        $expenseLine = $entry->lines->first(
+            fn ($line) => $line->account->account_code === AccountingAccounts::PURCHASE_EXPENSE
+        );
+
+        $inventoryLine = $entry->lines->first(
+            fn ($line) => $line->account->account_code === AccountingAccounts::INVENTORY
+        );
+
+        $this->assertNotNull($expenseLine);
+        $this->assertEquals(500, (float) $expenseLine->debit);
+        $this->assertNull($inventoryLine);
+
+        $this->assertDatabaseMissing('product_stocks', [
+            'tenant_id' => $this->tenant->id,
+            'product_id' => $serviceProduct->id,
+            'warehouse_id' => $this->warehouse->id,
+        ]);
+
+        $purchaseItem = $purchase->items()->firstOrFail();
+
+        $returnResponse = $this->postJson('/api/purchase-returns', [
+            'purchase_uuid' => $purchase->uuid,
+            'return_date' => now()->toDateString(),
+            'items' => [[
+                'purchase_item_uuid' => $purchaseItem->uuid,
+                'returned_quantity' => 1,
+                'unit_cost' => 500,
+            ]],
+        ])->assertCreated();
+
+        $returnUuid = $returnResponse->json('data.uuid');
+
+        $this->postJson("/api/purchase-returns/{$returnUuid}/confirm")
+            ->assertOk();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        $return = PurchaseReturn::query()
+            ->where('uuid', $returnUuid)
+            ->firstOrFail();
+
+        $returnEntry = JournalEntry::query()
+            ->with('lines.account')
+            ->where('reference_type', PurchaseReturn::class)
+            ->where('reference_id', $return->id)
+            ->firstOrFail();
+
+        $returnExpenseLine = $returnEntry->lines->first(
+            fn ($line) => $line->account->account_code === AccountingAccounts::PURCHASE_EXPENSE
+        );
+
+        $returnInventoryLine = $returnEntry->lines->first(
+            fn ($line) => $line->account->account_code === AccountingAccounts::INVENTORY
+        );
+
+        $this->assertNotNull($returnExpenseLine);
+        $this->assertEquals(500, (float) $returnExpenseLine->credit);
+        $this->assertNull($returnInventoryLine);
+    }
+
 }

@@ -2,7 +2,7 @@
 
 Repository: https://github.com/codeslack/smart-erp-api
 
-Last reviewed: 2026-11-12
+Last reviewed: 2026-11-14
 Default branch: `main`
 
 This document is the single source of truth for the current project status and planned delivery sequence. It deliberately separates code presence, module registration, workflow verification, automated test coverage, and production readiness. A module directory alone does not mean a feature is active or production-ready.
@@ -112,6 +112,12 @@ Before enabling any of them, verify service-provider registration, route loading
 
 Do not register a module solely because its directory exists.
 
+### P1 registration audit findings
+
+- **Delivery Note:** remains unregistered. Its legacy service uses race-prone `MAX(id) + 1` numbering, `abort()`-based business validation, and incorrect delivery-quantity handling. It also creates Sales records directly instead of using the complete Sale workflow. Do not activate it until it is rebuilt and covered by end-to-end tests.
+- **Stock Adjustment and Stock Transfer:** remain unregistered. Their models reference an obsolete `TenantModel` namespace, and both services depend on an `InventoryService` class that is absent from the current Inventory module. Their approval paths are not compatible with the current `InventoryPostingService` contract. Do not activate them until rebuilt on the current inventory posting and reversal services.
+- These directories are legacy scaffolding, not active capabilities. Their audit is complete; their implementation and activation remain separate future work.
+
 ---
 
 ## 4. Immediate priorities
@@ -134,6 +140,21 @@ Do not register a module solely because its directory exists.
 5. Verify FIFO/WAC valuation, batch, serial, expiry and unit conversion edge cases.
 6. Audit Delivery Note, Stock Adjustment and Stock Transfer registration and workflow coverage.
 7. Verify that GRN receipt does not bypass the Purchase posting boundary.
+
+**Coordinated implementation:** PR #30, `Harden inventory and document lifecycle reconciliation`, is the active implementation branch and is not merged yet. It includes:
+
+- ProductStock uniqueness for nullable and non-null variants, savepoint-based duplicate recovery, and soft-deleted balance restoration.
+- Weighted-average negative-stock recovery, FIFO insufficient-layer rejection, and stock posting/reversal regression coverage.
+- GRN stock posting at Purchase approval, partial-bill idempotency, batch/serial allocation, expiry metadata consistency, and expired-batch issue prevention.
+- Batch availability is restricted to active, unexpired batches; expiry dates are validated at receipt, and expired batches are blocked for sales, transfers and manufacturing consumption.
+- The recorded expiry date remains valid through that calendar day; sales, transfers and manufacturing consumption are blocked from the following day.
+- Purchase landed-cost allocation by value, quantity, or equal allocation, with item-level valuation and accounting reconciliation.
+- Purchase/return currency snapshots, input-tax account mapping, expense/refund account-type validation, and subledger reconciliation coverage.
+- Supplier advance allocation/reversal locking and ownership regression coverage.
+
+Delivery Note, Stock Adjustment and Stock Transfer remain intentionally unregistered; their legacy implementations are not activated by this PR.
+
+Do not mark P1 complete until the exact latest PR head passes the full CI suite and the merged code is verified locally.
 
 ### P1 — Accounting and tax reconciliation
 

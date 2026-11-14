@@ -4,12 +4,14 @@ namespace App\Modules\Inventory\Services;
 
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 use App\Core\Exceptions\BusinessException;
 
 use App\Modules\Product\Models\Product;
 
 use App\Modules\Inventory\Data\InventoryMovementData;
+use App\Modules\Inventory\Enums\InventoryTransactionTypeEnum;
 use App\Modules\Inventory\Models\ProductStock;
 use App\Modules\Inventory\Models\StockLedger;
 
@@ -53,6 +55,8 @@ class InventoryStockOutService
                 );
 
                 // Validate a supplied batch before stock availability checks.
+                $batch = null;
+
                 if ($movement->batchId !== null) {
                     $batch = $this->batchService->lock(
                         $movement->batchId
@@ -65,6 +69,12 @@ class InventoryStockOutService
                         productVariantId: $movement->productVariantId,
                     );
                 }
+
+                $this->validateBatchExpiry(
+                    $product,
+                    $batch,
+                    $movement,
+                );
 
                 $stock =
                     $this->getStock(
@@ -138,6 +148,63 @@ class InventoryStockOutService
                 return $ledger;
             }
         );
+    }
+
+    /**
+     * Expired stock must never be sold, transferred, or consumed in
+     * manufacturing. Expiry/damage adjustments and supplier returns
+     * remain permitted so expired stock can be removed safely.
+     */
+    protected function validateBatchExpiry(
+        Product $product,
+        ?\App\Modules\Inventory\Models\ProductBatch $batch,
+        InventoryMovementData $movement,
+    ): void {
+        $requiresExpiryBatch = $product->hasExpiryTracking();
+
+        $expiryControlledMovement = in_array(
+            $movement->transactionType,
+            [
+                InventoryTransactionTypeEnum::SALE->value,
+                InventoryTransactionTypeEnum::STOCK_TRANSFER_OUT->value,
+                InventoryTransactionTypeEnum::MANUFACTURING_OUT->value,
+            ],
+            true
+        );
+
+        if (! $expiryControlledMovement) {
+            return;
+        }
+
+        if ($batch === null) {
+            if ($requiresExpiryBatch) {
+                throw new BusinessException(
+                    'An expiry-tracked product requires a batch for this inventory movement.'
+                );
+            }
+
+            return;
+        }
+
+        if ($batch->expiry_date === null) {
+            if ($requiresExpiryBatch) {
+                throw new BusinessException(
+                    'An expiry date is required for this product batch.'
+                );
+            }
+
+            return;
+        }
+
+        $movementDate = Carbon::instance(
+            $movement->transactionDate
+        )->startOfDay();
+
+        if ($batch->expiry_date->lt($movementDate)) {
+            throw new BusinessException(
+                'Expired batches cannot be sold, transferred, or consumed in manufacturing.'
+            );
+        }
     }
 
     protected function getStock(
