@@ -146,7 +146,7 @@ Do not register a module solely because its directory exists.
 - ProductStock uniqueness for nullable and non-null variants, savepoint-based duplicate recovery, and soft-deleted balance restoration.
 - Weighted-average negative-stock recovery, FIFO insufficient-layer rejection, and stock posting/reversal regression coverage.
 - GRN stock posting at Purchase approval, partial-bill idempotency, batch/serial allocation, expiry metadata consistency, and expired-batch issue prevention.
-- Batch availability restricted to active, unexpired batches; expiry dates are validated at receipt and on outbound movements.
+- Batch availability is restricted to active, unexpired batches; expiry dates are validated at receipt, and expired batches are blocked for sales, transfers and manufacturing consumption.
 - Purchase landed-cost allocation by value, quantity, or equal allocation, with item-level valuation and accounting reconciliation.
 - Purchase/return currency snapshots, input-tax account mapping, expense/refund account-type validation, and subledger reconciliation coverage.
 - Supplier advance allocation/reversal locking and ownership regression coverage.
