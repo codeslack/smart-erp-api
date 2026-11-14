@@ -52,7 +52,7 @@ class GoodsReceiptNoteInventoryBatchService
         );
 
         if ($batch !== null) {
-            return $this->resolveExistingBatch($batch, $grnBatch, $batchNumber);
+            return $this->resolveExistingBatch($batch, $grn, $grnBatch, $batchNumber);
         }
 
         try {
@@ -124,6 +124,7 @@ class GoodsReceiptNoteInventoryBatchService
      */
     protected function resolveExistingBatch(
         ProductBatch $batch,
+        GoodsReceiptNote $grn,
         GoodsReceiptNoteItemBatch $grnBatch,
         string $batchNumber,
     ): ProductBatch {
