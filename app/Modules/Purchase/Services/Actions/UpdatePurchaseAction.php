@@ -40,39 +40,181 @@ class UpdatePurchaseAction
             $rawCharges = $resolvedHeader['charges'] ?? null;
             unset($resolvedHeader['items'], $resolvedHeader['charges']);
 
+            $purchase->loadMissing('items', 'charges');
+
             $effectiveHeader = [...$purchase->toArray(), ...$resolvedHeader];
 
-            if ($rawItems !== null || $rawCharges !== null) {
-                $effectiveWarehouseId = $resolvedHeader['warehouse_id'] ?? $purchase->warehouse_id;
+            if (! array_key_exists('discount_amount', $resolvedHeader)) {
+                if (
+                    array_key_exists('discount_type', $resolvedHeader)
+                    || array_key_exists('discount_rate', $resolvedHeader)
+                ) {
+                    // Recalculate a changed percentage/fixed header discount.
+                    $effectiveHeader['discount_amount'] = 0;
+                } else {
+                    $existingItemDiscount = (float) $purchase->items->sum(
+                        'discount_amount'
+                    );
 
-                $calculatedItems = [];
+                    // Purchase.discount_amount stores item + header discounts.
+                    // Recover only the header portion before recalculating.
+                    $effectiveHeader['discount_amount'] = max(
+                        0,
+                        (float) $purchase->discount_amount - $existingItemDiscount
+                    );
+                }
+            }
+
+            $recalculationFields = [
+                'tax_calculation_mode',
+                'discount_type',
+                'discount_rate',
+                'discount_amount',
+                'rounding_amount',
+            ];
+
+            $shouldRecalculate = $rawItems !== null
+                || $rawCharges !== null
+                || count(array_intersect(
+                    $recalculationFields,
+                    array_keys($resolvedHeader)
+                )) > 0;
+
+            if ($shouldRecalculate) {
+                $effectiveWarehouseId = $resolvedHeader['warehouse_id']
+                    ?? $purchase->warehouse_id;
+
                 if ($rawItems !== null) {
-                    $resolvedItems = $this->resolver->resolveItems($rawItems, $effectiveWarehouseId);
-                    $this->validator->validateDraft($effectiveHeader, $resolvedItems);
+                    $resolvedItems = $this->resolver->resolveItems(
+                        $rawItems,
+                        $effectiveWarehouseId
+                    );
+
+                    $this->validator->validateDraft(
+                        $effectiveHeader,
+                        $resolvedItems
+                    );
+
+                    $calculatedItems = [];
 
                     foreach ($resolvedItems as $item) {
-                        $calc = $this->itemCalculator->calculate($item);
-                        if (isset($item['batches'])) $calc['batches'] = $item['batches'];
-                        if (isset($item['serials'])) $calc['serials'] = $item['serials'];
+                        $calc = $this->itemCalculator->calculate(
+                            $item,
+                            (string) ($effectiveHeader['tax_calculation_mode'] ?? 'exclusive')
+                        );
+
+                        if (isset($item['batches'])) {
+                            $calc['batches'] = $item['batches'];
+                        }
+
+                        if (isset($item['serials'])) {
+                            $calc['serials'] = $item['serials'];
+                        }
+
                         $calculatedItems[] = $calc;
                     }
-
-                    $this->saveItems($purchase, $calculatedItems, $effectiveWarehouseId);
                 } else {
-                    $calculatedItems = $purchase->items->toArray();
+                    $purchase->loadMissing('items');
+
+                    $calculatedItems = $purchase->items
+                        ->map(function (PurchaseItem $item) use ($effectiveHeader) {
+                            $taxRate = (float) $item->tax_rate;
+
+                            return [
+                                ...$this->itemCalculator->calculate([
+                                    'product_id' => $item->product_id,
+                                    'product_variant_id' => $item->product_variant_id,
+                                    'warehouse_id' => $item->warehouse_id,
+                                    'unit_id' => $item->unit_id,
+                                    'quantity' => $item->quantity,
+                                    'unit_cost' => $item->unit_cost,
+                                    'base_quantity' => $item->base_quantity,
+                                    'base_unit_cost' => $item->base_unit_cost,
+                                    'discount_type' => $item->discount_type,
+                                    'discount_rate' => $item->discount_rate,
+                                    'discount_amount' => $item->discount_amount,
+                                    'tax_rate' => $taxRate,
+                                    'tax_amount' => $taxRate > 0
+                                        ? 0
+                                        : $item->tax_amount,
+                                ], (string) (
+                                    $effectiveHeader['tax_calculation_mode']
+                                    ?? 'exclusive'
+                                )),
+                                'id' => $item->id,
+                            ];
+                        })
+                        ->all();
                 }
 
-                $itemsSubtotal = (float) array_sum(array_column($calculatedItems, 'line_total'));
+                $calculatedItems = $this->calculator->applyHeaderDiscount(
+                    $calculatedItems,
+                    $effectiveHeader
+                );
 
-                $resolvedCharges = [];
+                foreach ($calculatedItems as &$itemData) {
+                    $baseQuantity = (float) ($itemData['base_quantity'] ?? 0);
+
+                    if ($baseQuantity > 0) {
+                        $itemData['base_unit_cost'] = round(
+                            (float) ($itemData['subtotal'] ?? 0) / $baseQuantity,
+                            8
+                        );
+                    }
+                }
+                unset($itemData);
+
+                if ($rawItems !== null) {
+                    $this->saveItems(
+                        $purchase,
+                        $calculatedItems,
+                        $effectiveWarehouseId
+                    );
+                } else {
+                    foreach ($calculatedItems as $itemData) {
+                        $existingItem = $purchase->items->firstWhere(
+                            'id',
+                            $itemData['id']
+                        );
+
+                        if ($existingItem) {
+                            $existingItem->update([
+                                'line_total' => $itemData['line_total'],
+                                'subtotal' => $itemData['subtotal'],
+                                'discount_type' => $itemData['discount_type'],
+                                'discount_rate' => $itemData['discount_rate'],
+                                'discount_percentage' => $itemData['discount_percentage'],
+                                'discount_amount' => $itemData['discount_amount'],
+                                'tax_rate' => $itemData['tax_rate'],
+                                'tax_amount' => $itemData['tax_amount'],
+                                'total_amount' => $itemData['total_amount'],
+                                'base_unit_cost' => $itemData['base_unit_cost'],
+                            ]);
+                        }
+                    }
+                }
+
+                $itemsSubtotal = (float) array_sum(
+                    array_column($calculatedItems, 'line_total')
+                );
+
                 if ($rawCharges !== null) {
-                    $resolvedCharges = $this->resolver->resolveCharges($rawCharges, $itemsSubtotal);
+                    $resolvedCharges = $this->resolver->resolveCharges(
+                        $rawCharges,
+                        $itemsSubtotal
+                    );
+
                     $this->saveCharges($purchase, $resolvedCharges);
                 } else {
+                    $purchase->loadMissing('charges');
                     $resolvedCharges = $purchase->charges->toArray();
                 }
 
-                $totals = $this->calculator->calculateTotals($calculatedItems, $effectiveHeader, $resolvedCharges);
+                $totals = $this->calculator->calculateTotals(
+                    $calculatedItems,
+                    $effectiveHeader,
+                    $resolvedCharges
+                );
 
                 $resolvedHeader['subtotal'] = $totals['subtotal'];
                 $resolvedHeader['discount_type'] = $totals['discount_type'];

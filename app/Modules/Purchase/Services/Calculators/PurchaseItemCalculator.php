@@ -6,31 +6,84 @@ use App\Core\Exceptions\BusinessException;
 
 class PurchaseItemCalculator
 {
-    public function calculate(array $data): array
-    {
+    public function calculate(
+        array $data,
+        string $taxCalculationMode = 'exclusive'
+    ): array {
         $quantity = (float) ($data['quantity'] ?? 0);
         $unitCost = (float) ($data['unit_cost'] ?? 0);
-        $lineTotal = round($quantity * $unitCost, 4);
+        $grossLineTotal = round($quantity * $unitCost, 4);
+
+        $taxRate = (float) ($data['tax_rate'] ?? 0);
+        $taxAmountInput = (float) ($data['tax_amount'] ?? 0);
+        $taxCalculationMode = strtolower($taxCalculationMode);
+
+        if (! in_array($taxCalculationMode, ['inclusive', 'exclusive'], true)) {
+            throw new BusinessException(
+                'Purchase tax calculation mode must be inclusive or exclusive.'
+            );
+        }
+
+        $inclusive = $taxCalculationMode === 'inclusive';
+
+        /*
+         * Unit cost is tax-inclusive only when the document explicitly
+         * selects inclusive pricing. All persisted line totals remain
+         * tax-exclusive so accounting and inventory use the same base.
+         */
+        $lineTotal = $grossLineTotal;
+
+        if ($inclusive) {
+            $lineTotal = $taxRate > 0
+                ? round(
+                    $grossLineTotal / (1 + ($taxRate / 100)),
+                    4
+                )
+                : max(
+                    0,
+                    round($grossLineTotal - $taxAmountInput, 4)
+                );
+        }
 
         $discountType = $data['discount_type'] ?? 'none';
-        $discountRate = (float) ($data['discount_rate'] ?? $data['discount_percentage'] ?? 0);
+        $discountRate = (float) (
+            $data['discount_rate']
+            ?? $data['discount_percentage']
+            ?? 0
+        );
         $discountAmount = (float) ($data['discount_amount'] ?? 0);
 
         if (
-            ($discountType === 'percentage' || ($discountType === 'none' && $discountRate > 0))
-            && $discountRate > 100
+            ($discountType === 'percentage'
+                || ($discountType === 'none' && $discountRate > 0))
+            && ($discountRate < 0 || $discountRate > 100)
         ) {
-            throw new BusinessException('Percentage discounts must be between 0 and 100.');
+            throw new BusinessException(
+                'Percentage discounts must be between 0 and 100.'
+            );
+        }
+
+        if ($discountAmount < 0) {
+            throw new BusinessException('Item discount cannot be negative.');
         }
 
         if ($discountAmount > $lineTotal + 0.0001) {
-            throw new BusinessException('Item discount cannot exceed the line total.');
+            throw new BusinessException(
+                'Item discount cannot exceed the tax-exclusive line total.'
+            );
         }
 
-        if ($discountType === 'percentage' || ($discountType === 'none' && $discountRate > 0)) {
+        if (
+            $discountType === 'percentage'
+            || ($discountType === 'none' && $discountRate > 0)
+        ) {
             $discountType = 'percentage';
+
             if ($discountAmount === 0.0 && $discountRate > 0) {
-                $discountAmount = round($lineTotal * ($discountRate / 100), 4);
+                $discountAmount = round(
+                    $lineTotal * ($discountRate / 100),
+                    4
+                );
             }
         } elseif ($discountType === 'fixed') {
             if ($discountAmount === 0.0 && $discountRate > 0) {
@@ -39,17 +92,26 @@ class PurchaseItemCalculator
         }
 
         if ($discountAmount > $lineTotal + 0.0001) {
-            throw new BusinessException('Item discount cannot exceed the line total.');
+            throw new BusinessException(
+                'Item discount cannot exceed the tax-exclusive line total.'
+            );
         }
 
-        $subtotal = max(0, round($lineTotal - $discountAmount, 4));
+        $subtotal = max(
+            0,
+            round($lineTotal - $discountAmount, 4)
+        );
 
-        $taxRate = (float) ($data['tax_rate'] ?? 0);
-        $taxAmount = (float) ($data['tax_amount'] ?? 0);
-
-        if ($taxRate > 0 && $taxAmount === 0.0) {
-            $taxAmount = round($subtotal * ($taxRate / 100), 4);
-        }
+        $taxAmount = $taxRate > 0
+            ? round($subtotal * ($taxRate / 100), 4)
+            : (
+                $lineTotal > 0
+                    ? round(
+                        $taxAmountInput * ($subtotal / $lineTotal),
+                        4
+                    )
+                    : 0.0
+            );
 
         $totalAmount = round($subtotal + $taxAmount, 4);
 
