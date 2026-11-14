@@ -7,6 +7,7 @@ use Illuminate\Support\Collection;
 use App\Core\Repositories\BaseRepository;
 
 use App\Modules\Inventory\Models\ProductBatch;
+use App\Modules\Inventory\Enums\ProductBatchStatusEnum;
 use App\Modules\Inventory\Repositories\Contracts\ProductBatchRepositoryInterface;
 
 class ProductBatchRepository
@@ -38,7 +39,12 @@ class ProductBatchRepository
                     'product_variant_id'
                 )
             )
+            ->where('status', ProductBatchStatusEnum::ACTIVE->value)
             ->where('remaining_quantity', '>', 0)
+            ->where(function ($query) {
+                $query->whereNull('expiry_date')
+                    ->orWhereDate('expiry_date', '>=', now()->toDateString());
+            })
             ->get();
     }
 

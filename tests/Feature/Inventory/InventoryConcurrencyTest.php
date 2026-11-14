@@ -303,6 +303,16 @@ class InventoryConcurrencyTest extends TestCase
             'status' => ProductBatchStatusEnum::ACTIVE,
         ]);
 
+        $this->assertCount(
+            0,
+            app(\App\Modules\Inventory\Services\InventoryBatchService::class)
+                ->findAvailable(
+                    $batchProduct->id,
+                    $this->warehouse->id,
+                    null
+                )
+        );
+
         try {
             app(InventoryPostingService::class)->stockOut(
                 new InventoryMovementData(

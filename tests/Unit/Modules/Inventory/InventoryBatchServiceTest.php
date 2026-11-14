@@ -7,6 +7,9 @@ use Tests\TestCase;
 use Illuminate\Database\QueryException;
 
 use App\Modules\Inventory\Services\InventoryBatchService;
+use App\Modules\Inventory\Models\ProductBatch;
+use App\Modules\Inventory\Enums\ProductBatchStatusEnum;
+use App\Core\Exceptions\BusinessException;
 use App\Modules\Inventory\Repositories\Contracts\ProductBatchRepositoryInterface;
 
 class InventoryBatchServiceTest extends TestCase
@@ -55,4 +58,45 @@ class InventoryBatchServiceTest extends TestCase
             $service->isDuplicateBatchException($exception)
         );
     }
+
+    public function test_inactive_batch_cannot_receive_stock(): void
+    {
+        $service = new InventoryBatchService(
+            $this->createMock(ProductBatchRepositoryInterface::class)
+        );
+
+        $batch = new ProductBatch();
+        $batch->forceFill([
+            'status' => ProductBatchStatusEnum::DRAFT,
+        ]);
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage(
+            'Only active batches can receive or issue inventory.'
+        );
+
+        $service->increase($batch, 1);
+    }
+
+    public function test_inactive_batch_cannot_issue_stock(): void
+    {
+        $service = new InventoryBatchService(
+            $this->createMock(ProductBatchRepositoryInterface::class)
+        );
+
+        $batch = new ProductBatch();
+        $batch->forceFill([
+            'status' => ProductBatchStatusEnum::DRAFT,
+            'remaining_quantity' => 5,
+        ]);
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage(
+            'Only active batches can receive or issue inventory.'
+        );
+
+        $service->decrease($batch, 1);
+    }
+
+
 }

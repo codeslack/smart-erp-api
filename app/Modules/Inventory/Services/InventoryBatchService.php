@@ -330,6 +330,7 @@ class InventoryBatchService
         float $quantity
     ): void {
         $this->validateQuantity($quantity);
+        $this->ensureActive($batch);
 
         $this->batches->increaseQuantity(
             $batch,
@@ -342,6 +343,7 @@ class InventoryBatchService
         float $quantity
     ): void {
         $this->validateQuantity($quantity);
+        $this->ensureActive($batch);
 
         if ((float) $batch->remaining_quantity < $quantity) {
             throw new BusinessException(
@@ -353,6 +355,16 @@ class InventoryBatchService
             $batch,
             $quantity
         );
+    }
+
+    protected function ensureActive(
+        ProductBatch $batch
+    ): void {
+        if ($batch->status !== ProductBatchStatusEnum::ACTIVE) {
+            throw new BusinessException(
+                'Only active batches can receive or issue inventory.'
+            );
+        }
     }
 
     protected function validateQuantity(
