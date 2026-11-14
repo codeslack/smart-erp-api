@@ -2,6 +2,8 @@
 
 namespace App\Modules\CustomerOpeningBill\Services;
 
+use Illuminate\Support\Facades\DB;
+
 use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
 use App\Modules\Accounting\Repositories\Contracts\JournalEntryRepositoryInterface;
 use App\Modules\Accounting\Services\AccountingPostingService;
@@ -65,17 +67,21 @@ class CustomerOpeningBillPostingService
 
     /**
      * Reverse the old opening balance and post
-     * the current opening-bill balance again.
+     * the current opening-bill balance atomically.
      */
     public function repost(
         Customer $customer
     ): void {
-        $this->reverse(
-            $customer
-        );
+        DB::transaction(
+            function () use ($customer) {
+                $this->reverse(
+                    $customer
+                );
 
-        $this->post(
-            $customer
+                $this->post(
+                    $customer
+                );
+            }
         );
     }
 
