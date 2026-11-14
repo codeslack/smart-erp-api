@@ -141,7 +141,7 @@ Do not register a module solely because its directory exists.
 6. Audit Delivery Note, Stock Adjustment and Stock Transfer registration and workflow coverage.
 7. Verify that GRN receipt does not bypass the Purchase posting boundary.
 
-**Coordinated implementation:** PR #30, `Harden inventory and document lifecycle reconciliation`, is the active implementation branch and is not merged yet. It includes:
+**Coordinated implementation:** PR #30, `Harden inventory and document lifecycle reconciliation`, was merged into `main` as `a14c4401441ce6204443cf6a8eb0830296c15db2`. Its exact PR head passed CI (**763 tests, 3,613 assertions**); local verification of the merged `main` branch is pending. It includes:
 
 - ProductStock uniqueness for nullable and non-null variants, savepoint-based duplicate recovery, and soft-deleted balance restoration.
 - Weighted-average negative-stock recovery, FIFO insufficient-layer rejection, and stock posting/reversal regression coverage.
@@ -154,7 +154,7 @@ Do not register a module solely because its directory exists.
 
 Delivery Note, Stock Adjustment and Stock Transfer remain intentionally unregistered; their legacy implementations are not activated by this PR.
 
-Do not mark P1 complete until the exact latest PR head passes the full CI suite and the merged code is verified locally.
+Do not mark P1 complete until the merged code is verified locally.
 
 ### P1 — Accounting and tax reconciliation
 
