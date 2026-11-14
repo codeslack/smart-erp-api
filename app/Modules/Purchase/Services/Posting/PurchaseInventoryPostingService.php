@@ -324,6 +324,21 @@ class PurchaseInventoryPostingService
         );
 
         if ($batch !== null) {
+            $existingManufacturingDate = $batch->manufacturing_date?->toDateString();
+            $incomingManufacturingDate = $batchItem->manufacturing_date?->toDateString();
+
+            $existingExpiryDate = $batch->expiry_date?->toDateString();
+            $incomingExpiryDate = $batchItem->expiry_date?->toDateString();
+
+            if (
+                $existingManufacturingDate !== $incomingManufacturingDate
+                || $existingExpiryDate !== $incomingExpiryDate
+            ) {
+                throw new BusinessException(
+                    "Batch [{$batchItem->batch_no}] manufacturing or expiry dates do not match the existing inventory batch."
+                );
+            }
+
             return $batch;
         }
 

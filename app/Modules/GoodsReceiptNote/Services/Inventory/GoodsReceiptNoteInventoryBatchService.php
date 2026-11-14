@@ -50,7 +50,7 @@ class GoodsReceiptNoteInventoryBatchService
         );
 
         if ($batch !== null) {
-            return $this->resolveExistingBatch($batch, $batchNumber);
+            return $this->resolveExistingBatch($batch, $grnBatch, $batchNumber);
         }
 
         try {
@@ -95,6 +95,7 @@ class GoodsReceiptNoteInventoryBatchService
 
             return $this->resolveExistingBatch(
                 $batch,
+                $grnBatch,
                 $batchNumber,
             );
         }
@@ -116,6 +117,7 @@ class GoodsReceiptNoteInventoryBatchService
      */
     protected function resolveExistingBatch(
         ProductBatch $batch,
+        GoodsReceiptNoteItemBatch $grnBatch,
         string $batchNumber,
     ): ProductBatch {
         $batch = $this->inventoryBatchService->lock(
@@ -126,6 +128,17 @@ class GoodsReceiptNoteInventoryBatchService
             throw ValidationException::withMessages([
                 'batches' => [
                     "Batch {$batchNumber} exists but is not active.",
+                ],
+            ]);
+        }
+
+        $existingExpiry = $batch->expiry_date?->toDateString();
+        $incomingExpiry = $grnBatch->expiry_date?->toDateString();
+
+        if ($existingExpiry !== $incomingExpiry) {
+            throw ValidationException::withMessages([
+                'batches' => [
+                    "Batch {$batchNumber} expiry date does not match the existing inventory batch.",
                 ],
             ]);
         }

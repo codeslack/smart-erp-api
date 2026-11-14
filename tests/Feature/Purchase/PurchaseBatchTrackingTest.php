@@ -367,5 +367,74 @@ class PurchaseBatchTrackingTest extends TestCase
         $showResponse->assertJsonPath('data.items.0.batches.0.batch_no', 'SHOW-BATCH-1');
         $showResponse->assertJsonPath('data.items.0.batches.0.quantity', 5);
     }
+
+    public function test_existing_batch_cannot_be_reused_with_a_different_expiry_date(): void
+    {
+        $batchProduct = Product::create([
+            'tenant_id' => $this->tenant->id,
+            'code' => 'PRD-BAT-EXPIRY',
+            'sku' => 'SKU-BAT-EXPIRY',
+            'name' => 'Batch Expiry Consistency',
+            'slug' => 'batch-expiry-consistency',
+            'product_type' => ProductTypeEnum::PRODUCT,
+            'inventory_tracking_type' => InventoryTrackingTypeEnum::BATCH,
+            'has_expiry' => true,
+            'is_active' => true,
+            'purchase_price' => 50,
+            'selling_price' => 80,
+        ]);
+
+        $first = $this->postJson(route('purchases.store'), [
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [[
+                'product_uuid' => $batchProduct->uuid,
+                'quantity' => 5,
+                'unit_cost' => 50,
+                'batches' => [[
+                    'batch_no' => 'LOT-EXPIRY-REUSE',
+                    'quantity' => 5,
+                    'expiry_date' => '2028-06-30',
+                ]],
+            ]],
+        ])->assertCreated();
+
+        $this->postJson("/api/purchases/{$first->json('data.uuid')}/confirm")
+            ->assertOk();
+
+        $second = $this->postJson(route('purchases.store'), [
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [[
+                'product_uuid' => $batchProduct->uuid,
+                'quantity' => 3,
+                'unit_cost' => 50,
+                'batches' => [[
+                    'batch_no' => 'LOT-EXPIRY-REUSE',
+                    'quantity' => 3,
+                    'expiry_date' => '2028-12-31',
+                ]],
+            ]],
+        ])->assertCreated();
+
+        $this->postJson("/api/purchases/{$second->json('data.uuid')}/confirm")
+            ->assertStatus(422);
+
+        $this->assertDatabaseHas('product_batches', [
+            'tenant_id' => $this->tenant->id,
+            'batch_no' => 'LOT-EXPIRY-REUSE',
+            'expiry_date' => '2028-06-30',
+            'remaining_quantity' => 5,
+        ]);
+
+        $this->assertDatabaseMissing('stock_ledgers', [
+            'tenant_id' => $this->tenant->id,
+            'reference_no' => $second->json('data.purchase_no'),
+        ]);
+    }
+
+
 }
 
