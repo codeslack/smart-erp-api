@@ -19,6 +19,7 @@ use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNoteItemSerial;
 use App\Modules\Inventory\Models\ProductStock;
 use App\Modules\Inventory\Models\StockLedger;
 use App\Modules\Inventory\Models\ProductBatch;
+use App\Modules\Purchase\Models\Purchase;
 use App\Modules\GoodsReceiptNote\Enums\GoodsReceiptNoteStatusEnum;
 use App\Modules\Accounting\Services\AccountingSetupService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
