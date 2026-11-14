@@ -14,6 +14,9 @@ use App\Modules\Product\Enums\ProductTypeEnum;
 use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 use App\Modules\SystemNumber\Enums\SystemNumberTypeEnum;
 use App\Modules\Inventory\Models\ProductStock;
+use App\Modules\Inventory\Models\ProductBatch;
+use App\Modules\Inventory\Enums\ProductBatchStatusEnum;
+use App\Core\Exceptions\BusinessException;
 use App\Modules\Inventory\Models\StockLedger;
 use App\Modules\Inventory\Repositories\Contracts\ProductStockRepositoryInterface;
 use App\Modules\Inventory\Data\InventoryMovementData;
@@ -259,5 +262,82 @@ class InventoryConcurrencyTest extends TestCase
         $this->assertEquals(12, (float) $restored->quantity);
         $this->assertEquals(25, (float) $restored->average_cost);
     }
+
+
+    public function test_expired_batch_cannot_be_sold_and_failed_sale_rolls_back(): void
+    {
+        $batchProduct = Product::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Expiry Controlled Product',
+            'code' => nextSystemNumber(SystemNumberTypeEnum::PRODUCT),
+            'sku' => 'EXP-001',
+            'slug' => 'expiry-controlled-' . random_int(1000, 9999),
+            'product_type' => ProductTypeEnum::PRODUCT,
+            'inventory_tracking_type' => InventoryTrackingTypeEnum::BATCH,
+            'has_expiry' => true,
+            'purchase_price' => 100,
+            'selling_price' => 150,
+            'is_active' => true,
+        ]);
+
+        $stock = ProductStock::create([
+            'tenant_id' => $this->tenant->id,
+            'product_id' => $batchProduct->id,
+            'product_variant_id' => null,
+            'warehouse_id' => $this->warehouse->id,
+            'quantity' => 5,
+            'average_cost' => 100,
+        ]);
+
+        $batch = ProductBatch::create([
+            'tenant_id' => $this->tenant->id,
+            'product_id' => $batchProduct->id,
+            'product_variant_id' => null,
+            'warehouse_id' => $this->warehouse->id,
+            'batch_no' => 'EXPIRED-LOT-001',
+            'expiry_date' => now()->subDay()->toDateString(),
+            'received_at' => now()->subDays(30),
+            'unit_cost' => 100,
+            'original_quantity' => 5,
+            'remaining_quantity' => 5,
+            'status' => ProductBatchStatusEnum::ACTIVE,
+        ]);
+
+        try {
+            app(InventoryPostingService::class)->stockOut(
+                new InventoryMovementData(
+                    productId: $batchProduct->id,
+                    productVariantId: null,
+                    warehouseId: $this->warehouse->id,
+                    quantity: 1,
+                    unitCost: 100,
+                    transactionType: InventoryTransactionTypeEnum::SALE->value,
+                    transactionDate: now(),
+                    referenceType: null,
+                    referenceId: null,
+                    referenceNo: 'EXPIRED-SALE-001',
+                    batchId: $batch->id,
+                    serialId: null,
+                    remarks: 'Expired batch sale must be rejected.',
+                )
+            );
+
+            $this->fail('An expired batch must not be sold.');
+        } catch (BusinessException $exception) {
+            $this->assertSame(
+                'Expired batches cannot be sold, transferred, or consumed in manufacturing.',
+                $exception->getMessage()
+            );
+        }
+
+        $this->assertEquals(5, (float) $stock->fresh()->quantity);
+        $this->assertEquals(5, (float) $batch->fresh()->remaining_quantity);
+
+        $this->assertDatabaseMissing('stock_ledgers', [
+            'tenant_id' => $this->tenant->id,
+            'reference_no' => 'EXPIRED-SALE-001',
+        ]);
+    }
+
 
 }
