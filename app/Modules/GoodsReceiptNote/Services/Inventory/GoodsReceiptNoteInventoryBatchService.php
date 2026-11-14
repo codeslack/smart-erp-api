@@ -3,6 +3,7 @@
 namespace App\Modules\GoodsReceiptNote\Services\Inventory;
 
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNote;
@@ -54,18 +55,23 @@ class GoodsReceiptNoteInventoryBatchService
         }
 
         try {
-            $batch = $this->inventoryBatchService->createDraft([
-                'product_id' => $productId,
-                'product_variant_id' => $productVariantId,
-                'warehouse_id' => $warehouseId,
-                'batch_no' => $batchNumber,
-                'expiry_date' => $grnBatch->expiry_date,
-                'received_at' => $grn->grn_date,
-                'unit_cost' => $baseUnitCost,
-                'sourceable_type' => GoodsReceiptNote::class,
-                'sourceable_id' => (int) $grn->getKey(),
-                'remarks' => 'GRN ' . $grn->grn_number,
-            ]);
+            // Isolate the insert in a savepoint. PostgreSQL marks the current
+            // transaction failed after a unique violation; the savepoint lets
+            // the duplicate-recovery lookup continue in the outer GRN transaction.
+            $batch = DB::transaction(
+                fn () => $this->inventoryBatchService->createDraft([
+                    'product_id' => $productId,
+                    'product_variant_id' => $productVariantId,
+                    'warehouse_id' => $warehouseId,
+                    'batch_no' => $batchNumber,
+                    'expiry_date' => $grnBatch->expiry_date,
+                    'received_at' => $grn->grn_date,
+                    'unit_cost' => $baseUnitCost,
+                    'sourceable_type' => GoodsReceiptNote::class,
+                    'sourceable_id' => (int) $grn->getKey(),
+                    'remarks' => 'GRN ' . $grn->grn_number,
+                ])
+            );
         } catch (QueryException $exception) {
             if (
                 ! $this->inventoryBatchService

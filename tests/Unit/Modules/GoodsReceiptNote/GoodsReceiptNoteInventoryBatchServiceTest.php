@@ -75,6 +75,31 @@ class GoodsReceiptNoteInventoryBatchServiceTest extends TestCase
     }
 
 
+
+    public function test_batch_duplicate_detection_supports_postgresql_unique_violations(): void
+    {
+        $repository = $this->createMock(
+            \App\Modules\Inventory\Repositories\Contracts\ProductBatchRepositoryInterface::class
+        );
+
+        $service = new InventoryBatchService($repository);
+
+        $exception = new QueryException(
+            'pgsql',
+            'insert into product_batches (...) values (...)',
+            [],
+            new \PDOException(
+                'SQLSTATE[23505]: unique_violation: duplicate key value '
+                    . 'violates unique constraint "product_batches_unique_batch"',
+                23505
+            )
+        );
+
+        $this->assertTrue(
+            $service->isDuplicateBatchException($exception)
+        );
+    }
+
     public function test_it_rejects_an_existing_batch_with_a_different_expiry_date(): void
     {
         $batchService = $this->createMock(InventoryBatchService::class);

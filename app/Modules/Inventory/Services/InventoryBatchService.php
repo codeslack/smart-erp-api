@@ -115,11 +115,13 @@ class InventoryBatchService
             ?? $exception->getPrevious()?->errorInfo
             ?? [];
 
-        $errorCode = (int) (
-            $errorInfo[1]
+        $sqlState = (string) (
+            $errorInfo[0]
             ?? $exception->getPrevious()?->getCode()
-            ?? 0
+            ?? $exception->getCode()
         );
+
+        $driverCode = (int) ($errorInfo[1] ?? 0);
 
         $message = strtolower(
             $exception->getMessage()
@@ -127,7 +129,10 @@ class InventoryBatchService
                 . $exception->getPrevious()?->getMessage()
         );
 
-        return $errorCode === 1062
+        $isUniqueViolation = $driverCode === 1062
+            || $sqlState === '23505';
+
+        return $isUniqueViolation
             && str_contains(
                 $message,
                 'product_batches_unique_batch'
