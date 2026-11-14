@@ -5,6 +5,7 @@ namespace App\Modules\Accounting\Services\Postings;
 use App\Core\Exceptions\BusinessException;
 
 use App\Modules\Accounting\Enums\AccountingAccounts;
+use App\Modules\Accounting\Enums\AccountType;
 use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
 use App\Modules\Accounting\Services\JournalEntry\JournalEntryService;
 
@@ -50,7 +51,11 @@ class PurchasePostingService extends BasePostingService
                 continue;
             }
 
-            if (! $charge->chartOfAccount || ! $charge->chartOfAccount->is_active) {
+            if (
+                ! $charge->chartOfAccount
+                || ! $charge->chartOfAccount->is_active
+                || $charge->chartOfAccount->account_type !== AccountType::EXPENSE
+            ) {
                 throw new BusinessException(
                     'Every expense purchase charge must have an active expense account.'
                 );

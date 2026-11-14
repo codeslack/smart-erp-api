@@ -5,6 +5,7 @@ namespace App\Modules\Accounting\Services\Postings;
 use App\Core\Exceptions\BusinessException;
 
 use App\Modules\Accounting\Enums\AccountingAccounts;
+use App\Modules\Accounting\Enums\AccountType;
 use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
 use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
 use App\Modules\Accounting\Models\JournalEntry;
@@ -221,7 +222,11 @@ class PurchaseReturnPostingService extends BasePostingService
         } else {
             $refundAccount = $purchaseReturn->refundAccount;
 
-            if (! $refundAccount || ! $refundAccount->is_active) {
+            if (
+                ! $refundAccount
+                || ! $refundAccount->is_active
+                || $refundAccount->account_type !== AccountType::ASSET
+            ) {
                 throw new BusinessException(
                     'A valid active refund account is required for a supplier refund.'
                 );

@@ -10,6 +10,7 @@ use App\Modules\Product\Models\Product;
 use App\Modules\Product\Enums\ProductTypeEnum;
 use App\Modules\Product\Enums\InventoryTrackingTypeEnum;
 use App\Modules\Accounting\Models\ChartOfAccount;
+use App\Modules\Accounting\Enums\AccountType;
 use App\Modules\Accounting\Services\AccountingSetupService;
 use App\Modules\Purchase\Models\Purchase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -72,6 +73,7 @@ class PurchaseChargesAndDiscountsTest extends TestCase
     {
         $freightAccount = ChartOfAccount::withoutGlobalScopes()
             ->where('tenant_id', $this->tenant->id)
+            ->where('account_type', AccountType::EXPENSE)
             ->first();
 
         $payload = [
