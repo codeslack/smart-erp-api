@@ -122,7 +122,11 @@ class InventoryBatchService
             ?? $exception->getCode()
         );
 
-        $driverCode = (int) ($errorInfo[1] ?? 0);
+        $driverCode = (int) (
+            $errorInfo[1]
+            ?? $exception->getPrevious()?->getCode()
+            ?? 0
+        );
 
         $message = strtolower(
             $exception->getMessage()
