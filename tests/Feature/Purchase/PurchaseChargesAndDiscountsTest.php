@@ -309,4 +309,54 @@ class PurchaseChargesAndDiscountsTest extends TestCase
     }
 
 
+
+    public function test_expense_charge_cannot_post_to_an_asset_account(): void
+    {
+        $cashAccount = ChartOfAccount::withoutGlobalScopes()
+            ->where('tenant_id', $this->tenant->id)
+            ->where('account_code', '1000')
+            ->firstOrFail();
+
+        $response = $this->postJson(route('purchases.store'), [
+            'supplier_uuid' => $this->supplier->uuid,
+            'warehouse_uuid' => $this->warehouse->uuid,
+            'purchase_date' => now()->toDateString(),
+            'items' => [[
+                'product_uuid' => $this->product->uuid,
+                'quantity' => 1,
+                'unit_cost' => 100,
+            ]],
+            'charges' => [[
+                'charge_type' => 'freight',
+                'name' => 'Invalid asset-mapped expense',
+                'calculation_method' => 'fixed',
+                'amount' => 10,
+                'treatment' => 'expense',
+                'chart_of_account_uuid' => $cashAccount->uuid,
+            ]],
+        ])->assertCreated();
+
+        $purchaseUuid = $response->json('data.uuid');
+        $purchaseId = DB::table('purchases')
+            ->where('tenant_id', $this->tenant->id)
+            ->where('uuid', $purchaseUuid)
+            ->value('id');
+
+        $this->postJson("/api/purchases/{$purchaseUuid}/confirm")
+            ->assertStatus(422);
+
+        $this->assertDatabaseMissing('journal_entries', [
+            'tenant_id' => $this->tenant->id,
+            'reference_type' => Purchase::class,
+            'reference_id' => $purchaseId,
+        ]);
+
+        $this->assertDatabaseMissing('stock_ledgers', [
+            'tenant_id' => $this->tenant->id,
+            'referenceable_type' => Purchase::class,
+            'referenceable_id' => $purchaseId,
+        ]);
+    }
+
+
 }
