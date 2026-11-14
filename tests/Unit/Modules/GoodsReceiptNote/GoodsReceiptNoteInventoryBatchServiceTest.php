@@ -68,6 +68,7 @@ class GoodsReceiptNoteInventoryBatchServiceTest extends TestCase
             $this->makeGrn(),
             $this->makeItem(),
             $this->makeGrnBatch(),
+            100,
         );
 
         $this->assertSame($batch, $result);
@@ -117,6 +118,7 @@ class GoodsReceiptNoteInventoryBatchServiceTest extends TestCase
                 $this->makeGrn(),
                 $this->makeItem(),
                 $this->makeGrnBatch(),
+                100,
             );
 
             $this->fail('Expected the database exception to be rethrown.');
@@ -165,6 +167,7 @@ class GoodsReceiptNoteInventoryBatchServiceTest extends TestCase
                 $this->makeGrn(),
                 $this->makeItem(),
                 $this->makeGrnBatch(),
+                100,
             );
 
             $this->fail('Expected an inactive batch to be rejected.');

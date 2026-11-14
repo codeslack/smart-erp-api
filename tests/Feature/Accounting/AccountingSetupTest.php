@@ -50,7 +50,7 @@ class AccountingSetupTest extends TestCase
 
         $this->assertDatabaseCount(
             'chart_of_accounts',
-            17
+            18
         );
 
         $this->assertDatabaseHas(
@@ -127,7 +127,7 @@ class AccountingSetupTest extends TestCase
             [
                 'tenant_id' => $this->tenant->id,
                 'account_code' => AccountingAccounts::PURCHASE_EXPENSE,
-                'account_name' => 'Non-Stock Purchase Expense',
+                'account_name' => 'Purchase Expense',
                 'account_type' => AccountType::EXPENSE,
                 'is_system' => true,
             ]

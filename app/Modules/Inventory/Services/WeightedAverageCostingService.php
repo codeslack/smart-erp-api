@@ -92,9 +92,16 @@ class WeightedAverageCostingService
             8
         );
 
-        return (float) bcdiv(
+        $averageCost = bcdiv(
             $totalValue,
             $newQuantity,
+            5
+        );
+
+        // Round half-up to the inventory average-cost precision (4 decimals).
+        return (float) bcadd(
+            $averageCost,
+            '0.00005',
             4
         );
     }

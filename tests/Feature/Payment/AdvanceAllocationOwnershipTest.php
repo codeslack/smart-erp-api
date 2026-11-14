@@ -24,6 +24,7 @@ use App\Modules\Payment\Enums\PaymentTypeEnum;
 use App\Modules\Payment\Enums\PaymentPurposeEnum;
 use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
 use App\Modules\Payment\Enums\PaymentMethodEnum;
+use App\Modules\Payment\Enums\PaymentStatusEnum;
 use App\Modules\AdvanceAllocation\Models\AdvanceAllocation;
 use App\Modules\AdvanceAllocation\Services\AdvanceAllocationService;
 
@@ -120,7 +121,7 @@ class AdvanceAllocationOwnershipTest extends TestCase
             'account_id' => $this->cashAccount->id,
             'amount' => 100,
             'payment_method' => PaymentMethodEnum::CASH,
-            'status' => 'confirmed',
+            'status' => PaymentStatusEnum::CONFIRMED->value,
         ]);
 
         $sale = Sale::query()->create([
@@ -132,7 +133,7 @@ class AdvanceAllocationOwnershipTest extends TestCase
             'grand_total' => 100,
             'paid_amount' => 0,
             'due_amount' => 100,
-            'status' => 'confirmed',
+            'status' => PaymentStatusEnum::CONFIRMED->value,
         ]);
 
         try {
@@ -163,7 +164,7 @@ class AdvanceAllocationOwnershipTest extends TestCase
             'account_id' => $this->cashAccount->id,
             'amount' => 100,
             'payment_method' => PaymentMethodEnum::CASH,
-            'status' => 'confirmed',
+            'status' => PaymentStatusEnum::CONFIRMED->value,
         ]);
 
         $purchase = Purchase::query()->create([
@@ -175,7 +176,7 @@ class AdvanceAllocationOwnershipTest extends TestCase
             'grand_total' => 100,
             'paid_amount' => 0,
             'due_amount' => 100,
-            'status' => 'confirmed',
+            'status' => PaymentStatusEnum::CONFIRMED->value,
         ]);
 
         try {

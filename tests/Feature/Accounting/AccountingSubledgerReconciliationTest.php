@@ -24,6 +24,7 @@ use App\Modules\Payment\Enums\PaymentTypeEnum;
 use App\Modules\Payment\Enums\PaymentPurposeEnum;
 use App\Modules\Payment\Enums\PaymentPartyTypeEnum;
 use App\Modules\Payment\Enums\PaymentMethodEnum;
+use App\Modules\Payment\Enums\PaymentStatusEnum;
 use App\Modules\Payment\Services\Contracts\PaymentPostingServiceInterface;
 
 use App\Modules\Accounting\Models\ChartOfAccount;
@@ -122,7 +123,7 @@ class AccountingSubledgerReconciliationTest extends TestCase
             'account_id' => $this->cashAccount->id,
             'amount' => 400,
             'payment_method' => PaymentMethodEnum::CASH,
-            'status' => 'draft',
+            'status' => PaymentStatusEnum::DRAFT->value,
         ]);
 
         $receipt->allocations()->create([
@@ -177,7 +178,7 @@ class AccountingSubledgerReconciliationTest extends TestCase
             'account_id' => $this->cashAccount->id,
             'amount' => 300,
             'payment_method' => PaymentMethodEnum::CASH,
-            'status' => 'draft',
+            'status' => PaymentStatusEnum::DRAFT->value,
         ]);
 
         $payment->allocations()->create([

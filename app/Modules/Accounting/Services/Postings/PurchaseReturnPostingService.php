@@ -190,11 +190,16 @@ class PurchaseReturnPostingService extends BasePostingService
             bcdiv($inventoryCost, $exchangeRate, 8)
         );
 
+        // Allocate the document-currency residual so the inventory and
+        // variance lines reconcile exactly after four-decimal rounding.
         $foreignVariance = $this->decimal(
-            bcdiv(
-                ltrim($variance, '-'),
-                $exchangeRate,
-                8
+            ltrim(
+                bcsub(
+                    $stockNetTotal,
+                    $foreignInventoryCost,
+                    4
+                ),
+                '-'
             )
         );
 

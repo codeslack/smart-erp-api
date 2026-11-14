@@ -412,7 +412,7 @@ class PurchaseDirectConfirmationTest extends TestCase
             );
         }
 
-        $this->assertSame('confirmed', $advance->fresh()->status);
+        $this->assertSame(PaymentStatusEnum::CONFIRMED->value, $advance->fresh()->status);
 
         $this->assertSame(
             1,
@@ -486,7 +486,7 @@ class PurchaseDirectConfirmationTest extends TestCase
             );
         }
 
-        $this->assertSame('reversed', $advance->fresh()->status);
+        $this->assertSame('REVERSED', $advance->fresh()->status);
 
         $this->assertDatabaseMissing('advance_allocations', [
             'source_type' => Payment::class,
