@@ -99,4 +99,27 @@ class InventoryBatchServiceTest extends TestCase
     }
 
 
+
+    public function test_it_rejects_a_new_batch_that_is_expired_on_its_receipt_date(): void
+    {
+        $service = new InventoryBatchService(
+            $this->createMock(ProductBatchRepositoryInterface::class)
+        );
+
+        $this->expectException(\App\Core\Exceptions\BusinessException::class);
+        $this->expectExceptionMessage(
+            'A batch cannot be received after its expiry date.'
+        );
+
+        $service->createDraft([
+            'product_id' => 1,
+            'warehouse_id' => 1,
+            'batch_no' => 'EXPIRED-RECEIPT-001',
+            'unit_cost' => 10,
+            'expiry_date' => '2026-11-13',
+            'received_at' => '2026-11-14',
+        ]);
+    }
+
+
 }

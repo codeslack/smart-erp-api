@@ -216,7 +216,7 @@ class InventoryBatchService
             )
         ) {
             throw new BusinessException(
-                'A batch cannot be received on or after its expiry date.'
+                'A batch cannot be received after its expiry date.'
             );
         }
 
