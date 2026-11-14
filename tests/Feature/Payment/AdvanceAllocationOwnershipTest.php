@@ -133,7 +133,7 @@ class AdvanceAllocationOwnershipTest extends TestCase
             'grand_total' => 100,
             'paid_amount' => 0,
             'due_amount' => 100,
-            'status' => PaymentStatusEnum::CONFIRMED->value,
+            'status' => 'confirmed',
         ]);
 
         try {
@@ -176,7 +176,7 @@ class AdvanceAllocationOwnershipTest extends TestCase
             'grand_total' => 100,
             'paid_amount' => 0,
             'due_amount' => 100,
-            'status' => PaymentStatusEnum::CONFIRMED->value,
+            'status' => 'confirmed',
         ]);
 
         try {

@@ -3,7 +3,7 @@
 namespace Tests\Feature\Purchase;
 
 use App\Modules\Tenant\Models\Tenant;
-use App\Core\Tenant\TenantManager;
+use Illuminate\Support\Facades\DB;
 use App\Modules\User\Models\User;
 use App\Modules\Supplier\Models\Supplier;
 use App\Modules\Warehouse\Models\Warehouse;
@@ -177,16 +177,17 @@ class PurchaseWorkflowTest extends TestCase
             ->assertJsonPath('data.status', 'confirmed');
 
         // Inventory is posted at Purchase approval and linked to this Purchase.
-        app(TenantManager::class)->setTenant($this->tenant);
-
-        $purchase = Purchase::query()
+        $purchaseId = DB::table('purchases')
+            ->where('tenant_id', $this->tenant->id)
             ->where('uuid', $purchaseUuid)
-            ->firstOrFail();
+            ->value('id');
+
+        $this->assertNotNull($purchaseId);
 
         $this->assertDatabaseHas('stock_ledgers', [
             'tenant_id' => $this->tenant->id,
             'referenceable_type' => Purchase::class,
-            'referenceable_id' => $purchase->id,
+            'referenceable_id' => $purchaseId,
             'quantity_in' => 10,
         ]);
 
