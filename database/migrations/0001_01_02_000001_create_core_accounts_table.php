@@ -119,6 +119,7 @@ return new class extends Migration
             $table->string('voucher_no');
 
             $table->string('voucher_type', 100);
+            $table->string('posting_key', 64)->nullable();
 
             $table->nullableMorphs('reference');
 
@@ -152,6 +153,11 @@ return new class extends Migration
                 'tenant_id',
                 'voucher_no'
             ]);
+
+            $table->unique([
+                'tenant_id',
+                'posting_key',
+            ], 'je_tenant_posting_key_unique');
 
             $table->index([
                 'tenant_id',

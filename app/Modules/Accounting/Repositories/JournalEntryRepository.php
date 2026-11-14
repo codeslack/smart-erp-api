@@ -40,6 +40,17 @@ class JournalEntryRepository
             ->findOrFail($id);
     }
 
+    public function findByPostingKey(
+        string $postingKey
+    ): ?JournalEntry {
+        return $this->model
+            ->newQuery()
+            ->where('posting_key', $postingKey)
+            ->whereDoesntHave('reversal')
+            ->with(['lines.account', 'reversal'])
+            ->first();
+    }
+
     public function findPostedByReference(
         string $referenceType,
         int $referenceId,

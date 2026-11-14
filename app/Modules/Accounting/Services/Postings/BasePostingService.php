@@ -150,6 +150,13 @@ abstract class BasePostingService
             'voucher_type' => $voucherType,
             'reference_type' => $referenceType,
             'reference_id' => $referenceId,
+            'posting_key' => hash('sha256', implode('|', [
+                (string) tenantId(),
+                $referenceType,
+                (string) $referenceId,
+                $voucherType,
+                $description,
+            ])),
             'entry_date' => $entryDate,
             'currency_code' => $currencyCode,
             'exchange_rate' => $exchangeRate !== null

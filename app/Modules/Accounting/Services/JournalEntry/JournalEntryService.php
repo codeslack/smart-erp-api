@@ -3,6 +3,9 @@
 namespace App\Modules\Accounting\Services\JournalEntry;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Model;
+
+use App\Core\Exceptions\BusinessException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 use App\Modules\Accounting\Models\JournalEntry;
@@ -41,6 +44,30 @@ class JournalEntryService
     ): JournalEntry {
         return DB::transaction(
             function () use ($data) {
+                $postingKey = $data['posting_key'] ?? null;
+                $referenceType = $data['reference_type'] ?? null;
+                $referenceId = isset($data['reference_id'])
+                    ? (int) $data['reference_id']
+                    : null;
+                $isReversal = ! empty($data['reversal_of_journal_entry_id']);
+
+                if (
+                    ! $isReversal
+                    && is_string($postingKey)
+                    && $postingKey !== ''
+                ) {
+                    $this->lockPostingReference(
+                        $referenceType,
+                        $referenceId
+                    );
+
+                    $existing = $this->repository
+                        ->findByPostingKey($postingKey);
+
+                    if ($existing) {
+                        return $existing;
+                    }
+                }
 
                 $journalEntry = $this->creator->create(
                     $data
@@ -51,6 +78,40 @@ class JournalEntryService
                 );
             }
         );
+    }
+
+    protected function lockPostingReference(
+        ?string $referenceType,
+        ?int $referenceId
+    ): void {
+        if (
+            ! $referenceType
+            || ! $referenceId
+            || ! class_exists($referenceType)
+            || ! is_subclass_of($referenceType, Model::class)
+        ) {
+            return;
+        }
+
+        $source = $referenceType::query()
+            ->whereKey($referenceId)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $source) {
+            throw new BusinessException(
+                'Source document for journal posting was not found.'
+            );
+        }
+
+        if (
+            isset($source->tenant_id)
+            && (int) $source->tenant_id !== (int) tenantId()
+        ) {
+            throw new BusinessException(
+                'Source document belongs to another tenant.'
+            );
+        }
     }
 
     public function post(

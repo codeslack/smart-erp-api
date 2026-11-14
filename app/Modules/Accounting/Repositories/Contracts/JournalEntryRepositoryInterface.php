@@ -12,6 +12,10 @@ interface JournalEntryRepositoryInterface
         int|string $id
     ): JournalEntry;
 
+    public function findByPostingKey(
+        string $postingKey
+    ): ?JournalEntry;
+
     public function findPostedByReference(
         string $referenceType,
         int $referenceId,

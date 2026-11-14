@@ -40,6 +40,12 @@ class AccountingReversalService
                 throw new BusinessException('Journal entry has already been reversed.');
             }
 
+            // Release the active posting key so an edited source document
+            // can be posted again after this original entry is reversed.
+            if ($original->posting_key !== null) {
+                $original->update(['posting_key' => null]);
+            }
+
             if ($original->lines->isEmpty()) {
                 throw new BusinessException('Journal entry has no lines.');
             }

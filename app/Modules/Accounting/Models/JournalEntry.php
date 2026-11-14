@@ -22,6 +22,7 @@ class JournalEntry extends TenantModel
     protected $fillable = [
         'voucher_no',
         'voucher_type',
+        'posting_key',
         'reference_type',
         'reference_id',
         'reversal_of_journal_entry_id',
