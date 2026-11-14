@@ -2,6 +2,7 @@
 
 namespace App\Modules\Inventory\Repositories;
 
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Collection;
 
 use App\Modules\Inventory\Enums\InventoryCostLayerStatusEnum;
@@ -28,7 +29,8 @@ class InventoryCostLayerRepository
     public function availableLayers(
         int $productId,
         ?int $productVariantId,
-        int $warehouseId
+        int $warehouseId,
+        DateTimeInterface $transactionDate,
     ): Collection {
 
         return $this->model
@@ -58,6 +60,12 @@ class InventoryCostLayerRepository
                 'remaining_quantity',
                 '>',
                 0
+            )
+
+            ->whereDate(
+                'layer_date',
+                '<=',
+                $transactionDate->format('Y-m-d')
             )
 
             ->orderBy(
