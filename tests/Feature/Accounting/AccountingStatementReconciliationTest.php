@@ -108,6 +108,9 @@ class AccountingStatementReconciliationTest extends TestCase
             "/api/accounting/customer-statements/{$this->customer->uuid}"
         );
 
+        // API middleware clears the tenant context; restore it for subsequent model queries.
+        app(TenantManager::class)->setTenant($this->tenant);
+
         $response->assertSuccessful()
             ->assertJsonPath('data.base_currency_code', 'INR')
             ->assertJsonPath('data.opening_balance', 5000)
@@ -121,6 +124,9 @@ class AccountingStatementReconciliationTest extends TestCase
         $response = $this->getJson(
             "/api/accounting/customer-statements/{$this->customer->uuid}"
         );
+
+        // API middleware clears the tenant context; restore it for subsequent model queries.
+        app(TenantManager::class)->setTenant($this->tenant);
 
         $response->assertSuccessful()
             ->assertJsonPath('data.opening_balance', 5000)
@@ -309,6 +315,9 @@ class AccountingStatementReconciliationTest extends TestCase
             "/api/accounting/customer-statements/{$this->customer->uuid}"
         );
 
+        // API middleware clears the tenant context; restore it for subsequent model queries.
+        app(TenantManager::class)->setTenant($this->tenant);
+
         $customerResponse->assertSuccessful()
             ->assertJsonPath('data.base_currency_code', 'INR')
             ->assertJsonPath('data.outstanding_balance', 7105);
@@ -323,6 +332,9 @@ class AccountingStatementReconciliationTest extends TestCase
         $supplierResponse = $this->getJson(
             "/api/accounting/supplier-statements/{$this->supplier->uuid}"
         );
+
+        // API middleware clears the tenant context; restore it for subsequent model queries.
+        app(TenantManager::class)->setTenant($this->tenant);
 
         $supplierResponse->assertSuccessful()
             ->assertJsonPath('data.base_currency_code', 'INR')
