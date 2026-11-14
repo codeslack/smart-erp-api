@@ -102,6 +102,7 @@ class GoodsReceiptNoteInventoryBatchService
 
             return $this->resolveExistingBatch(
                 $batch,
+                $grn,
                 $grnBatch,
                 $batchNumber,
             );

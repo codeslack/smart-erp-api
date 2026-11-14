@@ -350,4 +350,66 @@ class InventoryConcurrencyTest extends TestCase
     }
 
 
+
+    public function test_expiry_tracked_product_cannot_be_sold_without_a_batch(): void
+    {
+        $batchProduct = Product::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Expiry Product Missing Batch',
+            'code' => nextSystemNumber(SystemNumberTypeEnum::PRODUCT),
+            'sku' => 'EXP-NO-BATCH-001',
+            'slug' => 'expiry-no-batch-' . random_int(1000, 9999),
+            'product_type' => ProductTypeEnum::PRODUCT,
+            'inventory_tracking_type' => InventoryTrackingTypeEnum::BATCH,
+            'has_expiry' => true,
+            'purchase_price' => 100,
+            'selling_price' => 150,
+            'is_active' => true,
+        ]);
+
+        $stock = ProductStock::create([
+            'tenant_id' => $this->tenant->id,
+            'product_id' => $batchProduct->id,
+            'product_variant_id' => null,
+            'warehouse_id' => $this->warehouse->id,
+            'quantity' => 5,
+            'average_cost' => 100,
+        ]);
+
+        try {
+            app(InventoryPostingService::class)->stockOut(
+                new InventoryMovementData(
+                    productId: $batchProduct->id,
+                    productVariantId: null,
+                    warehouseId: $this->warehouse->id,
+                    quantity: 1,
+                    unitCost: 100,
+                    transactionType: InventoryTransactionTypeEnum::SALE->value,
+                    transactionDate: now(),
+                    referenceType: null,
+                    referenceId: null,
+                    referenceNo: 'EXPIRY-NO-BATCH-SALE',
+                    batchId: null,
+                    serialId: null,
+                    remarks: 'Expiry-tracked sales require a batch.',
+                )
+            );
+
+            $this->fail('An expiry-tracked product cannot be sold without a batch.');
+        } catch (BusinessException $exception) {
+            $this->assertSame(
+                'An expiry-tracked product requires a batch for this inventory movement.',
+                $exception->getMessage()
+            );
+        }
+
+        $this->assertEquals(5, (float) $stock->fresh()->quantity);
+
+        $this->assertDatabaseMissing('stock_ledgers', [
+            'tenant_id' => $this->tenant->id,
+            'reference_no' => 'EXPIRY-NO-BATCH-SALE',
+        ]);
+    }
+
+
 }
