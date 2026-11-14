@@ -4,6 +4,7 @@ namespace App\Modules\Inventory\Services;
 
 use Illuminate\Support\Collection;
 use Illuminate\Database\QueryException;
+use Carbon\Carbon;
 
 use App\Core\Exceptions\BusinessException;
 
@@ -200,6 +201,20 @@ class InventoryBatchService
             : null;
 
         $unitCost = (float) ($data['unit_cost'] ?? 0);
+        $expiryDate = $data['expiry_date'] ?? null;
+        $receivedAt = $data['received_at'] ?? null;
+
+        if (
+            $expiryDate !== null
+            && $receivedAt !== null
+            && Carbon::parse($expiryDate)->lt(
+                Carbon::parse($receivedAt)->startOfDay()
+            )
+        ) {
+            throw new BusinessException(
+                'A batch cannot be received on or after its expiry date.'
+            );
+        }
 
         if ($unitCost < 0) {
             throw new BusinessException(

@@ -324,6 +324,17 @@ class PurchaseInventoryPostingService
         );
 
         if ($batch !== null) {
+            if (
+                $batch->expiry_date !== null
+                && $batch->expiry_date->lt(
+                    \Carbon\Carbon::parse($purchase->purchase_date)->startOfDay()
+                )
+            ) {
+                throw new BusinessException(
+                    "Batch [{$batchItem->batch_no}] was already expired on the Purchase date."
+                );
+            }
+
             $existingManufacturingDate = $batch->manufacturing_date?->toDateString();
             $incomingManufacturingDate = $batchItem->manufacturing_date?->toDateString();
 

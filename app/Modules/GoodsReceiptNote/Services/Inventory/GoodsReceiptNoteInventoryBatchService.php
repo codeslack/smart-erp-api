@@ -4,6 +4,7 @@ namespace App\Modules\GoodsReceiptNote\Services\Inventory;
 
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 use Illuminate\Validation\ValidationException;
 
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNote;
@@ -140,6 +141,17 @@ class GoodsReceiptNoteInventoryBatchService
 
         $existingExpiry = $batch->expiry_date?->toDateString();
         $incomingExpiry = $grnBatch->expiry_date?->toDateString();
+
+        if (
+            $existingExpiry !== null
+            && $existingExpiry < Carbon::parse($grn->grn_date)->toDateString()
+        ) {
+            throw ValidationException::withMessages([
+                'batches' => [
+                    "Batch {$batchNumber} was already expired on the GRN date.",
+                ],
+            ]);
+        }
 
         if ($existingExpiry !== $incomingExpiry) {
             throw ValidationException::withMessages([

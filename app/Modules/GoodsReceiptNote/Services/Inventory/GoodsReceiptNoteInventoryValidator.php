@@ -3,6 +3,7 @@
 namespace App\Modules\GoodsReceiptNote\Services\Inventory;
 
 use Illuminate\Validation\ValidationException;
+use Carbon\Carbon;
 
 use App\Modules\GoodsReceiptNote\Models\GoodsReceiptNoteItem;
 
@@ -53,6 +54,8 @@ class GoodsReceiptNoteInventoryValidator
                 ]);
             }
 
+            $item->loadMissing('goodsReceiptNote');
+
             foreach ($item->batches as $grnBatch) {
                 if ((float) $grnBatch->quantity <= 0) {
                     throw ValidationException::withMessages([
@@ -66,6 +69,33 @@ class GoodsReceiptNoteInventoryValidator
                     throw ValidationException::withMessages([
                         'batches' => [
                             'Batch numbers cannot be empty.',
+                        ],
+                    ]);
+                }
+
+                if (
+                    $item->product->hasExpiryTracking()
+                    && $grnBatch->expiry_date === null
+                ) {
+                    throw ValidationException::withMessages([
+                        'batches' => [
+                            "An expiry date is required for batch {$grnBatch->batch_no}.",
+                        ],
+                    ]);
+                }
+
+                $grnDate = $item->goodsReceiptNote?->grn_date;
+
+                if (
+                    $grnBatch->expiry_date !== null
+                    && $grnDate !== null
+                    && $grnBatch->expiry_date->lt(
+                        Carbon::parse($grnDate)->startOfDay()
+                    )
+                ) {
+                    throw ValidationException::withMessages([
+                        'batches' => [
+                            "Batch {$grnBatch->batch_no} was expired on the GRN date.",
                         ],
                     ]);
                 }
