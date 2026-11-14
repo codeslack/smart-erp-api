@@ -67,6 +67,11 @@ class OpeningStockService
                 $data
             ) {
 
+                $openingStock = OpeningStock::query()
+                    ->whereKey($openingStock->getKey())
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
                 $this->ensureDraft(
                     $openingStock
                 );
@@ -103,6 +108,11 @@ class OpeningStockService
         return DB::transaction(
             function () use ($openingStock) {
 
+                $openingStock = OpeningStock::query()
+                    ->whereKey($openingStock->getKey())
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
                 $this->ensureDraft(
                     $openingStock
                 );
@@ -123,6 +133,11 @@ class OpeningStockService
     ): OpeningStock {
         return DB::transaction(
             function () use ($openingStock) {
+
+                $openingStock = OpeningStock::query()
+                    ->whereKey($openingStock->getKey())
+                    ->lockForUpdate()
+                    ->firstOrFail();
 
                 if (
                     $openingStock->status
@@ -149,6 +164,11 @@ class OpeningStockService
     ): bool {
         return DB::transaction(
             function () use ($openingStock) {
+
+                $openingStock = OpeningStock::query()
+                    ->whereKey($openingStock->getKey())
+                    ->lockForUpdate()
+                    ->firstOrFail();
 
                 $this->ensureDraft(
                     $openingStock

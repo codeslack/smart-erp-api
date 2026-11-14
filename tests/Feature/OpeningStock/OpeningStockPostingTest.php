@@ -193,8 +193,10 @@ class OpeningStockPostingTest extends TestCase
             BusinessException::class
         );
 
+        // Deliberately pass the stale draft instance to simulate a retry
+        // after the first posting committed successfully.
         $this->postingService->post(
-            $openingStock->fresh()
+            $openingStock
         );
     }
 

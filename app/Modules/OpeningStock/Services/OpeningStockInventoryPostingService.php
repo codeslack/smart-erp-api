@@ -46,6 +46,11 @@ class OpeningStockInventoryPostingService
     {
         DB::transaction(function () use ($openingStock) {
 
+            $openingStock = OpeningStock::query()
+                ->whereKey($openingStock->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
             $this->ensureDraft($openingStock);
 
             $openingStock->loadMissing([
@@ -117,6 +122,11 @@ class OpeningStockInventoryPostingService
     public function unpost(OpeningStock $openingStock): void
     {
         DB::transaction(function () use ($openingStock) {
+
+            $openingStock = OpeningStock::query()
+                ->whereKey($openingStock->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
 
             $this->ensureConfirmed($openingStock);
 
