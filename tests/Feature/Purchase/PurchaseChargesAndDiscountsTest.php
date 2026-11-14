@@ -13,6 +13,7 @@ use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Accounting\Services\AccountingSetupService;
 use App\Modules\Purchase\Models\Purchase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\Support\CreatesTenant;
 use Tests\Support\CreatesUser;
@@ -222,4 +223,88 @@ class PurchaseChargesAndDiscountsTest extends TestCase
         $response2->assertStatus(201);
         $this->assertEquals('BILL-SHARED-001', $response2->json('data.purchase_no'));
     }
+
+    public function test_landed_cost_allocation_methods_are_applied_to_item_inventory_costs(): void
+    {
+        $secondProduct = Product::create([
+            'tenant_id' => $this->tenant->id,
+            'code' => 'PRD-CHG-SECOND',
+            'sku' => 'SKU-CHG-SECOND',
+            'name' => 'Second Widget Item',
+            'slug' => 'second-widget-item',
+            'product_type' => ProductTypeEnum::PRODUCT,
+            'inventory_tracking_type' => InventoryTrackingTypeEnum::NONE,
+            'is_active' => true,
+            'purchase_price' => 300,
+            'selling_price' => 400,
+        ]);
+
+        $expectedCosts = [
+            'by_quantity' => [110.0000, 310.0000],
+            'by_value' => [104.0000, 312.0000],
+            'equal' => [120.0000, 306.6667],
+        ];
+
+        foreach ($expectedCosts as $method => [$firstCost, $secondCost]) {
+            $response = $this->postJson(route('purchases.store'), [
+                'supplier_uuid' => $this->supplier->uuid,
+                'warehouse_uuid' => $this->warehouse->uuid,
+                'purchase_date' => now()->toDateString(),
+                'items' => [
+                    [
+                        'product_uuid' => $this->product->uuid,
+                        'quantity' => 1,
+                        'unit_cost' => 100,
+                    ],
+                    [
+                        'product_uuid' => $secondProduct->uuid,
+                        'quantity' => 3,
+                        'unit_cost' => 300,
+                    ],
+                ],
+                'charges' => [
+                    [
+                        'charge_type' => 'freight',
+                        'name' => 'Landed freight',
+                        'calculation_method' => 'fixed',
+                        'amount' => 40,
+                        'treatment' => 'landed_cost',
+                        'allocation_method' => $method,
+                        'affects_inventory_cost' => true,
+                    ],
+                ],
+            ])->assertCreated();
+
+            $purchaseUuid = $response->json('data.uuid');
+
+            $this->postJson("/api/purchases/{$purchaseUuid}/confirm")
+                ->assertOk();
+
+            $purchaseId = DB::table('purchases')
+                ->where('tenant_id', $this->tenant->id)
+                ->where('uuid', $purchaseUuid)
+                ->value('id');
+
+            $firstLedger = DB::table('stock_ledgers')
+                ->where('tenant_id', $this->tenant->id)
+                ->where('referenceable_type', Purchase::class)
+                ->where('referenceable_id', $purchaseId)
+                ->where('product_id', $this->product->id)
+                ->first();
+
+            $secondLedger = DB::table('stock_ledgers')
+                ->where('tenant_id', $this->tenant->id)
+                ->where('referenceable_type', Purchase::class)
+                ->where('referenceable_id', $purchaseId)
+                ->where('product_id', $secondProduct->id)
+                ->first();
+
+            $this->assertNotNull($firstLedger);
+            $this->assertNotNull($secondLedger);
+            $this->assertEqualsWithDelta($firstCost, (float) $firstLedger->unit_cost, 0.0001);
+            $this->assertEqualsWithDelta($secondCost, (float) $secondLedger->unit_cost, 0.0001);
+        }
+    }
+
+
 }

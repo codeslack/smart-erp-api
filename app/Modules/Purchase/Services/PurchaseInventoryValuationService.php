@@ -209,50 +209,90 @@ class PurchaseInventoryValuationService
         }
 
         $unitCosts = [];
-        $remainingAmount = $stockAmount;
 
         if ($stockItems !== []) {
-            $totalWeight = $stockSubtotal;
+            $lineAmounts = [];
 
-            if (bccomp($totalWeight, '0.0000', 4) === 0) {
-                $totalWeight = '0.0000';
+            foreach ($stockItems as $item) {
+                $lineAmounts[$item->id] = $this->decimal(
+                    $item->subtotal ?? '0'
+                );
+            }
 
-                foreach ($stockItems as $item) {
-                    $totalWeight = bcadd(
-                        $totalWeight,
-                        $this->decimal($item->base_quantity),
+            // Allocate the stock share of header discount by item value.
+            $discountAllocations = $this->allocateAcrossItems(
+                $stockItems,
+                $stockDiscount,
+                'by_value'
+            );
+
+            foreach ($discountAllocations as $itemId => $allocation) {
+                $lineAmounts[$itemId] = bcsub(
+                    $lineAmounts[$itemId],
+                    $allocation,
+                    4
+                );
+            }
+
+            // Each landed-cost charge uses its configured allocation method.
+            foreach ($purchase->charges as $charge) {
+                if (! $charge->isLandedCost()) {
+                    continue;
+                }
+
+                $chargeAllocations = $this->allocateAcrossItems(
+                    $stockItems,
+                    $this->decimal($charge->amount),
+                    $charge->allocation_method ?? 'by_value'
+                );
+
+                foreach ($chargeAllocations as $itemId => $allocation) {
+                    $lineAmounts[$itemId] = bcadd(
+                        $lineAmounts[$itemId],
+                        $allocation,
                         4
                     );
                 }
             }
 
-            if (bccomp($totalWeight, '0.0000', 4) <= 0) {
-                throw new BusinessException(
-                    'Stock purchase items require a positive valuation weight.'
+            // Document rounding is allocated by value; the final line absorbs
+            // any residual so item costs reconcile exactly to the stock total.
+            $roundingAllocations = $this->allocateAcrossItems(
+                $stockItems,
+                $roundingAmount,
+                'by_value'
+            );
+
+            foreach ($roundingAllocations as $itemId => $allocation) {
+                $lineAmounts[$itemId] = bcadd(
+                    $lineAmounts[$itemId],
+                    $allocation,
+                    4
                 );
             }
 
-            foreach ($stockItems as $index => $item) {
-                $weight = bccomp($stockSubtotal, '0.0000', 4) > 0
-                    ? $this->decimal($item->subtotal ?? '0')
-                    : $this->decimal($item->base_quantity);
+            $allocatedTotal = '0.0000';
 
-                $lineAmount = $index === array_key_last($stockItems)
-                    ? $remainingAmount
-                    : $this->decimal(
-                        bcmul(
-                            $stockAmount,
-                            bcdiv($weight, $totalWeight, 8),
-                            8
-                        )
-                    );
-
-                $remainingAmount = bcsub(
-                    $remainingAmount,
+            foreach ($lineAmounts as $lineAmount) {
+                $allocatedTotal = bcadd(
+                    $allocatedTotal,
                     $lineAmount,
                     4
                 );
+            }
 
+            $lastItemId = $stockItems[array_key_last($stockItems)]->id;
+            $difference = bcsub($stockAmount, $allocatedTotal, 4);
+
+            if (bccomp($difference, '0.0000', 4) !== 0) {
+                $lineAmounts[$lastItemId] = bcadd(
+                    $lineAmounts[$lastItemId],
+                    $difference,
+                    4
+                );
+            }
+
+            foreach ($stockItems as $item) {
                 $baseQuantity = $this->decimal(
                     $item->base_quantity
                 );
@@ -263,8 +303,14 @@ class PurchaseInventoryValuationService
                     );
                 }
 
+                if (bccomp($lineAmounts[$item->id], '0.0000', 4) < 0) {
+                    throw new BusinessException(
+                        'Purchase discounts and landed costs cannot produce a negative stock item valuation.'
+                    );
+                }
+
                 $unitCosts[$item->id] = $this->decimalCost(
-                    bcdiv($lineAmount, $baseQuantity, 8)
+                    bcdiv($lineAmounts[$item->id], $baseQuantity, 8)
                 );
             }
         }
@@ -280,6 +326,87 @@ class PurchaseInventoryValuationService
             'expense_charges' => $expenseCharges,
             'stock_item_unit_costs' => $unitCosts,
         ];
+    }
+
+    /**
+     * Allocate a landed-cost or discount amount across stock items.
+     *
+     * The final item receives the remaining four-decimal amount so the
+     * allocation always reconciles to the source charge exactly.
+     */
+    protected function allocateAcrossItems(
+        array $items,
+        string $amount,
+        string $method
+    ): array {
+        if ($items === []) {
+            return [];
+        }
+
+        $weights = [];
+        $totalWeight = '0.0000';
+
+        foreach ($items as $item) {
+            $weight = match ($method) {
+                'by_value' => $this->decimal($item->subtotal ?? '0'),
+                'by_quantity' => $this->decimal($item->base_quantity ?? '0'),
+                'equal' => '1.0000',
+                default => throw new BusinessException(
+                    'Unsupported landed-cost allocation method.'
+                ),
+            };
+
+            $weights[$item->id] = $weight;
+            $totalWeight = bcadd($totalWeight, $weight, 4);
+        }
+
+        // When every stock line has zero value, value-based allocation falls
+        // back to base quantity rather than dividing by zero.
+        if (
+            $method === 'by_value'
+            && bccomp($totalWeight, '0.0000', 4) <= 0
+        ) {
+            $totalWeight = '0.0000';
+
+            foreach ($items as $item) {
+                $weights[$item->id] = $this->decimal(
+                    $item->base_quantity ?? '0'
+                );
+
+                $totalWeight = bcadd(
+                    $totalWeight,
+                    $weights[$item->id],
+                    4
+                );
+            }
+        }
+
+        if (bccomp($totalWeight, '0.0000', 4) <= 0) {
+            throw new BusinessException(
+                'Stock purchase items require a positive allocation weight.'
+            );
+        }
+
+        $allocations = [];
+        $remaining = $this->decimal($amount);
+        $lastIndex = array_key_last($items);
+
+        foreach ($items as $index => $item) {
+            $allocation = $index === $lastIndex
+                ? $remaining
+                : $this->decimal(
+                    bcmul(
+                        $this->decimal($amount),
+                        bcdiv($weights[$item->id], $totalWeight, 8),
+                        8
+                    )
+                );
+
+            $allocations[$item->id] = $allocation;
+            $remaining = bcsub($remaining, $allocation, 4);
+        }
+
+        return $allocations;
     }
 
     protected function decimal(mixed $value): string
