@@ -315,4 +315,56 @@ class InventoryFifoExactLayerBoundaryTest extends TestCase
             (float) $stock->quantity
         );
     }
+    public function test_fifo_fractional_quantity_cost_rounds_half_up_to_four_decimals(): void
+    {
+        $this->postingService->stockIn(
+            new InventoryMovementData(
+                productId: $this->product->id,
+                productVariantId: null,
+                warehouseId: $this->warehouse->id,
+                quantity: 1,
+                unitCost: 12.3456,
+                transactionType: 'PURCHASE',
+                transactionDate: now(),
+                referenceNo: 'PUR-FRACTIONAL-001',
+                remarks: 'Fractional FIFO cost precision',
+            )
+        );
+
+        $saleLedger = $this->postingService->stockOut(
+            new InventoryMovementData(
+                productId: $this->product->id,
+                productVariantId: null,
+                warehouseId: $this->warehouse->id,
+                quantity: 0.3333,
+                unitCost: 0,
+                transactionType: 'SALE',
+                transactionDate: now(),
+                referenceNo: 'SAL-FRACTIONAL-001',
+                remarks: 'Fractional FIFO consumption',
+            )
+        );
+
+        $this->assertEqualsWithDelta(
+            4.1148,
+            (float) $saleLedger->total_cost,
+            0.00001,
+        );
+
+        $consumption = InventoryCostLayerConsumption::query()
+            ->where('stock_ledger_id', $saleLedger->id)
+            ->firstOrFail();
+
+        $this->assertEqualsWithDelta(
+            4.1148,
+            (float) $consumption->total_cost,
+            0.00001,
+        );
+
+        $this->assertEquals(
+            0.6667,
+            (float) InventoryCostLayer::query()->firstOrFail()->remaining_quantity,
+        );
+    }
+
 }

@@ -136,9 +136,15 @@ class WeightedAverageCostingService
             );
         }
 
-        return (float) bcmul(
+        $cost = bcmul(
             (string) $quantity,
             (string) $averageCost,
+            5
+        );
+
+        return (float) bcadd(
+            $cost,
+            '0.00005',
             4
         );
     }
