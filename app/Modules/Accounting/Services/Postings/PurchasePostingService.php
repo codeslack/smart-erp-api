@@ -93,7 +93,7 @@ class PurchasePostingService extends BasePostingService
 
         if (bccomp($baseTaxAmount, '0.0000', 4) > 0) {
             $lines[] = $this->debit(
-                AccountingAccounts::INPUT_TAX,
+                AccountingAccounts::INPUT_TAX_RECEIVABLE,
                 $baseTaxAmount,
                 'Purchase input tax',
                 $taxAmount,

@@ -264,7 +264,7 @@ class PurchaseReturnPostingService extends BasePostingService
 
         if (bccomp($baseTaxAmount, '0.0000', 4) > 0) {
             $lines[] = $this->credit(
-                AccountingAccounts::INPUT_TAX,
+                AccountingAccounts::INPUT_TAX_RECEIVABLE,
                 $baseTaxAmount,
                 'Purchase return input tax reversal',
                 $taxAmount,

@@ -100,15 +100,21 @@ class ProductStockRepository
         }
 
         try {
-            return $this->model
-                ->newQuery()
-                ->create([
-                    'product_id' => $productId,
-                    'product_variant_id' => $productVariantId,
-                    'warehouse_id' => $warehouseId,
-                    'quantity' => 0,
-                    'average_cost' => 0,
-                ]);
+            // Use a savepoint when this method is called inside an outer
+            // inventory transaction. PostgreSQL aborts the current transaction
+            // after a unique violation; rolling back this nested transaction
+            // restores the outer transaction before the recovery lookup.
+            return $this->model->getConnection()->transaction(
+                fn () => $this->model
+                    ->newQuery()
+                    ->create([
+                        'product_id' => $productId,
+                        'product_variant_id' => $productVariantId,
+                        'warehouse_id' => $warehouseId,
+                        'quantity' => 0,
+                        'average_cost' => 0,
+                    ])
+            );
         } catch (QueryException $exception) {
             if (! $this->isProductStockUniqueViolation($exception)) {
                 throw $exception;

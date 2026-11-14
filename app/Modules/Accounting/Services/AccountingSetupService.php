@@ -249,6 +249,13 @@ class AccountingSetupService
 
             [
                 'group' => 'expense',
+                'code' => AccountingAccounts::PURCHASE_EXPENSE,
+                'name' => 'Purchase Expense',
+                'type' => AccountType::EXPENSE,
+            ],
+
+            [
+                'group' => 'expense',
                 'code' => AccountingAccounts::PURCHASE_FREIGHT,
                 'name' => 'Purchase Freight',
                 'type' => AccountType::EXPENSE,
