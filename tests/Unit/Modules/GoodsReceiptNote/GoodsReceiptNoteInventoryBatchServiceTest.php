@@ -74,6 +74,54 @@ class GoodsReceiptNoteInventoryBatchServiceTest extends TestCase
         $this->assertSame($batch, $result);
     }
 
+
+    public function test_it_rejects_an_existing_batch_with_a_different_expiry_date(): void
+    {
+        $batchService = $this->createMock(InventoryBatchService::class);
+
+        $batch = new ProductBatch();
+        $batch->forceFill([
+            $batch->getKeyName() => 55,
+            'status' => ProductBatchStatusEnum::ACTIVE,
+            'expiry_date' => '2028-06-30',
+        ]);
+
+        $batchService
+            ->expects($this->once())
+            ->method('findByBatchNumber')
+            ->with('BATCH-001', 10, 20, null)
+            ->willReturn($batch);
+
+        $batchService
+            ->expects($this->once())
+            ->method('lock')
+            ->with(55)
+            ->willReturn($batch);
+
+        $grnBatch = $this->makeGrnBatch();
+        $grnBatch->expiry_date = '2028-12-31';
+
+        $service = new GoodsReceiptNoteInventoryBatchService(
+            $batchService
+        );
+
+        try {
+            $service->resolve(
+                $this->makeGrn(),
+                $this->makeItem(),
+                $grnBatch,
+                100,
+            );
+
+            $this->fail('Expected an existing batch expiry mismatch to be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey(
+                'batches',
+                $exception->errors()
+            );
+        }
+    }
+
     public function test_it_rethrows_an_unrelated_database_exception(): void
     {
         $batchService = $this->createMock(InventoryBatchService::class);
