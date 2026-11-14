@@ -59,7 +59,8 @@ class FifoCostingService
         $layers = $this->repository->availableLayers(
             productId: $movement->productId,
             productVariantId: $movement->productVariantId,
-            warehouseId: $movement->warehouseId
+            warehouseId: $movement->warehouseId,
+            transactionDate: $movement->transactionDate,
         );
 
         $remaining = (string) $movement->quantity;

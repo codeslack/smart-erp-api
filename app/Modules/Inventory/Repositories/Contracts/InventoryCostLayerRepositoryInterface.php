@@ -2,6 +2,7 @@
 
 namespace App\Modules\Inventory\Repositories\Contracts;
 
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Collection;
 use App\Modules\Inventory\Models\InventoryCostLayer;
 
@@ -22,7 +23,8 @@ interface InventoryCostLayerRepositoryInterface
     public function availableLayers(
         int $productId,
         ?int $productVariantId,
-        int $warehouseId
+        int $warehouseId,
+        DateTimeInterface $transactionDate,
     ): Collection;
 
     /**
