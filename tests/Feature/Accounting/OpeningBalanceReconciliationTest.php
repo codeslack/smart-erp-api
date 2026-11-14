@@ -1,0 +1,292 @@
+<?php
+
+namespace Tests\Feature\Accounting;
+
+use Tests\TestCase;
+use Tests\Support\CreatesTenant;
+
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+use App\Core\Enums\OpeningBalanceTypeEnum;
+use App\Core\Tenant\TenantManager;
+
+use App\Modules\Tenant\Models\Tenant;
+use App\Modules\Customer\Models\Customer;
+use App\Modules\Supplier\Models\Supplier;
+use App\Modules\CustomerOpeningBill\Models\CustomerOpeningBill;
+use App\Modules\SupplierOpeningBill\Models\SupplierOpeningBill;
+use App\Modules\CustomerOpeningBill\Services\CustomerOpeningBillService;
+
+use App\Modules\Accounting\Enums\AccountingAccounts;
+use App\Modules\Accounting\Enums\JournalEntryStatusEnum;
+use App\Modules\Accounting\Enums\JournalVoucherTypeEnum;
+use App\Modules\Accounting\Models\AccountLedger;
+use App\Modules\Accounting\Models\ChartOfAccount;
+use App\Modules\Accounting\Models\JournalEntry;
+use App\Modules\Accounting\Repositories\Contracts\JournalEntryRepositoryInterface;
+use App\Modules\Accounting\Services\AccountingSetupService;
+use App\Modules\Accounting\Services\AccountingPostingService;
+use App\Modules\Accounting\Services\AccountingReversalService;
+
+use App\Modules\CustomerOpeningBill\Services\CustomerOpeningBillPostingService;
+use App\Modules\SupplierOpeningBill\Services\SupplierOpeningBillPostingService;
+
+class OpeningBalanceReconciliationTest extends TestCase
+{
+    use RefreshDatabase;
+    use CreatesTenant;
+
+    protected Tenant $tenant;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->tenant = $this->createTestTenant();
+
+        app(TenantManager::class)->setTenant($this->tenant);
+
+        app(AccountingSetupService::class)->setup($this->tenant);
+    }
+
+    public function test_customer_opening_bills_reconcile_to_receivables_advances_and_equity_after_repost(): void
+    {
+        $customer = Customer::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Opening Customer',
+            'code' => 'CUS-OPEN-REC',
+            'is_active' => true,
+        ]);
+
+        $receivableBill = CustomerOpeningBill::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+            'bill_no' => 'CUS-OB-001',
+            'bill_date' => '2026-01-01',
+            'due_date' => '2026-01-31',
+            'amount' => 1000,
+            'balance_amount' => 1000,
+            'balance_type' => OpeningBalanceTypeEnum::DEBIT,
+        ]);
+
+        CustomerOpeningBill::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+            'bill_no' => 'CUS-OB-ADV-001',
+            'bill_date' => '2026-01-01',
+            'due_date' => '2026-01-31',
+            'amount' => 200,
+            'balance_amount' => 200,
+            'balance_type' => OpeningBalanceTypeEnum::CREDIT,
+        ]);
+
+        $posting = app(CustomerOpeningBillPostingService::class);
+        $posting->post($customer);
+
+        $original = $this->openingJournal(
+            Customer::class,
+            $customer->id,
+            JournalVoucherTypeEnum::CUSTOMER_OPENING_BALANCE->value
+        );
+
+        $this->assertEquals(1000, $this->accountBalance(AccountingAccounts::ACCOUNTS_RECEIVABLE));
+        $this->assertEquals(200, $this->accountBalance(AccountingAccounts::CUSTOMER_ADVANCES));
+        $this->assertEquals(800, $this->accountBalance(AccountingAccounts::OPENING_BALANCE_EQUITY));
+
+        $receivableBill->update([
+            'amount' => 1500,
+            'balance_amount' => 1500,
+        ]);
+
+        $posting->repost($customer);
+
+        $original = $original->fresh();
+
+        $this->assertSame(JournalEntryStatusEnum::POSTED, $original->status);
+
+        $reversal = $original->reversal;
+
+        $this->assertNotNull($reversal);
+        $this->assertSame($original->id, $reversal->reversal_of_journal_entry_id);
+        $this->assertSame(JournalEntryStatusEnum::POSTED, $reversal->status);
+
+        $this->assertEquals(1500, $this->accountBalance(AccountingAccounts::ACCOUNTS_RECEIVABLE));
+        $this->assertEquals(200, $this->accountBalance(AccountingAccounts::CUSTOMER_ADVANCES));
+        $this->assertEquals(1300, $this->accountBalance(AccountingAccounts::OPENING_BALANCE_EQUITY));
+
+        $this->assertSame(
+            3,
+            AccountLedger::query()
+                ->where('chart_of_account_id', $this->accountId(AccountingAccounts::ACCOUNTS_RECEIVABLE))
+                ->count()
+        );
+    }
+
+    public function test_customer_repost_rolls_back_reversal_when_new_posting_fails(): void
+    {
+        $customer = Customer::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Atomic Repost Customer',
+            'code' => 'CUS-OPEN-ATOMIC',
+            'is_active' => true,
+        ]);
+
+        CustomerOpeningBill::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+            'bill_no' => 'CUS-OB-ATOMIC-001',
+            'bill_date' => '2026-01-01',
+            'due_date' => '2026-01-31',
+            'amount' => 750,
+            'balance_amount' => 750,
+            'balance_type' => OpeningBalanceTypeEnum::DEBIT,
+        ]);
+
+        app(CustomerOpeningBillPostingService::class)->post($customer);
+
+        $original = $this->openingJournal(
+            Customer::class,
+            $customer->id,
+            JournalVoucherTypeEnum::CUSTOMER_OPENING_BALANCE->value
+        );
+
+        $receivableBefore = $this->accountBalance(AccountingAccounts::ACCOUNTS_RECEIVABLE);
+        $equityBefore = $this->accountBalance(AccountingAccounts::OPENING_BALANCE_EQUITY);
+
+        $failingPosting = \Mockery::mock(AccountingPostingService::class);
+        $failingPosting
+            ->shouldReceive('postCustomerOpeningBalance')
+            ->once()
+            ->andThrow(new \RuntimeException('Simulated opening-balance posting failure.'));
+
+        $posting = new CustomerOpeningBillPostingService(
+            $failingPosting,
+            app(AccountingReversalService::class),
+            app(JournalEntryRepositoryInterface::class),
+            app(CustomerOpeningBillService::class),
+        );
+
+        try {
+            $posting->repost($customer);
+            $this->fail('The simulated posting failure should be propagated.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame(
+                'Simulated opening-balance posting failure.',
+                $exception->getMessage()
+            );
+        }
+
+        $this->assertSame(
+            JournalEntryStatusEnum::POSTED,
+            $original->fresh()->status
+        );
+
+        $this->assertDatabaseMissing('journal_entries', [
+            'tenant_id' => $this->tenant->id,
+            'reversal_of_journal_entry_id' => $original->id,
+        ]);
+
+        $this->assertEquals(
+            $receivableBefore,
+            $this->accountBalance(AccountingAccounts::ACCOUNTS_RECEIVABLE)
+        );
+
+        $this->assertEquals(
+            $equityBefore,
+            $this->accountBalance(AccountingAccounts::OPENING_BALANCE_EQUITY)
+        );
+    }
+
+    public function test_supplier_opening_bills_reconcile_to_payables_advances_and_equity_after_repost(): void
+    {
+        $supplier = Supplier::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Opening Supplier',
+            'code' => 'SUP-OPEN-REC',
+            'is_active' => true,
+        ]);
+
+        $payableBill = SupplierOpeningBill::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'supplier_id' => $supplier->id,
+            'bill_no' => 'SUP-OB-001',
+            'bill_date' => '2026-01-01',
+            'due_date' => '2026-01-31',
+            'amount' => 2000,
+            'balance_amount' => 2000,
+            'balance_type' => OpeningBalanceTypeEnum::CREDIT,
+        ]);
+
+        SupplierOpeningBill::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'supplier_id' => $supplier->id,
+            'bill_no' => 'SUP-OB-ADV-001',
+            'bill_date' => '2026-01-01',
+            'due_date' => '2026-01-31',
+            'amount' => 300,
+            'balance_amount' => 300,
+            'balance_type' => OpeningBalanceTypeEnum::DEBIT,
+        ]);
+
+        $posting = app(SupplierOpeningBillPostingService::class);
+        $posting->post($supplier);
+
+        $original = $this->openingJournal(
+            Supplier::class,
+            $supplier->id,
+            JournalVoucherTypeEnum::SUPPLIER_OPENING_BALANCE->value
+        );
+
+        $this->assertEquals(2000, $this->accountBalance(AccountingAccounts::ACCOUNTS_PAYABLE));
+        $this->assertEquals(300, $this->accountBalance(AccountingAccounts::SUPPLIER_ADVANCES));
+        $this->assertEquals(-1700, $this->accountBalance(AccountingAccounts::OPENING_BALANCE_EQUITY));
+
+        $payableBill->update([
+            'amount' => 2500,
+            'balance_amount' => 2500,
+        ]);
+
+        $posting->repost($supplier);
+
+        $original = $original->fresh();
+
+        $this->assertSame(JournalEntryStatusEnum::POSTED, $original->status);
+
+        $reversal = $original->reversal;
+
+        $this->assertNotNull($reversal);
+        $this->assertSame($original->id, $reversal->reversal_of_journal_entry_id);
+        $this->assertSame(JournalEntryStatusEnum::POSTED, $reversal->status);
+
+        $this->assertEquals(2500, $this->accountBalance(AccountingAccounts::ACCOUNTS_PAYABLE));
+        $this->assertEquals(300, $this->accountBalance(AccountingAccounts::SUPPLIER_ADVANCES));
+        $this->assertEquals(-2200, $this->accountBalance(AccountingAccounts::OPENING_BALANCE_EQUITY));
+    }
+
+    protected function openingJournal(
+        string $referenceType,
+        int $referenceId,
+        string $voucherType
+    ): JournalEntry {
+        return JournalEntry::query()
+            ->where('reference_type', $referenceType)
+            ->where('reference_id', $referenceId)
+            ->where('voucher_type', $voucherType)
+            ->where('status', JournalEntryStatusEnum::POSTED->value)
+            ->firstOrFail();
+    }
+
+    protected function accountId(string $accountCode): int
+    {
+        return (int) ChartOfAccount::query()
+            ->where('account_code', $accountCode)
+            ->value('id');
+    }
+
+    protected function accountBalance(string $accountCode): float
+    {
+        return (float) ChartOfAccount::query()
+            ->where('account_code', $accountCode)
+            ->value('current_balance');
+    }
+}
