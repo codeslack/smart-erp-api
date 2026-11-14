@@ -1,28 +1,27 @@
 <?php
 
-namespace Tests\\Feature\\Inventory;
+namespace Tests\Feature\Inventory;
 
-use Tests\\TestCase;
-use Illuminate\\Foundation\\Testing\\RefreshDatabase;
+use Tests\TestCase;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
-use Tests\\Support\\CreatesTenant;
-use Tests\\Support\\CreatesWarehouse;
-use Tests\\Support\\CreatesProduct;
+use Tests\Support\CreatesTenant;
+use Tests\Support\CreatesWarehouse;
+use Tests\Support\CreatesProduct;
 
-use App\\Core\\Exceptions\\BusinessException;
-use App\\Core\\Tenant\\TenantManager;
+use App\Core\Exceptions\BusinessException;
+use App\Core\Tenant\TenantManager;
 
-use App\\Modules\\Tenant\\Models\\Tenant;
-use App\\Modules\\Product\\Models\\Product;
-use App\\Modules\\Warehouse\\Models\\Warehouse;
-use App\\Modules\\Accounting\\Services\\AccountingSetupService;
-use App\\Modules\\Settings\\Models\\Setting;
+use App\Modules\Tenant\Models\Tenant;
+use App\Modules\Product\Models\Product;
+use App\Modules\Warehouse\Models\Warehouse;
+use App\Modules\Accounting\Services\AccountingSetupService;
+use App\Modules\Settings\Models\Setting;
 
-use App\\Modules\\Inventory\\Data\\InventoryMovementData;
-use App\\Modules\\Inventory\\Models\\InventoryCostLayer;
-use App\\Modules\\Inventory\\Models\\InventoryCostLayerConsumption;
-use App\\Modules\\Inventory\\Models\\ProductStock;
-use App\\Modules\\Inventory\\Services\\InventoryPostingService;
+use App\Modules\Inventory\Data\InventoryMovementData;
+use App\Modules\Inventory\Models\InventoryCostLayer;
+use App\Modules\Inventory\Models\ProductStock;
+use App\Modules\Inventory\Services\InventoryPostingService;
 
 class InventoryFifoHistoricalLayerEligibilityTest extends TestCase
 {
