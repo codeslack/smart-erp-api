@@ -32,6 +32,19 @@ class GoodsReceiptNoteInventoryValidatorTest extends TestCase
         }
     }
 
+
+    public function test_grn_can_receive_a_batch_on_its_expiry_date(): void
+    {
+        $item = $this->makeItem(
+            expiryDate: '2026-11-14',
+            grnDate: '2026-11-14',
+        );
+
+        app(GoodsReceiptNoteInventoryValidator::class)->validate($item);
+
+        $this->assertTrue(true);
+    }
+
     public function test_grn_cannot_receive_a_batch_that_is_already_expired(): void
     {
         $item = $this->makeItem(
